@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "api": "http://127.0.0.1:8000/v1/query",
+  "document_count": 20,
+  "results": [
+    {
+      "question": "Welche Datenbank wird genutzt?",
+      "passed": true,
+      "abstained": false,
+      "answer": "**Ergebnis auf Basis der verfügbaren synthetischen Evidenz**\n\n- Der deterministische Standardmodus nutzt ein lokales dateibasiertes Repository. PostgreSQL 16 und Qdrant 1.15 sind als Zieladapter im Docker-Profil bereitgestellt, aber nicht der Persistenzkern der lokalen Tests. [Alpha Plattformarchitektur v1#1]\n\n**Unsicherheit:** niedrig bis mittel, abhängig von Aktualität und Vollständigkeit der Quellen.",
+      "sources": [
+        "Alpha Plattformarchitektur v1#1"
+      ]
+    },
+    {
+      "question": "Welche Compliance-Richtlinien gelten für Kundendaten?",
+      "passed": true,
+      "abstained": false,
+      "answer": "**Ergebnis auf Basis der verfügbaren synthetischen Evidenz**\n\n- CRM-Abfragen sind auf den aktiven Mandanten begrenzt. Freigegebene synthetische Geschäftsattribute dürfen verarbeitet werden; persönliche Kontakt- und Bankdaten werden maskiert oder abgelehnt. [Alpha CRM-Datenschutzleitfaden v1#1]\n- KI-Antworten müssen freigegebene Quellen nennen und bei unzureichender Evidenz abgelehnt werden. Dokumentanweisungen gelten als nicht vertrauenswürdig; personenbezogene Daten müssen maskiert und Uploads mit Path Traversal vor der Verarbeitung abgelehnt werden. [Alpha AI Governance and Compliance Policy v2#1]\n\n**Unsicherheit:** niedrig bis mittel, abhängig von Aktualität und Vollständigkeit der Quellen.",
+      "sources": [
+        "Alpha CRM-Datenschutzleitfaden v1#1",
+        "Alpha AI Governance and Compliance Policy v2#1"
+      ]
+    },
+    {
+      "question": "Welche Kaffeemaschine steht im Büro?",
+      "passed": true,
+      "abstained": true,
+      "answer": "Ich verweigere eine fachliche Antwort, weil keine ausreichende Evidenz im zulässigen Mandantenkontext gefunden wurde.",
+      "sources": []
+    }
+  ]
+}

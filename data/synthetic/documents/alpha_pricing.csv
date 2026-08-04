@@ -1,0 +1,2 @@
+synthetic_note,document_id,tenant_id,title,classification,access_level,version,department,content
+Synthetic document,DOC-ALPHA-PRICING-V2,tenant-alpha,Alpha Synthetic Price List v2,pricing,confidential,v2,sales,Atlas Control Plane enterprise package starts at 180000 EUR annually; Beacon Support Suite starts at 95000 EUR annually; Compliance Add-on starts at 60000 EUR annually.

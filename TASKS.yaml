@@ -1,0 +1,171 @@
+tasks:
+  - id: P0-001
+    title: Repository foundation and controlled loop
+    description: Create project structure, governance files, Makefile, Docker skeleton, evidence layout, and resumable loop controller.
+    priority: 1
+    dependencies: []
+    allowed_paths:
+      - AGENTS.md
+      - SPEC.md
+      - TASKS.yaml
+      - Makefile
+      - pyproject.toml
+      - constraints.txt
+      - loop/**
+      - scripts/**
+      - tests/unit/**
+      - docs/**
+      - evidence/**
+      - Dockerfile
+      - docker-compose.yml
+      - .dockerignore
+      - .env.example
+    acceptance_criteria:
+      - Loop state is written atomically.
+      - Controller never executes arbitrary model text.
+      - Repository state check is implemented.
+      - Initial loop tests pass.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P1-001
+    title: Local deterministic RAG vertical slice
+    description: Implement synthetic ingestion, tenant-aware retrieval, deterministic provider, query workflow, citations, and basic API.
+    priority: 2
+    dependencies: [P0-001]
+    allowed_paths:
+      - src/**
+      - apps/api/**
+      - data/synthetic/**
+      - tests/unit/**
+      - tests/integration/**
+      - docs/**
+      - evidence/**
+    acceptance_criteria:
+      - Query returns cited answer with synthetic sources.
+      - Missing evidence causes abstention.
+      - Unit and integration tests pass.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P2-001
+    title: Enterprise retrieval controls
+    description: Add hybrid retrieval, metadata filters, reranking, version metadata, tenant separation, and permission filters.
+    priority: 3
+    dependencies: [P1-001]
+    allowed_paths:
+      - src/ragops/retrieval/**
+      - src/ragops/auth/**
+      - src/ragops/storage/**
+      - tests/**
+      - docs/**
+    acceptance_criteria:
+      - Cross-tenant tests pass.
+      - Metadata and access-level filters are enforced.
+      - Reranked results contain citations.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P3-001
+    title: Typed multi-agent workflow
+    description: Implement router, retrieval planner, knowledge agent, CRM agent, compliance agent, composer, citation validator, and workflow diagram.
+    priority: 4
+    dependencies: [P2-001]
+    allowed_paths:
+      - src/ragops/agents/**
+      - src/ragops/workflows/**
+      - tests/**
+      - docs/**
+    acceptance_criteria:
+      - Workflow uses typed states and bounded transitions.
+      - Mermaid diagram is documented.
+      - Workflow tests pass.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P4-001
+    title: Governance and security controls
+    description: Add prompt-injection detection, PII masking, audit logging, lineage metadata, threat model, and security tests.
+    priority: 5
+    dependencies: [P3-001]
+    allowed_paths:
+      - src/ragops/security/**
+      - src/ragops/governance/**
+      - src/ragops/monitoring/**
+      - tests/security/**
+      - docs/**
+      - data/synthetic/**
+    acceptance_criteria:
+      - Mandatory prompt-injection tests pass.
+      - Path traversal tests pass.
+      - Audit events redact sensitive material.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P5-001
+    title: Evaluation, monitoring, and dashboard
+    description: Add 25-question gold dataset, evaluation pipeline, cost model, metrics, and Streamlit dashboard.
+    priority: 6
+    dependencies: [P4-001]
+    allowed_paths:
+      - src/ragops/evaluation/**
+      - src/ragops/monitoring/**
+      - apps/dashboard/**
+      - data/evaluation/**
+      - tests/evaluation/**
+      - evidence/**
+      - docs/**
+    acceptance_criteria:
+      - Evaluation writes real JSON report.
+      - Dashboard starts locally when Streamlit is available.
+      - Retrieval hit rate is measured, not invented.
+    status: done
+    attempts: 1
+    test_results: []
+    review_result: passed
+    blockers: []
+
+  - id: P6-001
+    title: Portfolio hardening and final evidence
+    description: Complete docs, ADRs, CI workflows, demo script, Docker hardening, evidence bundle, and final reviewer report.
+    priority: 7
+    dependencies: [P5-001]
+    allowed_paths:
+      - README.md
+      - README_DE.md
+      - CHANGELOG.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+      - LICENSE
+      - docs/**
+      - .github/**
+      - Dockerfile
+      - docker-compose.yml
+      - evidence/**
+    acceptance_criteria:
+      - Required documentation exists.
+      - CI workflows exist without real secrets.
+      - Final evidence bundle is generated or explicitly marks unavailable checks.
+    status: done
+    attempts: 2
+    test_results:
+      - make verify passed with 31 tests and 96.80 percent coverage
+      - Docker demo profile built and all four services became healthy
+      - Dependency audit found zero known vulnerabilities
+    review_result: passed
+    blockers: []

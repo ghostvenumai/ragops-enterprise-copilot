@@ -1,0 +1,31 @@
+ticket_id,tenant_id,customer_id,severity,status,title,opened_at,document_id,synthetic_note
+TIC-A-001,tenant-alpha,CUST-A-001,critical,open,Atlas outage in integration gateway,2026-07-28,DOC-ALPHA-TICKET-A001,Synthetic CRM data only
+TIC-A-002,tenant-alpha,CUST-A-001,medium,open,Dashboard export delay,2026-07-11,DOC-ALPHA-TICKET-A002,Synthetic CRM data only
+TIC-A-003,tenant-alpha,CUST-A-002,high,open,Contract admin sync issue,2026-07-15,DOC-ALPHA-TICKET-A003,Synthetic CRM data only
+TIC-A-004,tenant-alpha,CUST-A-003,critical,escalated,Beacon data-loss risk during failover test,2026-07-30,DOC-ALPHA-TICKET-A004,Synthetic CRM data only
+TIC-A-005,tenant-alpha,CUST-A-004,critical,open,Starter tenant API saturation,2026-07-20,DOC-ALPHA-TICKET-A005,Synthetic CRM data only
+TIC-A-006,tenant-alpha,CUST-A-002,low,closed,Invoice contact correction,2026-06-18,DOC-ALPHA-TICKET-A006,Synthetic CRM data only
+TIC-A-007,tenant-alpha,CUST-A-003,medium,open,Operations report mismatch,2026-07-25,DOC-ALPHA-TICKET-A007,Synthetic CRM data only
+TIC-A-008,tenant-alpha,CUST-A-001,critical,closed,Legacy connector incident resolved,2026-05-05,DOC-ALPHA-TICKET-A008,Synthetic CRM data only
+TIC-A-009,tenant-alpha,CUST-A-004,high,open,Knowledge base attachment missing,2026-07-23,DOC-ALPHA-TICKET-A009,Synthetic CRM data only
+TIC-A-010,tenant-alpha,CUST-A-002,critical,closed,Resolved batch incident,2026-07-01,DOC-ALPHA-TICKET-A010,Synthetic CRM data only
+TIC-B-001,tenant-beta,CUST-B-001,critical,open,Atlas API intermittent failure,2026-07-24,DOC-BETA-TICKET-B001,Synthetic CRM data only
+TIC-B-002,tenant-beta,CUST-B-002,critical,open,Beacon escalation for renewal cluster,2026-07-29,DOC-BETA-TICKET-B002,Synthetic CRM data only
+TIC-B-003,tenant-beta,CUST-B-003,medium,open,Starter usage report correction,2026-06-20,DOC-BETA-TICKET-B003,Synthetic CRM data only
+TIC-B-004,tenant-beta,CUST-B-004,high,open,Atlas onboarding script blocked,2026-07-18,DOC-BETA-TICKET-B004,Synthetic CRM data only
+TIC-B-005,tenant-beta,CUST-B-001,low,closed,Access request completed,2026-06-08,DOC-BETA-TICKET-B005,Synthetic CRM data only
+TIC-B-006,tenant-beta,CUST-B-002,critical,closed,Resolved policy-cache failure,2026-06-26,DOC-BETA-TICKET-B006,Synthetic CRM data only
+TIC-B-007,tenant-beta,CUST-B-004,critical,open,Atlas search degradation near contract review,2026-08-01,DOC-BETA-TICKET-B007,Synthetic CRM data only
+TIC-B-008,tenant-beta,CUST-B-003,high,escalated,Billing API mapping,2026-07-17,DOC-BETA-TICKET-B008,Synthetic CRM data only
+TIC-B-009,tenant-beta,CUST-B-002,medium,open,Renewal playbook question,2026-07-12,DOC-BETA-TICKET-B009,Synthetic CRM data only
+TIC-B-010,tenant-beta,CUST-B-001,critical,escalated,Operational reporting outage,2026-07-31,DOC-BETA-TICKET-B010,Synthetic CRM data only
+TIC-G-001,tenant-gamma,CUST-G-001,critical,open,Atlas mobility telemetry failure,2026-07-27,DOC-GAMMA-TICKET-G001,Synthetic CRM data only
+TIC-G-002,tenant-gamma,CUST-G-002,medium,open,Beacon queue sizing,2026-07-09,DOC-GAMMA-TICKET-G002,Synthetic CRM data only
+TIC-G-003,tenant-gamma,CUST-G-003,critical,closed,Compliance connector incident resolved,2026-06-15,DOC-GAMMA-TICKET-G003,Synthetic CRM data only
+TIC-G-004,tenant-gamma,CUST-G-004,critical,open,Starter CDN timeout,2026-07-19,DOC-GAMMA-TICKET-G004,Synthetic CRM data only
+TIC-G-005,tenant-gamma,CUST-G-001,high,open,Executive dashboard latency,2026-07-29,DOC-GAMMA-TICKET-G005,Synthetic CRM data only
+TIC-G-006,tenant-gamma,CUST-G-002,critical,escalated,Beacon integration risk,2026-07-30,DOC-GAMMA-TICKET-G006,Synthetic CRM data only
+TIC-G-007,tenant-gamma,CUST-G-003,medium,open,Policy copy review,2026-07-21,DOC-GAMMA-TICKET-G007,Synthetic CRM data only
+TIC-G-008,tenant-gamma,CUST-G-004,low,closed,User invitation,2026-06-12,DOC-GAMMA-TICKET-G008,Synthetic CRM data only
+TIC-G-009,tenant-gamma,CUST-G-001,critical,closed,Resolved API incident,2026-05-28,DOC-GAMMA-TICKET-G009,Synthetic CRM data only
+TIC-G-010,tenant-gamma,CUST-G-003,high,open,Renewal evidence request,2026-07-26,DOC-GAMMA-TICKET-G010,Synthetic CRM data only

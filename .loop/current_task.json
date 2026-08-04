@@ -1,0 +1,32 @@
+{
+  "acceptance_criteria": [
+    "Loop state is written atomically.",
+    "Controller never executes arbitrary model text.",
+    "Repository state check is implemented.",
+    "Initial loop tests pass."
+  ],
+  "allowed_paths": [
+    "AGENTS.md",
+    "SPEC.md",
+    "TASKS.yaml",
+    "Makefile",
+    "pyproject.toml",
+    "constraints.txt",
+    "loop/**",
+    "scripts/**",
+    "tests/unit/**",
+    "docs/**",
+    "evidence/**",
+    "Dockerfile",
+    "docker-compose.yml",
+    ".dockerignore",
+    ".env.example"
+  ],
+  "attempts": 0,
+  "dependencies": [],
+  "description": "Create project structure, governance files, Makefile, Docker skeleton, evidence layout, and resumable loop controller.",
+  "priority": 1,
+  "status": "in_progress",
+  "task_id": "P0-001",
+  "title": "Repository foundation and controlled loop"
+}

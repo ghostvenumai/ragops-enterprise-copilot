@@ -1,0 +1,140 @@
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    image: ragops-enterprise-copilot:local
+    profiles: ["development", "demo", "evaluation"]
+    environment:
+      RAGOPS_ENV: local
+      RAGOPS_LLM_PROVIDER: deterministic
+      RAGOPS_DATA_DIR: data/synthetic
+      RAGOPS_EVIDENCE_DIR: evidence
+    ports:
+      - "8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - ragops-evidence:/app/evidence
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - appnet
+      - datanet
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  dashboard:
+    image: ragops-enterprise-copilot:local
+    profiles: ["development", "demo"]
+    command: ["streamlit", "run", "apps/dashboard/dashboard.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    environment:
+      RAGOPS_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - ragops-evidence:/app/evidence:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - appnet
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      api:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["development", "demo"]
+    environment:
+      POSTGRES_DB: ragops
+      POSTGRES_USER: ragops
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /var/run/postgresql:rw,noexec,nosuid,size=32m
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - datanet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragops -d ragops"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  qdrant:
+    image: qdrant/qdrant:v1.15.1
+    profiles: ["development", "demo", "evaluation"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /qdrant/snapshots:rw,noexec,nosuid,size=64m
+    volumes:
+      - qdrant-data:/qdrant/storage
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - datanet
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+secrets:
+  postgres_password:
+    file: ./.docker/postgres_password.example
+
+volumes:
+  ragops-evidence:
+  postgres-data:
+  qdrant-data:
+
+networks:
+  appnet:
+    internal: false
+  datanet:
+    internal: true

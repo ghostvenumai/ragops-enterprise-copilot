@@ -1,0 +1,13 @@
+customer_id,tenant_id,name,segment,owner,region,synthetic_note
+CUST-A-001,tenant-alpha,Acme Industrial AG,Enterprise,Lea Sommer,DACH,Synthetic CRM data only
+CUST-A-002,tenant-alpha,Nova Retail GmbH,Enterprise,Lea Sommer,DACH,Synthetic CRM data only
+CUST-A-003,tenant-alpha,Bergfeld Logistics SE,Enterprise,Jonas Reed,DACH,Synthetic CRM data only
+CUST-A-004,tenant-alpha,Helio Maschinenbau KG,Midmarket,Jonas Reed,DACH,Synthetic CRM data only
+CUST-B-001,tenant-beta,Orion Health Services,Enterprise,Mira Fox,EMEA,Synthetic CRM data only
+CUST-B-002,tenant-beta,Northstar Energy Ltd,Enterprise,Mira Fox,EMEA,Synthetic CRM data only
+CUST-B-003,tenant-beta,Bluefin Services BV,Midmarket,Tom Vale,EMEA,Synthetic CRM data only
+CUST-B-004,tenant-beta,Urban Grid Labs,Enterprise,Tom Vale,EMEA,Synthetic CRM data only
+CUST-G-001,tenant-gamma,Zenith Mobility Inc,Enterprise,Ada Chen,NA,Synthetic CRM data only
+CUST-G-002,tenant-gamma,Pioneer Robotics LLC,Midmarket,Ada Chen,NA,Synthetic CRM data only
+CUST-G-003,tenant-gamma,Cascade Insurance Corp,Enterprise,Sam Patel,NA,Synthetic CRM data only
+CUST-G-004,tenant-gamma,Silverline Media Group,SMB,Sam Patel,NA,Synthetic CRM data only

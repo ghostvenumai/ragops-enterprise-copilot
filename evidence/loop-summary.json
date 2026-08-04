@@ -1,0 +1,6 @@
+{
+  "history_path": ".loop/history.jsonl",
+  "last_result_status": "complete",
+  "state_path": ".loop/state.json",
+  "status": "generated"
+}

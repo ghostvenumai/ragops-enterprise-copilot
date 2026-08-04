@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "compose_drop_capabilities": true,
+    "compose_healthchecks": true,
+    "compose_no_host_network": true,
+    "compose_no_new_privileges": true,
+    "compose_no_privileged_true": true,
+    "dockerfile_non_root_user": true
+  },
+  "status": "passed"
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "first_seen": "2026-08-03",
+    "id": "sandbox-bwrap-loopback",
+    "reason": "Intermittent sandbox helper failures blocked apply_patch and selected commands with bwrap loopback errors.",
+    "safe_alternative": "Approved repository-local perl/tee edits and escalated fixed commands were used; no files outside ragops-enterprise-copilot were changed.",
+    "status": "mitigated"
+  },
+  {
+    "first_seen": "2026-08-03",
+    "id": "docker-runtime-images-missing",
+    "reason": "The Python base image was initially absent.",
+    "resolution": "Pulled the official python:3.12-slim image, built ragops-enterprise-copilot:local, and started all demo services with successful health checks.",
+    "status": "resolved"
+  },
+  {
+    "first_seen": "2026-08-03",
+    "id": "docker-buildkit-dns",
+    "reason": "BuildKit containers could not resolve PyPI although standard isolated containers could.",
+    "safe_alternative": "Used the classic Docker builder on the standard isolated bridge network; no host networking or privileged mode was enabled. Make defaults to this compatible builder and can be overridden.",
+    "status": "mitigated"
+  }
+]

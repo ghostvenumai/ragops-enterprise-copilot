@@ -1,0 +1,12 @@
+---
+document_id: DOC-BETA-ATLAS-V2
+tenant_id: tenant-beta
+title: Beta Atlas Product Guide v2
+classification: product
+access_level: internal
+version: v2
+department: operations
+created_at: 2026-06-10
+valid_from: 2026-06-10
+---
+Synthetic document. Tenant-beta Atlas Control Plane has a 99.8 percent monthly availability target. Beta enterprise contracts require regional incident coordination and customer-service escalation for critical open tickets.

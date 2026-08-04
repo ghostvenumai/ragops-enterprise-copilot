@@ -1,0 +1,1 @@
+{"codex_command": ["codex", "exec", "--sandbox", "workspace-write", "--ask-for-approval", "never"], "loaded_context_bytes": {"agents": 1707, "last_result": 2, "spec": 2670, "state": 2, "tasks_raw": 4959}, "quality_commands": [["/usr/bin/python3", "scripts/verify.py", "--loop"], ["/usr/bin/python3", "scripts/review.py"]], "status": "dry_run", "task_id": "P0-001"}

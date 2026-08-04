@@ -1,0 +1,18 @@
+{
+  "critical_or_high_open": 0,
+  "findings": [
+    {
+      "id": "loop-fixed-commands",
+      "severity": "informational"
+    },
+    {
+      "id": "deterministic-default-provider",
+      "severity": "informational"
+    },
+    {
+      "id": "local-file-backed-storage",
+      "severity": "low"
+    }
+  ],
+  "status": "passed"
+}

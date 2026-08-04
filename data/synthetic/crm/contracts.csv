@@ -1,0 +1,21 @@
+contract_id,tenant_id,customer_id,product,value_eur,end_date,status,document_id,synthetic_note
+CON-A-001,tenant-alpha,CUST-A-001,Atlas Control Plane,420000,2026-09-15,active,DOC-ALPHA-CONTRACT-ACME,Synthetic CRM data only
+CON-A-002,tenant-alpha,CUST-A-002,Atlas Control Plane,360000,2026-12-20,active,DOC-ALPHA-CONTRACT-NOVA,Synthetic CRM data only
+CON-A-003,tenant-alpha,CUST-A-003,Beacon Support Suite,510000,2026-08-25,active,DOC-ALPHA-CONTRACT-BERGFELD,Synthetic CRM data only
+CON-A-004,tenant-alpha,CUST-A-004,Atlas Starter,95000,2026-09-01,active,DOC-ALPHA-CONTRACT-HELIO,Synthetic CRM data only
+CON-A-005,tenant-alpha,CUST-A-001,Compliance Add-on,120000,2027-03-31,active,DOC-ALPHA-CONTRACT-ACME-ADDON,Synthetic CRM data only
+CON-A-006,tenant-alpha,CUST-A-002,Operations Insights,140000,2026-07-15,expired,DOC-ALPHA-CONTRACT-NOVA-OLD,Synthetic CRM data only
+CON-B-001,tenant-beta,CUST-B-001,Atlas Control Plane,390000,2026-09-20,active,DOC-BETA-CONTRACT-ORION,Synthetic CRM data only
+CON-B-002,tenant-beta,CUST-B-002,Beacon Support Suite,470000,2026-10-01,active,DOC-BETA-CONTRACT-NORTHSTAR,Synthetic CRM data only
+CON-B-003,tenant-beta,CUST-B-003,Atlas Starter,80000,2026-11-02,active,DOC-BETA-CONTRACT-BLUEFIN,Synthetic CRM data only
+CON-B-004,tenant-beta,CUST-B-004,Compliance Add-on,230000,2027-01-12,active,DOC-BETA-CONTRACT-URBAN,Synthetic CRM data only
+CON-B-005,tenant-beta,CUST-B-001,Operations Insights,150000,2026-06-30,expired,DOC-BETA-CONTRACT-ORION-OLD,Synthetic CRM data only
+CON-B-006,tenant-beta,CUST-B-002,Atlas Control Plane,520000,2027-04-10,active,DOC-BETA-CONTRACT-NORTHSTAR-2,Synthetic CRM data only
+CON-G-001,tenant-gamma,CUST-G-001,Atlas Control Plane,610000,2026-09-05,active,DOC-GAMMA-CONTRACT-ZENITH,Synthetic CRM data only
+CON-G-002,tenant-gamma,CUST-G-002,Beacon Support Suite,110000,2026-09-28,active,DOC-GAMMA-CONTRACT-PIONEER,Synthetic CRM data only
+CON-G-003,tenant-gamma,CUST-G-003,Compliance Add-on,330000,2026-12-15,active,DOC-GAMMA-CONTRACT-CASCADE,Synthetic CRM data only
+CON-G-004,tenant-gamma,CUST-G-004,Atlas Starter,45000,2026-08-30,active,DOC-GAMMA-CONTRACT-SILVERLINE,Synthetic CRM data only
+CON-G-005,tenant-gamma,CUST-G-001,Operations Insights,220000,2027-02-18,active,DOC-GAMMA-CONTRACT-ZENITH-OPS,Synthetic CRM data only
+CON-G-006,tenant-gamma,CUST-G-003,Atlas Control Plane,390000,2026-07-01,expired,DOC-GAMMA-CONTRACT-CASCADE-OLD,Synthetic CRM data only
+CON-A-007,tenant-alpha,CUST-A-003,Operations Insights,175000,2027-01-31,active,DOC-ALPHA-CONTRACT-BERGFELD-OPS,Synthetic CRM data only
+CON-B-007,tenant-beta,CUST-B-004,Atlas Control Plane,305000,2026-09-12,active,DOC-BETA-CONTRACT-URBAN-ATLAS,Synthetic CRM data only
