@@ -23,7 +23,7 @@
       "status": "passed"
     },
     {
-      "duration_ms": 491.322,
+      "duration_ms": 481.699,
       "name": "bandit",
       "returncode": 0,
       "status": "passed",
