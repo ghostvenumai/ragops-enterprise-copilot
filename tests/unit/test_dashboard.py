@@ -58,6 +58,40 @@ def test_chat_role_rejects_unknown_presentation_roles() -> None:
     assert dashboard.chat_role({"user_id": "user"}) == "assistant"
 
 
+@pytest.mark.parametrize(
+    ("scene", "expected"),
+    [
+        ("answer", "answer"),
+        (["blocked"], "blocked"),
+        ("../../etc/passwd", ""),
+        (None, ""),
+    ],
+)
+def test_normalize_demo_scene_is_allowlisted(scene: object, expected: str) -> None:
+    assert dashboard.normalize_demo_scene(scene) == expected
+
+
+def test_demo_navigation_and_export_are_deterministic() -> None:
+    assert dashboard.navigation_for_demo_scene("monitoring") == "Monitoring"
+    assert dashboard.navigation_for_demo_scene("unknown") == "Copilot"
+    payload = json.loads(
+        dashboard.export_chat([{"role": "assistant", "answer": "Belegte Antwort", "citations": []}])
+    )
+    assert payload == {
+        "synthetic": True,
+        "messages": [{"role": "assistant", "answer": "Belegte Antwort", "citations": []}],
+    }
+
+
+def test_internal_api_url_rejects_non_http_and_credentials() -> None:
+    with pytest.raises(dashboard.DashboardApiError, match="Konfiguration"):
+        dashboard.validated_internal_url("file:///tmp/evidence.json")
+    with pytest.raises(dashboard.DashboardApiError, match="Konfiguration"):
+        dashboard.validated_internal_url("http://user:secret@localhost:8000")
+
+    assert dashboard.validated_internal_url("http://api:8000/ready") == "http://api:8000/ready"
+
+
 def test_api_request_serializes_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

@@ -3,7 +3,7 @@
 ## Zweck und Umfang
 
 Die lokale Wissensbasis enthält ausschließlich synthetische Portfolio-Daten. Sie
-besteht aktuell aus 20 Dokumentdateien für drei Mandanten und wird beim Start der
+besteht aktuell aus 28 Dokumentdateien für drei Mandanten und wird beim Start der
 API reproduzierbar eingelesen. Der deterministische Standardmodus benötigt dafür
 weder einen externen LLM-Anbieter noch eine externe Datenbank.
 
@@ -20,6 +20,19 @@ Die neun am 4. August 2026 ergänzten Dokumente sind:
 | tenant-beta | Beta Datenschutzrichtlinie v1 | policy | restricted | Rollenfreigabe und Mandantentrennung |
 | tenant-gamma | Gamma Nexus Produktleitfaden v1 | product | internal | Produktfunktion und Verfügbarkeitsziel |
 | tenant-gamma | Gamma Preisliste v1 | pricing | confidential | Synthetische Listenpreise |
+
+Die acht am 10. August 2026 ergänzten Dokumente erweitern die fachliche Breite:
+
+| Mandant | Dokument | Klassifikation | Zugriff | Abgedecktes Thema |
+| --- | --- | --- | --- | --- |
+| tenant-alpha | Marketing Campaign Guide | marketing | internal | Kanäle, Consent, Lead Scoring und Reporting |
+| tenant-alpha | Synthetic Campaign Overview 2026 | marketing | internal | Strukturierte Kampagnenziele und Lead-Planung |
+| tenant-alpha | Copilot Security Overview | security | internal | Tenant Guard, Rollen, Injection- und PII-Schutz |
+| tenant-beta | Marketing Playbook EMEA | marketing | internal | EMEA-Kampagnen und Übergabe an Vertrieb |
+| tenant-beta | Order and Fulfillment Guide | operations | internal | Auftragserfassung und Fulfillment |
+| tenant-gamma | Hardware Logistics and Delivery Policy | operations | internal | Logistik- und Lieferprozess |
+| tenant-gamma | Marketing Events and Webinar Guide | marketing | internal | Event- und Webinarplanung |
+| tenant-gamma | Malicious Instruction Note | support | internal | Defensive indirekte Prompt-Injection-Prüfung |
 
 Bestehende Produktleitfäden, Renewal-Leitfäden, Compliance-Dokumente,
 Prompt-Injection-Testquellen und Preislisten bleiben erhalten. CRM-Kunden,

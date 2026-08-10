@@ -1,0 +1,55 @@
+{
+  "artifacts": {
+    "application_qa": "video/tmp/application_qa/application-demo.json",
+    "demo_run": "video/tmp/demo_run/application-demo.json",
+    "narration": "video/script/narration.md",
+    "recording": "video/tmp/screenshots",
+    "subtitles": "video/tmp/subtitles.srt",
+    "video": "dist/solcom_demo_preview.mp4",
+    "video_mode": "preview",
+    "video_qa": "dist/video_qa_report.json",
+    "voice_mode": "preview-silence"
+  },
+  "blocked_phases": [
+    "GENERATE_VOICE"
+  ],
+  "blocker_details": {
+    "GENERATE_VOICE": "OPENAI_API_KEY fehlt; Preview-Audio ist explizite Stille"
+  },
+  "build_id": "ragops-20260810T171552Z",
+  "completed_phases": [
+    "DISCOVER",
+    "PRECHECK",
+    "PLAN",
+    "IMPLEMENT",
+    "STATIC_CHECK",
+    "UNIT_TEST",
+    "INTEGRATION_TEST",
+    "SECURITY_CHECK",
+    "APPLICATION_QA",
+    "DEMO_PRECHECK",
+    "DEMO_RUN",
+    "RECORD",
+    "GENERATE_NARRATION",
+    "GENERATE_SUBTITLES",
+    "RENDER",
+    "VIDEO_QA",
+    "FINAL_VERIFY"
+  ],
+  "created_at": "2026-08-10T17:15:52.742655+00:00",
+  "current_phase": "COMPLETE",
+  "failed_phases": [
+    "STATIC_CHECK",
+    "FINAL_VERIFY"
+  ],
+  "global_iterations": 20,
+  "last_error": "",
+  "last_error_category": "",
+  "last_successful_action": "Vollst\u00e4ndige Quality Gates bestanden",
+  "retry_counts": {
+    "FINAL_VERIFY": 1,
+    "STATIC_CHECK": 1
+  },
+  "status": "READY_EXCEPT_EXTERNAL_BLOCKER",
+  "updated_at": "2026-08-10T17:23:24.336516+00:00"
+}

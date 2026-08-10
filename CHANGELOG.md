@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-08-10
+
+- Added a persistent master state machine from application discovery through video QA.
+- Added bounded transient retries, atomic state, machine-readable history, resume, and dry run.
+- Added a real deterministic demo controller and allowlisted dashboard recording scenes.
+- Added a German 150-second timeline, narration, SRT generation, headless capture, and FFmpeg rendering.
+- Added optional cached OpenAI TTS with an explicit external-blocker state when no key exists.
+- Added H.264/AAC, 1080p, frame-rate, duration, full-decode, and sample-frame video QA.
+- Extended MyPy, Ruff, Bandit, tests, documentation, and security checks to automation and video code.
+
 ## 0.2.1 - 2026-08-04
 
 - Localized the complete Streamlit user interface to German.

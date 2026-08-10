@@ -19,3 +19,9 @@ CON-G-005,tenant-gamma,CUST-G-001,Operations Insights,220000,2027-02-18,active,D
 CON-G-006,tenant-gamma,CUST-G-003,Atlas Control Plane,390000,2026-07-01,expired,DOC-GAMMA-CONTRACT-CASCADE-OLD,Synthetic CRM data only
 CON-A-007,tenant-alpha,CUST-A-003,Operations Insights,175000,2027-01-31,active,DOC-ALPHA-CONTRACT-BERGFELD-OPS,Synthetic CRM data only
 CON-B-007,tenant-beta,CUST-B-004,Atlas Control Plane,305000,2026-09-12,active,DOC-BETA-CONTRACT-URBAN-ATLAS,Synthetic CRM data only
+CON-A-008,tenant-alpha,CUST-A-005,Atlas Starter,72000,2027-06-30,active,DOC-ALPHA-CONTRACT-QUELLWERK,Synthetic CRM data only
+CON-A-009,tenant-alpha,CUST-A-006,Atlas Starter,38000,2027-05-15,active,DOC-ALPHA-CONTRACT-TALGRUND,Synthetic CRM data only
+CON-B-008,tenant-beta,CUST-B-005,Atlas Starter,64000,2027-07-31,active,DOC-BETA-CONTRACT-MERIDIAN,Synthetic CRM data only
+CON-B-009,tenant-beta,CUST-B-006,Atlas Starter,29000,2027-08-20,active,DOC-BETA-CONTRACT-FJORDLIGHT,Synthetic CRM data only
+CON-G-007,tenant-gamma,CUST-G-005,Atlas Starter,55000,2027-04-30,active,DOC-GAMMA-CONTRACT-HARBORLINE,Synthetic CRM data only
+CON-G-008,tenant-gamma,CUST-G-006,Atlas Starter,31000,2027-09-15,active,DOC-GAMMA-CONTRACT-BLUESKY,Synthetic CRM data only

@@ -15,3 +15,7 @@ build/
 .loop/logs/*.log
 .loop/tmp/
 data/runtime/
+automation/state/*.json
+automation/state/*.jsonl
+video/tmp/
+video/logs/

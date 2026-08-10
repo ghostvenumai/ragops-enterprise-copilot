@@ -227,6 +227,66 @@ prüfbar, ohne Modellaktivität oder Messwerte zu erfinden.
 
 Details: [docs/LOOP_ARCHITECTURE.md](docs/LOOP_ARCHITECTURE.md).
 
+## Autonomer Application- und Video-Build
+
+Neben dem aufgabenbezogenen Codex-Entwicklungsloop besitzt das Repository einen
+zweiten, vollständig deterministischen Master-Loop. Er prüft die echte
+Anwendung, startet eine reproduzierbare Demo, nimmt definierte GUI-Zustände auf,
+erzeugt deutschen Sprechertext und Untertitel, rendert das Video mit FFmpeg und
+validiert das Ergebnis technisch.
+
+```bash
+# Planung, Abhängigkeiten und Timeline ohne Aufnahme prüfen
+./run_loop.sh --dry-run
+
+# Vollständiger Application-/Demo-/Video-Ablauf
+./run_loop.sh
+
+# Nach Behebung eines externen Blockers ab der offenen Phase fortsetzen
+./run_loop.sh --resume
+```
+
+Die Phasen reichen von `DISCOVER`, `STATIC_CHECK`, `UNIT_TEST` und
+`SECURITY_CHECK` über `APPLICATION_QA`, `RECORD`,
+`GENERATE_VOICE` und `RENDER` bis `VIDEO_QA` und
+`FINAL_VERIFY`. Zustand, Retry-Zähler, Blocker und Historie werden atomar
+unter `automation/state/` gespeichert. Pro Phase gelten maximal drei Versuche,
+global standardmäßig 30 Iterationen und ein konfigurierbares Kommando-Timeout.
+
+Die Video-Timeline in [video/script/timeline.json](video/script/timeline.json)
+ist die gemeinsame Source of Truth für Szenen, Dauer, deutsche Narration,
+Aufnahmeziel und Overlay. Die Aufnahme verwendet reale lokale FastAPI- und
+Streamlit-Prozesse sowie allowlistete Demo-Zustände; sie führt keine
+Mauskoordinaten und keinen aus Modelltext übernommenen Shell-Code aus.
+
+Benötigte Systemwerkzeuge:
+
+- Python 3.12 in der Projekt-Virtual-Environment
+- FFmpeg und FFprobe mit H.264-, AAC- und Untertitel-Unterstützung
+- Google Chrome im Headless-Modus
+
+OpenAI TTS ist optional. Der Schlüssel wird ausschließlich aus
+`OPENAI_API_KEY` gelesen. Ohne Schlüssel laufen Aufnahme, Untertitel,
+Rendering und Video-QA weiter, aber das Ergebnis heißt
+`dist/solcom_demo_preview.mp4` und der Build endet korrekt mit Exit-Code
+`10` sowie `READY_EXCEPT_EXTERNAL_BLOCKER`. Erst ein echter Voice-Build
+erzeugt `dist/solcom_demo.mp4`; eine stumme Vorschau wird nie als finales
+Voiceover ausgegeben.
+
+Alternative Make-Ziele:
+
+```bash
+make master-loop-dry-run
+make master-loop
+make master-loop-resume
+make video-dry-run
+make video
+```
+
+Ausführliche Architektur, Fehlerbehandlung, Exit-Codes und Artefakte:
+[docs/AUTOMATION_ARCHITECTURE.md](docs/AUTOMATION_ARCHITECTURE.md) und
+[video/README.md](video/README.md).
+
 ## Security und Governance
 
 Implementierte Kontrollen umfassen:
@@ -256,8 +316,8 @@ Synthetikdatenprüfung, Containerprüfung und separaten Review fail-closed aus.
 
 | Messwert | Veröffentlichte Baseline |
 |---|---:|
-| Tests | 46 bestanden |
-| Kerncode-Coverage | 96,39 % |
+| Tests | 76 bestanden |
+| Kerncode-Coverage | 96,12 % |
 | Gold-Evaluationsfälle | 28 |
 | Retrieval Hit Rate | 100 % |
 | Recall@5 | 100 % |
@@ -294,10 +354,13 @@ src/ragops/               RAG-, Workflow-, Security- und Governance-Kern
 data/synthetic/           synthetische Dokumente und CRM-Daten
 data/evaluation/          synthetischer Gold-Datensatz
 tests/                    Unit-, Integration-, Security- und Evaluationstests
-loop/                     kontrollierter Codex-Loop-Controller
+loop/                     kontrollierter Codex-Entwicklungsloop
+automation/               Application-/Demo-/Video-Master-Loop
+video/                    Timeline, Aufnahme, TTS, Untertitel, Rendering und QA
 scripts/                  Demo-, Verify-, Review- und Evidence-Kommandos
 docs/                     Architektur-, Betriebs- und Governance-Dokumentation
 evidence/                 tatsächlich erzeugte maschinenlesbare Nachweise
+dist/                     generierte Build- und Video-Artefakte, nicht versioniert
 ```
 
 ## Zentrale Dokumentation
@@ -311,7 +374,9 @@ evidence/                 tatsächlich erzeugte maschinenlesbare Nachweise
 - [Threat Model](docs/THREAT_MODEL.md)
 - [Security-Architektur](docs/SECURITY_ARCHITECTURE.md)
 - [Datenschutz](docs/PRIVACY.md)
-- [Loop-Architektur](docs/LOOP_ARCHITECTURE.md)
+- [Codex-Loop-Architektur](docs/LOOP_ARCHITECTURE.md)
+- [Master-Loop- und Video-Architektur](docs/AUTOMATION_ARCHITECTURE.md)
+- [Video-Build-Handbuch](video/README.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Drei-Minuten-Demo](docs/DEMO_SCRIPT.md)
 - [Architecture Decision Records](docs/adr/)

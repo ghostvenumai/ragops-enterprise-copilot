@@ -2,6 +2,13 @@
 
 ## Ziel
 
+Dieses Dokument beschreibt den aufgabenbezogenen **Codex-Entwicklungsloop**.
+Der übergeordnete Application-/Demo-/Video-Build aus
+`automation/run_loop.py` ist separat in
+[AUTOMATION_ARCHITECTURE.md](AUTOMATION_ARCHITECTURE.md) dokumentiert. Beide
+Controller führen ausschließlich feste Kommandolisten aus, haben aber
+unterschiedliche Verantwortungen.
+
 Der Controller in `loop/controller.py` stellt einen begrenzten,
 wiederaufnehmbaren Entwicklungsprozess bereit. Er verbindet eine formal
 beschriebene Aufgabe mit einem festen Codex-Aufruf, Quality Gates,

@@ -36,6 +36,34 @@ Copilot. Agents working in this repository must follow these rules.
 - Preserve correlation IDs for request, audit, and metrics events.
 - Fail closed on uncertain authorization decisions.
 
+## Development Rules
+
+- Preserve existing tests and execute relevant tests after each change.
+- Never disable a test or security check to conceal a failure.
+- Demo behavior must call real product paths and use only synthetic data.
+- Keep the timeline, narration, screenshots, and documented feature names aligned.
+- Final video claims must be supported by executable code or measured evidence.
+
+## Demo Rules
+
+For every relevant product change, verify the deterministic demo controller,
+the allowlisted dashboard scene, the timeline, the German narration, and the
+associated tests. Demo query parameters may select predefined states but may
+not bypass authorization, retrieval, validation, or audit behavior.
+
+## Video Rules
+
+A final video requires this ordered evidence chain:
+
+```text
+APPLICATION_QA -> DEMO_QA -> VIDEO_QA
+```
+
+`dist/solcom_demo.mp4` is final only when real voice assets exist. If the TTS
+credential is unavailable, generate only `dist/solcom_demo_preview.mp4`, report
+`READY_EXCEPT_EXTERNAL_BLOCKER`, and resume with `./run_loop.sh --resume` after
+credential configuration. Never label silent or placeholder audio as final.
+
 ## Quality Gates
 
 The central command is:

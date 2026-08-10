@@ -23,3 +23,14 @@
   builder on Docker's standard bridge network, without host networking.
 - On 2026-08-03 the demo profile was built and started successfully. API,
   dashboard, PostgreSQL, and Qdrant passed their configured health checks.
+- The autonomous media build uses installed FFmpeg, FFprobe, and headless Google
+  Chrome. Xvfb is not required because capture is browser-headless and contains
+  no desktop-coordinate automation.
+- OpenAI text-to-speech is optional and reads its credential only from
+  `OPENAI_API_KEY`. Without that external credential, the pipeline produces a
+  technically validated, explicitly named silent preview and reports
+  `READY_EXCEPT_EXTERNAL_BLOCKER`; it does not claim a final voiceover.
+- `MASTER_BRIEFING.md` describes a generic Python data processor. In this
+  repository, the existing RAGOps application is the real processor: ingestion,
+  validation, retrieval, security, export, and demo actions execute production
+  code paths rather than a separate video-only mock.

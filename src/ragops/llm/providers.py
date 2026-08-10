@@ -127,6 +127,47 @@ class DeterministicTestProvider:
             "Gamma Nexus beginnt bei 140.000 EUR pro Jahr; das Kontinuitätsmodul "
             "beginnt bei 35.000 EUR pro Jahr."
         ),
+        "Marketing Campaign Guide": (
+            "Kampagnen werden quartalsweise über E-Mail, Social, Search, Events und "
+            "Partner geplant. Vor jeder Ansprache sind Zielsegment, UTM-Tracking und "
+            "eine Double-Opt-in-Einwilligung dokumentiert; qualifizierte Leads gehen "
+            "mit Kampagnenquelle an den Vertrieb."
+        ),
+        "Synthetic Campaign Overview 2026": (
+            "Für 2026 sind synthetische Kampagnen für Industriekunden, "
+            "Midmarket-Webinare und Partner-Referrals geplant, mit 40, 25 und 30 "
+            "qualifizierten Leads als Zielwerten."
+        ),
+        "Marketing Playbook EMEA": (
+            "Account-basierte Kampagnen für Healthcare- und Energie-Segmente folgen "
+            "festen Schritten: Accountauswahl mit dem Vertrieb, segmentspezifische "
+            "Botschaften, koordinierte E-Mail- und Event-Kontakte und wöchentliche "
+            "Auswertung. Kontakte ohne gültiges Opt-in werden automatisch ausgeschlossen."
+        ),
+        "Marketing Events and Webinar Guide": (
+            "Quartalsweise Webinare und zwei Konferenzen pro Jahr liefern "
+            "Event-Leads, die mit expliziter Einwilligung erfasst und innerhalb von "
+            "zwei Arbeitstagen ins CRM importiert werden. Follow-ups sind auf fünf "
+            "Kontakte begrenzt."
+        ),
+        "Copilot Security Overview": (
+            "Jede Anfrage durchläuft den Tenant Guard, Rollenstufen steuern die "
+            "Dokumentsensitivität, erkannte Injection-Muster werden ausgeschlossen, "
+            "personenbezogene Daten maskiert, Antworten benötigen Quellen und "
+            "Uploads unterliegen einer Allowlist mit Größenlimits."
+        ),
+        "Order and Fulfillment Guide": (
+            "Bestellungen durchlaufen Angebotsbestätigung, kommerzielle Freigabe, "
+            "Provisionierung und Aktivierungsübergabe. Die Standard-Provisionierung "
+            "dauert fünf Arbeitstage, beschleunigt zwei Arbeitstage mit "
+            "Operations-Freigabe."
+        ),
+        "Hardware Logistics and Delivery Policy": (
+            "Hardware wird nur mit Sendungsverfolgung über zwei freigegebene "
+            "Carrier geliefert; zehn Arbeitstage in Nordamerika, fünfzehn "
+            "international. Transportschäden werden innerhalb von drei Arbeitstagen "
+            "kostenfrei ersetzt."
+        ),
     }
 
     def generate(self, question: str, citations: list[Citation], context: str) -> LLMResponse:

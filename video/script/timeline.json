@@ -1,0 +1,105 @@
+{
+  "title": "RAGOps Enterprise Copilot – technische Demo",
+  "language": "de",
+  "scenes": [
+    {
+      "id": "intro",
+      "order": 1,
+      "action": "show_intro",
+      "planned_duration": 7,
+      "narration": "RAGOps Enterprise Copilot ist eine abgesicherte Referenzplattform für belegte Unternehmensantworten aus Dokumenten und synthetischen CRM-Daten.",
+      "overlay": "RAGOPS ENTERPRISE COPILOT",
+      "capture": "title:intro",
+      "pause_before": 0.4,
+      "pause_after": 0.6
+    },
+    {
+      "id": "overview",
+      "order": 2,
+      "action": "show_workspace",
+      "planned_duration": 13,
+      "narration": "Die deutschsprachige Arbeitsoberfläche bündelt Copilot, Wissensbasis, Monitoring und Governance. Mandant und Rolle sind im Demo-Modus sichtbar, während der Server die fachlichen Grenzen durchsetzt.",
+      "overlay": "SICHERER KI-ARBEITSBEREICH",
+      "capture": "app:overview",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "knowledge",
+      "order": 3,
+      "action": "show_ingestion",
+      "planned_duration": 18,
+      "narration": "Die Wissensbasis verarbeitet versionierte PDF-, DOCX-, Markdown-, Text- und CSV-Quellen. Metadaten, Zugriffsstufe, Mandant, Gültigkeit und Hashes steuern Validierung, Duplikaterkennung und inkrementelle Indexierung.",
+      "overlay": "VALIDIERTE WISSENSBASIS",
+      "capture": "app:knowledge",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "answer",
+      "order": 4,
+      "action": "run_rag_query",
+      "planned_duration": 28,
+      "narration": "Für eine kombinierte Vertriebsfrage durchsucht der Workflow freigegebene Dokumente und CRM-Datensätze. Hybrides Retrieval und Reranking liefern die Evidenz. Die Antwort nennt betroffene Enterprise-Kunden, konkrete Maßnahmen und nur die tatsächlich verwendeten Quellen.",
+      "overlay": "HYBRID RETRIEVAL MIT QUELLEN",
+      "capture": "app:answer",
+      "pause_before": 0.7,
+      "pause_after": 1.0
+    },
+    {
+      "id": "blocked",
+      "order": 5,
+      "action": "show_security_refusal",
+      "planned_duration": 18,
+      "narration": "Direkte und indirekte Prompt-Injections werden als nicht vertrauenswürdige Eingaben behandelt. Der Copilot verweigert die Anfrage, gibt keine Systemanweisung aus und protokolliert die Erkennung ohne vertrauliche Inhalte.",
+      "overlay": "PROMPT INJECTION BLOCKIERT",
+      "capture": "app:blocked",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "monitoring",
+      "order": 6,
+      "action": "show_metrics",
+      "planned_duration": 20,
+      "narration": "Das Monitoring zeigt reale Laufzeitsignale, Token, Kosten und Quellenabdeckung. Die synthetische Gold-Evaluation misst Retrieval Hit Rate, Recall, Precision, Citation Coverage, Ablehnungen und Tenant Leakage reproduzierbar.",
+      "overlay": "MESSBARE RAG-QUALITÄT",
+      "capture": "app:monitoring",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "governance",
+      "order": 7,
+      "action": "show_audit",
+      "planned_duration": 18,
+      "narration": "Governance ist Teil des Request-Pfads: Rollenprüfung, Mandantentrennung, PII-Maskierung, Quellenvalidierung und Audit-Ereignisse mit Korrelations-ID sind nicht nur Dokumentation, sondern ausführbare Kontrollen.",
+      "overlay": "GOVERNANCE UND AUDIT",
+      "capture": "app:governance",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "automation",
+      "order": 8,
+      "action": "show_quality_loop",
+      "planned_duration": 20,
+      "narration": "Der kontrollierte Master-Loop führt Zustandsübergänge, Retries und Wiederaufnahme persistent. Statische Analyse, Tests, Security Checks, Demo, Rendering und Video-QA laufen als feste Schritte; Modelltext wird niemals als Shell-Code ausgeführt.",
+      "overlay": "REPRODUZIERBARE AUTOMATION",
+      "capture": "report:automation",
+      "pause_before": 0.5,
+      "pause_after": 0.8
+    },
+    {
+      "id": "outro",
+      "order": 9,
+      "action": "show_outro",
+      "planned_duration": 8,
+      "narration": "RAGOps Enterprise Copilot verbindet Applied AI Engineering, Security, Evaluation und nachvollziehbare Automatisierung in einem lokal ausführbaren Portfolio-Projekt.",
+      "overlay": "APPLIED AI ENGINEERING",
+      "capture": "title:outro",
+      "pause_before": 0.4,
+      "pause_after": 0.7
+    }
+  ]
+}

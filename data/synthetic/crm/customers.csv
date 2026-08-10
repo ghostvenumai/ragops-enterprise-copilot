@@ -11,3 +11,9 @@ CUST-G-001,tenant-gamma,Zenith Mobility Inc,Enterprise,Ada Chen,NA,Synthetic CRM
 CUST-G-002,tenant-gamma,Pioneer Robotics LLC,Midmarket,Ada Chen,NA,Synthetic CRM data only
 CUST-G-003,tenant-gamma,Cascade Insurance Corp,Enterprise,Sam Patel,NA,Synthetic CRM data only
 CUST-G-004,tenant-gamma,Silverline Media Group,SMB,Sam Patel,NA,Synthetic CRM data only
+CUST-A-005,tenant-alpha,Quellwerk Software GmbH,Midmarket,Lea Sommer,DACH,Synthetic CRM data only
+CUST-A-006,tenant-alpha,Talgrund Automation AG,SMB,Jonas Reed,DACH,Synthetic CRM data only
+CUST-B-005,tenant-beta,Meridian Care Group,Midmarket,Tom Vale,EMEA,Synthetic CRM data only
+CUST-B-006,tenant-beta,Fjordlight Utilities AS,SMB,Mira Fox,EMEA,Synthetic CRM data only
+CUST-G-005,tenant-gamma,Harborline Freight Co,Midmarket,Sam Patel,NA,Synthetic CRM data only
+CUST-G-006,tenant-gamma,Bluesky Assurance Inc,SMB,Ada Chen,NA,Synthetic CRM data only

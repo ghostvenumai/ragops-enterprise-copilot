@@ -29,3 +29,9 @@ TIC-G-007,tenant-gamma,CUST-G-003,medium,open,Policy copy review,2026-07-21,DOC-
 TIC-G-008,tenant-gamma,CUST-G-004,low,closed,User invitation,2026-06-12,DOC-GAMMA-TICKET-G008,Synthetic CRM data only
 TIC-G-009,tenant-gamma,CUST-G-001,critical,closed,Resolved API incident,2026-05-28,DOC-GAMMA-TICKET-G009,Synthetic CRM data only
 TIC-G-010,tenant-gamma,CUST-G-003,high,open,Renewal evidence request,2026-07-26,DOC-GAMMA-TICKET-G010,Synthetic CRM data only
+TIC-A-011,tenant-alpha,CUST-A-005,low,open,Onboarding webinar access question,2026-07-27,DOC-ALPHA-TICKET-A011,Synthetic CRM data only
+TIC-A-012,tenant-alpha,CUST-A-006,medium,closed,Campaign report column mapping,2026-07-14,DOC-ALPHA-TICKET-A012,Synthetic CRM data only
+TIC-B-011,tenant-beta,CUST-B-005,low,closed,Newsletter opt-in list import,2026-07-10,DOC-BETA-TICKET-B011,Synthetic CRM data only
+TIC-B-012,tenant-beta,CUST-B-006,medium,open,Starter dashboard training request,2026-07-28,DOC-BETA-TICKET-B012,Synthetic CRM data only
+TIC-G-011,tenant-gamma,CUST-G-005,medium,open,Event lead import mapping,2026-07-24,DOC-GAMMA-TICKET-G011,Synthetic CRM data only
+TIC-G-012,tenant-gamma,CUST-G-006,low,closed,Webinar recording access,2026-07-08,DOC-GAMMA-TICKET-G012,Synthetic CRM data only

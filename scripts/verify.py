@@ -162,6 +162,8 @@ def run_pytest() -> dict[str, object]:
     result = run_command(
         "pytest",
         [
+            sys.executable,
+            "-m",
             "pytest",
             "--junitxml",
             str(EVIDENCE_DIR / "test-results.xml"),
@@ -175,7 +177,13 @@ def run_pytest() -> dict[str, object]:
     ):
         result = run_command(
             "pytest",
-            ["pytest", "--junitxml", str(EVIDENCE_DIR / "test-results.xml")],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--junitxml",
+                str(EVIDENCE_DIR / "test-results.xml"),
+            ],
         )
         coverage_xml.write_text(
             '<coverage status="not_executed" reason="pytest-cov plugin not available"/>\n',
@@ -197,12 +205,49 @@ def run_evaluation_gate() -> dict[str, object]:
 
 def run_external_tool_gates() -> list[dict[str, object]]:
     gates = [
-        ("ruff", ["ruff", "check", "--output-format", "json", "."], "lint-results.json"),
-        ("mypy", ["mypy", "src", "loop", "scripts"], "typecheck-results.txt"),
-        ("bandit", ["bandit", "-q", "-r", "src", "-f", "json"], "bandit-report.json"),
+        (
+            "ruff",
+            [sys.executable, "-m", "ruff", "check", "--output-format", "json", "."],
+            "lint-results.json",
+        ),
+        (
+            "mypy",
+            [
+                sys.executable,
+                "-m",
+                "mypy",
+                "src",
+                "loop",
+                "scripts",
+                "automation",
+                "video",
+                "apps",
+            ],
+            "typecheck-results.txt",
+        ),
+        (
+            "bandit",
+            [
+                sys.executable,
+                "-m",
+                "bandit",
+                "-q",
+                "-lll",
+                "-r",
+                "src",
+                "loop",
+                "scripts",
+                "automation",
+                "video",
+                "apps",
+                "-f",
+                "json",
+            ],
+            "bandit-report.json",
+        ),
         (
             "pip-audit",
-            ["pip-audit", "-r", "constraints.txt", "-f", "json"],
+            [sys.executable, "-m", "pip_audit", "-r", "constraints.txt", "-f", "json"],
             "dependency-audit.json",
         ),
     ]
@@ -215,7 +260,9 @@ def run_external_tool_gates() -> list[dict[str, object]]:
     sbom_result = run_command(
         "sbom",
         [
-            "pip-audit",
+            sys.executable,
+            "-m",
+            "pip_audit",
             "-r",
             "constraints.txt",
             "-f",
@@ -252,15 +299,52 @@ def main(argv: list[str] | None = None) -> int:
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
     if args.only == "lint":
-        results = [run_command("ruff", ["ruff", "check", "--output-format", "json", "."])]
+        results = [
+            run_command(
+                "ruff", [sys.executable, "-m", "ruff", "check", "--output-format", "json", "."]
+            )
+        ]
     elif args.only == "typecheck":
-        results = [run_command("mypy", ["mypy", "src", "loop", "scripts"], "typecheck-results.txt")]
+        results = [
+            run_command(
+                "mypy",
+                [
+                    sys.executable,
+                    "-m",
+                    "mypy",
+                    "src",
+                    "loop",
+                    "scripts",
+                    "automation",
+                    "video",
+                    "apps",
+                ],
+                "typecheck-results.txt",
+            )
+        ]
     elif args.only == "security":
         results = [
             secret_scan(),
             docker_config_check(),
             run_command(
-                "bandit", ["bandit", "-q", "-r", "src", "-f", "json"], "bandit-report.json"
+                "bandit",
+                [
+                    sys.executable,
+                    "-m",
+                    "bandit",
+                    "-q",
+                    "-lll",
+                    "-r",
+                    "src",
+                    "loop",
+                    "scripts",
+                    "automation",
+                    "video",
+                    "apps",
+                    "-f",
+                    "json",
+                ],
+                "bandit-report.json",
             ),
         ]
     else:

@@ -1,4 +1,4 @@
-.PHONY: setup build up down test lint typecheck security evaluate verify demo evidence clean loop loop-status loop-resume
+.PHONY: setup build up down test lint typecheck security evaluate verify demo evidence clean loop loop-status loop-resume master-loop master-loop-dry-run master-loop-resume video video-dry-run
 
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 export PATH := $(CURDIR)/.venv/bin:$(PATH)
@@ -56,3 +56,18 @@ loop-status:
 
 loop-resume:
 	$(PYTHON) loop/controller.py run
+
+master-loop:
+	./run_loop.sh
+
+master-loop-dry-run:
+	./run_loop.sh --dry-run
+
+master-loop-resume:
+	./run_loop.sh --resume
+
+video:
+	./video/build_demo.sh
+
+video-dry-run:
+	./video/build_demo.sh --dry-run
