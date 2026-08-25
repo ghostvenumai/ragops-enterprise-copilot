@@ -6,7 +6,7 @@ import base64
 import json
 import os
 import socket
-import subprocess
+import subprocess  # only used below with fixed argv lists, never shell=True  # nosec B404
 import sys
 import time
 from contextlib import AbstractContextManager
@@ -88,7 +88,7 @@ class DemoServices(AbstractContextManager["DemoServices"]):
     def _start(self, command: list[str], env: dict[str, str], log_name: str) -> None:
         log_path = self.config.logs_dir / log_name
         handle = log_path.open("w", encoding="utf-8")
-        process = subprocess.Popen(  # noqa: S603 - fixed module command and arguments.
+        process = subprocess.Popen(  # noqa: S603 - fixed module command and arguments.  # nosec B603
             command,
             cwd=REPO_ROOT,
             env=env,
@@ -285,7 +285,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
             "w", encoding="utf-8"
         )
         self.chrome_debug_port = _resolve_free_port(self.config.chrome_debug_port, set())
-        self.process = subprocess.Popen(  # noqa: S603 - fixed Chrome arguments.
+        self.process = subprocess.Popen(  # noqa: S603 - fixed Chrome arguments.  # nosec B603
             [
                 chrome,
                 "--headless=new",

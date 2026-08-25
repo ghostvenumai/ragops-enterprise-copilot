@@ -15,7 +15,8 @@ include reproduction steps using synthetic data only.
 - No external LLM call unless explicitly configured through environment
   variables.
 - Tenant-aware retrieval filters.
-- Prompt-injection detection treats document text as untrusted.
+- Prompt-injection detection treats document text as untrusted; the layered
+  defense and its limits are documented in `docs/SECURITY_NOTES.md`.
 - Audit logs redact PII and avoid full confidential document bodies.
 
 ## TTS Credentials and Cache

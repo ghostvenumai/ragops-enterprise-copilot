@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Hardened prompt-injection detection: added multilingual phrase patterns
+  (EN/DE/FR/ES), jailbreak/role-play and system-prompt-extraction patterns,
+  hidden-document-dump and security-bypass patterns, compact matching against
+  letter-spacing and leet-speak evasion, invisible/bidi character stripping,
+  HTML-comment scanning, and recursive base64 payload decoding.
+- Added 39 prompt-injection regression tests covering every attack class and
+  benign-text false-positive checks; the external audit probe now passes with
+  detection, abstention, and zero foreign citations on all cases.
+- Documented the layered injection defense and its honest limits in
+  `docs/SECURITY_NOTES.md`.
+- Silenced the five informational Bandit findings (B404/B603) with explicit
+  per-line `nosec` justifications; Bandit now reports zero findings at any
+  severity.
+
 - Replaced text-decoding placeholders for PDF and DOCX ingestion with real
   binary format parsers (`pypdf`, `python-docx`).
 - Regenerated the synthetic PDF and DOCX fixtures as real PDF 1.3 and OOXML

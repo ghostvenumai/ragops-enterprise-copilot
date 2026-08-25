@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
+import subprocess  # only used below with fixed argv lists, never shell=True  # nosec B404
 from pathlib import Path
 
 
@@ -17,7 +17,7 @@ def require_tool(name: str) -> str:
 def run_checked(
     command: list[str], *, cwd: Path, timeout: float, log_path: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(  # noqa: S603 - callers provide fixed, structured commands.
+    completed = subprocess.run(  # noqa: S603 - callers provide fixed, structured commands.  # nosec B603
         command,
         cwd=cwd,
         text=True,
