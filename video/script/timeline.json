@@ -6,100 +6,239 @@
       "id": "intro",
       "order": 1,
       "action": "show_intro",
-      "planned_duration": 7,
+      "planned_duration": 13,
       "narration": "RAGOps Enterprise Copilot ist eine abgesicherte Referenzplattform für belegte Unternehmensantworten aus Dokumenten und synthetischen CRM-Daten.",
       "overlay": "RAGOPS ENTERPRISE COPILOT",
       "capture": "title:intro",
       "pause_before": 0.4,
-      "pause_after": 0.6
+      "pause_after": 0.6,
+      "claims": [
+        {
+          "statement": "RAGOps Enterprise Copilot ist eine abgesicherte Referenzplattform für belegte Unternehmensantworten aus Dokumenten und synthetischen CRM-Daten.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "def _citation_validator"},
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "state.crm_matches"}
+          ]
+        }
+      ],
+      "visual_terms": ["RAGOps Enterprise Copilot", "100 % synthetisch"]
     },
     {
       "id": "overview",
       "order": 2,
       "action": "show_workspace",
-      "planned_duration": 13,
+      "planned_duration": 18,
       "narration": "Die deutschsprachige Arbeitsoberfläche bündelt Copilot, Wissensbasis, Monitoring und Governance. Mandant und Rolle sind im Demo-Modus sichtbar, während der Server die fachlichen Grenzen durchsetzt.",
       "overlay": "SICHERER KI-ARBEITSBEREICH",
       "capture": "app:overview",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Die deutschsprachige Arbeitsoberfläche bündelt Copilot, Wissensbasis, Monitoring und Governance.",
+          "evidence": [
+            {"path": "apps/dashboard/dashboard.py", "contains": "NAVIGATION_ITEMS = ("}
+          ]
+        },
+        {
+          "statement": "Mandant und Rolle sind im Demo-Modus sichtbar, während der Server die fachlichen Grenzen durchsetzt.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "self._tenant_guard(state)"}
+          ]
+        }
+      ],
+      "visual_terms": ["Enterprise Copilot", "Mandantenschutz aktiv", "Quellenpflicht aktiv"]
     },
     {
       "id": "knowledge",
       "order": 3,
       "action": "show_ingestion",
-      "planned_duration": 18,
-      "narration": "Die Wissensbasis verarbeitet versionierte PDF-, DOCX-, Markdown-, Text- und CSV-Quellen. Metadaten, Zugriffsstufe, Mandant, Gültigkeit und Hashes steuern Validierung, Duplikaterkennung und inkrementelle Indexierung.",
+      "planned_duration": 20.5,
+      "narration": "Die Wissensbasis verarbeitet versionierte PDF-, DOCX-, Markdown-, Text- und CSV-Quellen. Metadaten, Zugriffsstufe, Mandant, Gültigkeit und Inhalts-Hashes ermöglichen Duplikaterkennung und nachvollziehbare Data Lineage.",
       "overlay": "VALIDIERTE WISSENSBASIS",
       "capture": "app:knowledge",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Die Wissensbasis verarbeitet versionierte PDF-, DOCX-, Markdown-, Text- und CSV-Quellen.",
+          "evidence": [
+            {"path": "src/ragops/ingestion/loaders.py", "contains": "if suffix == \".csv\":"},
+            {"path": "src/ragops/ingestion/loaders.py", "contains": "if suffix == \".docx\":"}
+          ]
+        },
+        {
+          "statement": "Metadaten, Zugriffsstufe, Mandant, Gültigkeit und Inhalts-Hashes ermöglichen Duplikaterkennung und nachvollziehbare Data Lineage.",
+          "evidence": [
+            {"path": "src/ragops/ingestion/pipeline.py", "contains": "content_hash = sha256_text(body)"},
+            {"path": "src/ragops/ingestion/pipeline.py", "contains": "lineage={"}
+          ]
+        }
+      ],
+      "visual_terms": ["Wissensbasis", "Versionierte und klassifizierte Quellen", "Index aktualisieren"]
     },
     {
       "id": "answer",
       "order": 4,
       "action": "run_rag_query",
-      "planned_duration": 28,
+      "planned_duration": 24,
       "narration": "Für eine kombinierte Vertriebsfrage durchsucht der Workflow freigegebene Dokumente und CRM-Datensätze. Hybrides Retrieval und Reranking liefern die Evidenz. Die Antwort nennt betroffene Enterprise-Kunden, konkrete Maßnahmen und nur die tatsächlich verwendeten Quellen.",
       "overlay": "HYBRID RETRIEVAL MIT QUELLEN",
       "capture": "app:answer",
       "pause_before": 0.7,
-      "pause_after": 1.0
+      "pause_after": 1.0,
+      "claims": [
+        {
+          "statement": "Für eine kombinierte Vertriebsfrage durchsucht der Workflow freigegebene Dokumente und CRM-Datensätze.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "def _knowledge_retrieval"},
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "def _crm_agent"}
+          ]
+        },
+        {
+          "statement": "Hybrides Retrieval und Reranking liefern die Evidenz.",
+          "evidence": [
+            {"path": "src/ragops/retrieval/hybrid.py", "contains": "bm25_weight: float = 0.65"},
+            {"path": "src/ragops/retrieval/hybrid.py", "contains": "def _rerank("}
+          ]
+        },
+        {
+          "statement": "Die Antwort nennt betroffene Enterprise-Kunden, konkrete Maßnahmen und nur die tatsächlich verwendeten Quellen.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "if response.used_source_ids:"},
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "def _citation_validator"}
+          ]
+        }
+      ],
+      "visual_terms": ["Enterprise-Kunden", "Ergebnis auf Basis", "Quellen"]
     },
     {
       "id": "blocked",
       "order": 5,
       "action": "show_security_refusal",
-      "planned_duration": 18,
-      "narration": "Direkte und indirekte Prompt-Injections werden als nicht vertrauenswürdige Eingaben behandelt. Der Copilot verweigert die Anfrage, gibt keine Systemanweisung aus und protokolliert die Erkennung ohne vertrauliche Inhalte.",
+      "planned_duration": 24.5,
+      "narration": "Direkte Prompt-Injections führen zur kontrollierten Verweigerung; als schädlich markierte Dokumentsegmente werden aus der Evidenz entfernt. Der Copilot gibt keine Systemanweisung aus und protokolliert ausschließlich technische Erkennungsdaten ohne vertrauliche Dokumentinhalte.",
       "overlay": "PROMPT INJECTION BLOCKIERT",
       "capture": "app:blocked",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Direkte Prompt-Injections führen zur kontrollierten Verweigerung; als schädlich markierte Dokumentsegmente werden aus der Evidenz entfernt.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "if user_findings:"},
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "clean_results = ["}
+          ]
+        },
+        {
+          "statement": "Der Copilot gibt keine Systemanweisung aus und protokolliert ausschließlich technische Erkennungsdaten ohne vertrauliche Dokumentinhalte.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "Anfrage blockiert: Prompt-Injection-Muster erkannt."},
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "\"prompt_injection_detected\": bool(state.injection_findings)"}
+          ]
+        }
+      ],
+      "visual_terms": ["Anfrage blockiert", "Prompt Injection blockiert"]
     },
     {
       "id": "monitoring",
       "order": 6,
       "action": "show_metrics",
-      "planned_duration": 20,
+      "planned_duration": 21,
       "narration": "Das Monitoring zeigt reale Laufzeitsignale, Token, Kosten und Quellenabdeckung. Die synthetische Gold-Evaluation misst Retrieval Hit Rate, Recall, Precision, Citation Coverage, Ablehnungen und Tenant Leakage reproduzierbar.",
       "overlay": "MESSBARE RAG-QUALITÄT",
       "capture": "app:monitoring",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Das Monitoring zeigt reale Laufzeitsignale, Token, Kosten und Quellenabdeckung.",
+          "evidence": [
+            {"path": "src/ragops/monitoring/metrics.py", "contains": "total_tokens"},
+            {"path": "src/ragops/monitoring/metrics.py", "contains": "avg_citation_coverage"}
+          ]
+        },
+        {
+          "statement": "Die synthetische Gold-Evaluation misst Retrieval Hit Rate, Recall, Precision, Citation Coverage, Ablehnungen und Tenant Leakage reproduzierbar.",
+          "evidence": [
+            {"path": "src/ragops/evaluation/runner.py", "contains": "\"retrieval_hit_rate\""},
+            {"path": "src/ragops/evaluation/runner.py", "contains": "\"tenant_leakage_count\""}
+          ]
+        }
+      ],
+      "visual_terms": ["Monitoring", "Retrieval-Qualität", "Geschätzte Kosten"]
     },
     {
       "id": "governance",
       "order": 7,
       "action": "show_audit",
-      "planned_duration": 18,
+      "planned_duration": 19,
       "narration": "Governance ist Teil des Request-Pfads: Rollenprüfung, Mandantentrennung, PII-Maskierung, Quellenvalidierung und Audit-Ereignisse mit Korrelations-ID sind nicht nur Dokumentation, sondern ausführbare Kontrollen.",
       "overlay": "GOVERNANCE UND AUDIT",
       "capture": "app:governance",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Governance ist Teil des Request-Pfads: Rollenprüfung, Mandantentrennung, PII-Maskierung, Quellenvalidierung und Audit-Ereignisse mit Korrelations-ID sind nicht nur Dokumentation, sondern ausführbare Kontrollen.",
+          "evidence": [
+            {"path": "src/ragops/workflows/state_machine.py", "contains": "self._tenant_guard(state)"},
+            {"path": "src/ragops/security/pii.py", "contains": "def mask_pii"},
+            {"path": "src/ragops/governance/audit.py", "contains": "correlation_id=correlation_id"}
+          ]
+        }
+      ],
+      "visual_terms": ["Governance & Audit", "PII-Maskierung", "Korrelations-IDs"]
     },
     {
       "id": "automation",
       "order": 8,
       "action": "show_quality_loop",
-      "planned_duration": 20,
+      "planned_duration": 23,
       "narration": "Der kontrollierte Master-Loop führt Zustandsübergänge, Retries und Wiederaufnahme persistent. Statische Analyse, Tests, Security Checks, Demo, Rendering und Video-QA laufen als feste Schritte; Modelltext wird niemals als Shell-Code ausgeführt.",
       "overlay": "REPRODUZIERBARE AUTOMATION",
       "capture": "report:automation",
       "pause_before": 0.5,
-      "pause_after": 0.8
+      "pause_after": 0.8,
+      "claims": [
+        {
+          "statement": "Der kontrollierte Master-Loop führt Zustandsübergänge, Retries und Wiederaufnahme persistent.",
+          "evidence": [
+            {"path": "automation/state.py", "contains": "retry_counts"},
+            {"path": "automation/state.py", "contains": "temporary.replace(self.path)"}
+          ]
+        },
+        {
+          "statement": "Statische Analyse, Tests, Security Checks, Demo, Rendering und Video-QA laufen als feste Schritte; Modelltext wird niemals als Shell-Code ausgeführt.",
+          "evidence": [
+            {"path": "automation/gates.py", "contains": "only fixed command lists are passed"},
+            {"path": "loop/controller.py", "contains": "never executes shell snippets returned by a model"}
+          ]
+        }
+      ],
+      "visual_terms": ["Kontrollierter Entwicklungs- und QA-Loop", "Feste Gates", "Quality Gates"]
     },
     {
       "id": "outro",
       "order": 9,
       "action": "show_outro",
-      "planned_duration": 8,
+      "planned_duration": 16,
       "narration": "RAGOps Enterprise Copilot verbindet Applied AI Engineering, Security, Evaluation und nachvollziehbare Automatisierung in einem lokal ausführbaren Portfolio-Projekt.",
       "overlay": "APPLIED AI ENGINEERING",
       "capture": "title:outro",
       "pause_before": 0.4,
-      "pause_after": 0.7
+      "pause_after": 0.7,
+      "claims": [
+        {
+          "statement": "RAGOps Enterprise Copilot verbindet Applied AI Engineering, Security, Evaluation und nachvollziehbare Automatisierung in einem lokal ausführbaren Portfolio-Projekt.",
+          "evidence": [
+            {"path": "pyproject.toml", "contains": "name = \"ragops-enterprise-copilot\""},
+            {"path": "Makefile", "contains": "verify:"},
+            {"path": "automation/run_loop.py", "contains": "def run_master_loop"}
+          ]
+        }
+      ],
+      "visual_terms": ["Applied AI Engineering", "Lokal ausführbar", "Reproduzierbar"]
     }
   ]
 }

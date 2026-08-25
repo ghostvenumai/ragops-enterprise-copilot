@@ -12,10 +12,13 @@ flowchart TD
     A[RAGOps Application] --> B[Deterministischer Demo Controller]
     B --> C[Timeline als Source of Truth]
     C --> D[Headless Recording]
-    C --> E[Deutsche Narration und TTS]
+    C --> E[Deutsche Narration]
+    D --> Q[Narration Quality Gate]
+    E --> Q
+    Q --> T[TTS Cache und Provider]
     C --> F[SRT-Untertitel]
     D --> G[FFmpeg Renderer]
-    E --> G
+    T --> G
     F --> G
     G --> H[FFprobe, Decode und Frame QA]
 ```
@@ -40,7 +43,8 @@ Die Reihenfolge ist in `automation/state.py` typisiert:
 DISCOVER -> PRECHECK -> PLAN -> IMPLEMENT -> STATIC_CHECK
 -> UNIT_TEST -> INTEGRATION_TEST -> SECURITY_CHECK -> APPLICATION_QA
 -> DEMO_PRECHECK -> DEMO_RUN -> RECORD -> GENERATE_NARRATION
--> GENERATE_VOICE -> GENERATE_SUBTITLES -> RENDER -> VIDEO_QA
+-> VERIFY_NARRATION -> GENERATE_VOICE -> GENERATE_SUBTITLES
+-> RENDER -> VIDEO_QA
 -> FINAL_VERIFY -> COMPLETE
 ```
 
@@ -61,7 +65,7 @@ und Reportkarten werden aus Repository-Nachweisen erzeugt.
 
 ## Timeline und Medien
 
-`video/script/timeline.json` definiert neun deutsche Szenen und 150 Sekunden
+`video/script/timeline.json` definiert neun deutsche Szenen und 179 Sekunden
 Gesamtdauer. Aus derselben Datei entstehen:
 
 - `video/script/narration.md`
@@ -70,8 +74,21 @@ Gesamtdauer. Aus derselben Datei entstehen:
 - Screenshots mit 1920 x 1080 Pixeln
 - Szenensegmente und das finale MP4
 
-TTS-Dateien werden anhand von Sprache, Modell, Stimme und Text gehasht. Nur
-passende Cache-Dateien werden wiederverwendet.
+Claims mit Codefragmenten und erwartete sichtbare GUI-Texte werden vor TTS
+durch `video/qa/narration.py` geprüft. Der reale DOM-Abgleich liegt atomar in
+`video/tmp/capture-manifest.json`; der QA-Nachweis in
+`dist/narration_qa_report.json`. Details:
+[NARRATION_QA.md](NARRATION_QA.md).
+
+Die SRT-Datei bleibt standardmäßig ein separates Sidecar. Nur
+`VIDEO_BURN_SUBTITLES=true` brennt sie explizit ein.
+
+TTS-Dateien liegen persistent unter `video/cache/tts/`. Der SHA-256-Key umfasst
+normalisierten Text, Sprache, Provider, Modell, Stimme, Instructions,
+Audioformat, Geschwindigkeit und Cache-Schema, jedoch weder API-Key noch
+Videoeinstellungen. FFprobe validiert jeden Hit. Partial-Dateien werden erst
+nach erfolgreicher Prüfung atomar übernommen; Segment- und Manifest-Locks
+sichern konkurrierende Prozesse. Details: [TTS_CACHE.md](TTS_CACHE.md).
 
 ## Security-Grenzen
 
@@ -99,9 +116,10 @@ Kaschieren. Exit-Code `10` bedeutet ausschließlich
 `READY_EXCEPT_EXTERNAL_BLOCKER`; andere Fehler verwenden getrennte Codes
 für Konfiguration, Tests, Security und Video.
 
-`./run_loop.sh --resume` lädt den atomaren Zustand. Ist nur
-`GENERATE_VOICE` wegen eines fehlenden Schlüssels blockiert und inzwischen
-`OPENAI_API_KEY` gesetzt, wird ab Voice, Rendering und QA weitergearbeitet.
+`./run_loop.sh --resume` lädt den atomaren Zustand. Nach einem Voice-Blocker
+wird ab `VERIFY_NARRATION` weitergearbeitet. Dafür genügt entweder ein inzwischen
+vollständiger validierter Cache oder ein sicher in der Prozessumgebung gesetzter
+`OPENAI_API_KEY`.
 
 ## Nachweise und Outputs
 
@@ -113,6 +131,7 @@ für Konfiguration, Tests, Security und Video.
 | `video/tmp/` | reproduzierbare Zwischenartefakte |
 | `dist/build_report.md` | lesbarer Gesamtbericht |
 | `dist/master_loop_report.json` | maschinenlesbarer Gesamtbericht |
+| `dist/narration_qa_report.json` | Claims, Code-, Demo- und Timingprüfung vor TTS |
 | `dist/video_qa_report.json` | Codec-, Dauer-, Decode- und Frame-Prüfung |
 | `dist/solcom_demo.mp4` | finales Video nur mit echter Sprecherstimme |
 | `dist/solcom_demo_preview.mp4` | klar benannte Vorschau ohne Voice |

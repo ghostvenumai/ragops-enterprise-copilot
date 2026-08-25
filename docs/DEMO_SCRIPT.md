@@ -13,7 +13,7 @@ Dieses Skript entspricht der automatisierten Timeline in
 
 1. Mandantengefilterte Dokumente und Versionen öffnen.
 2. Unterstützte Formate PDF, DOCX, Markdown, TXT und CSV nennen.
-3. Metadaten, Hashing, Gültigkeit und inkrementelle Indexierung hervorheben.
+3. Metadaten, Inhalts-Hashes, Gültigkeit und Data Lineage hervorheben.
 
 ## 0:40-1:10 - Belegte Antwort
 
@@ -37,7 +37,7 @@ Dieses Skript entspricht der automatisierten Timeline in
 ## 2:05-2:30 - Engineering-Nachweis
 
 1. Persistente Master-Loop-Phasen, Retry-Limits und Wiederaufnahme zeigen.
-2. Statische Analyse, Tests, Security, Aufnahme, Rendering und Video-QA nennen.
+2. Narration-QA, statische Analyse, Tests, Security, Rendering und Video-QA nennen.
 3. Mit Applied AI Engineering, Governance und reproduzierbarer Automation schließen.
 
 ## Manuelle Live-Demo
@@ -58,5 +58,7 @@ letzten Szene.
 ./run_loop.sh
 ```
 
-Ohne `OPENAI_API_KEY` entsteht nur die klar benannte stumme Vorschau.
-Der finale Build wird in diesem Zustand nicht als vollständig ausgegeben.
+Ein vollständiger validierter TTS-Cache ermöglicht den finalen Build auch ohne
+`OPENAI_API_KEY`. Bei einem Cache-Miss ohne Schlüssel stoppt Voice/Rendering
+kontrolliert; eine stumme Vorschau entsteht nur mit `--skip-tts`. Das finale
+Standardvideo verwendet keine eingebrannten Untertitel.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -47,6 +48,24 @@ def _wait_for(url: str, timeout: float = 30.0) -> None:
     raise RuntimeError(f"service did not become ready: {url}: {last_error}")
 
 
+def _port_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+        return True
+
+
+def _resolve_free_port(preferred: int, taken: set[int]) -> int:
+    if preferred not in taken and _port_available(preferred):
+        return preferred
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
 def _post_json(url: str, payload: dict[str, object] | None = None) -> Any:
     request = Request(  # noqa: S310  # nosec B310
         _validated_local_url(url),
@@ -63,6 +82,8 @@ class DemoServices(AbstractContextManager["DemoServices"]):
         self.config = config
         self.processes: list[subprocess.Popen[str]] = []
         self.log_handles: list[IO[str]] = []
+        self.api_port = config.api_port
+        self.dashboard_port = config.dashboard_port
 
     def _start(self, command: list[str], env: dict[str, str], log_name: str) -> None:
         log_path = self.config.logs_dir / log_name
@@ -83,6 +104,8 @@ class DemoServices(AbstractContextManager["DemoServices"]):
         self.config.prepare_directories()
         runtime_evidence = self.config.tmp_dir / "runtime" / "evidence"
         runtime_evidence.mkdir(parents=True, exist_ok=True)
+        self.api_port = _resolve_free_port(self.config.api_port, set())
+        self.dashboard_port = _resolve_free_port(self.config.dashboard_port, {self.api_port})
         env = {
             **os.environ,
             "RAGOPS_ENV": "video-demo",
@@ -99,15 +122,15 @@ class DemoServices(AbstractContextManager["DemoServices"]):
                 "--host",
                 "127.0.0.1",
                 "--port",
-                str(self.config.api_port),
+                str(self.api_port),
             ],
             env,
             "recording-api.log",
         )
-        _wait_for(f"http://127.0.0.1:{self.config.api_port}/ready")
+        _wait_for(f"http://127.0.0.1:{self.api_port}/ready")
         dashboard_env = {
             **env,
-            "RAGOPS_API_URL": f"http://127.0.0.1:{self.config.api_port}",
+            "RAGOPS_API_URL": f"http://127.0.0.1:{self.api_port}",
         }
         self._start(
             [
@@ -117,18 +140,18 @@ class DemoServices(AbstractContextManager["DemoServices"]):
                 "run",
                 "apps/dashboard/dashboard.py",
                 "--server.address=127.0.0.1",
-                f"--server.port={self.config.dashboard_port}",
+                f"--server.port={self.dashboard_port}",
                 "--server.headless=true",
                 "--browser.gatherUsageStats=false",
             ],
             dashboard_env,
             "recording-dashboard.log",
         )
-        _wait_for(f"http://127.0.0.1:{self.config.dashboard_port}/_stcore/health")
+        _wait_for(f"http://127.0.0.1:{self.dashboard_port}/_stcore/health")
         return self
 
     def prime_runtime(self) -> None:
-        api = f"http://127.0.0.1:{self.config.api_port}"
+        api = f"http://127.0.0.1:{self.api_port}"
         _post_json(f"{api}/v1/evaluations/run")
         base = {
             "tenant_id": "tenant-alpha",
@@ -237,10 +260,10 @@ background: #172131; }} .metric span {{ display: block; color: #9ba8ba; font-siz
     return destination
 
 
-def _capture_url(scene: Scene, config: VideoConfig) -> str:
+def _capture_url(scene: Scene, config: VideoConfig, dashboard_port: int) -> str:
     if scene.capture.startswith("app:"):
         demo_scene = scene.capture.partition(":")[2]
-        return f"http://127.0.0.1:{config.dashboard_port}/?demo_scene={demo_scene}"
+        return f"http://127.0.0.1:{dashboard_port}/?demo_scene={demo_scene}"
     html_path = config.tmp_dir / "html" / f"{scene.id}.html"
     return _card_html(scene, html_path).as_uri()
 
@@ -252,6 +275,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
         self.log_handle: IO[str] | None = None
         self.connection: ClientConnection | None = None
         self.command_id = 0
+        self.chrome_debug_port = config.chrome_debug_port
 
     def __enter__(self) -> ChromeCapture:
         chrome = require_tool("google-chrome")
@@ -260,6 +284,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
         self.log_handle = (self.config.logs_dir / "recording-chrome.log").open(
             "w", encoding="utf-8"
         )
+        self.chrome_debug_port = _resolve_free_port(self.config.chrome_debug_port, set())
         self.process = subprocess.Popen(  # noqa: S603 - fixed Chrome arguments.
             [
                 chrome,
@@ -270,7 +295,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
                 "--no-first-run",
                 "--no-default-browser-check",
                 "--remote-allow-origins=*",
-                f"--remote-debugging-port={self.config.chrome_debug_port}",
+                f"--remote-debugging-port={self.chrome_debug_port}",
                 f"--user-data-dir={profile}",
                 f"--window-size={self.config.width},{self.config.height}",
                 "about:blank",
@@ -281,7 +306,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
             text=True,
             start_new_session=True,
         )
-        debugger = f"http://127.0.0.1:{self.config.chrome_debug_port}"
+        debugger = f"http://127.0.0.1:{self.chrome_debug_port}"
         _wait_for(f"{debugger}/json/version")
         targets = self._read_json(f"{debugger}/json/list")
         pages = [
@@ -369,9 +394,28 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
             time.sleep(0.25)
         raise RuntimeError(f"Streamlit scene did not render meaningful content: {last_value}")
 
-    def capture(self, url: str, output: Path) -> None:
+    def _visible_body_text(self) -> str:
+        result = self._call(
+            "Runtime.evaluate",
+            {
+                "expression": "document.body ? document.body.innerText : ''",
+                "returnByValue": True,
+            },
+        )
+        value = result.get("result", {})
+        text = value.get("value", "") if isinstance(value, dict) else ""
+        return str(text)
+
+    def capture(self, url: str, output: Path, visual_terms: tuple[str, ...]) -> tuple[str, ...]:
         self._call("Page.navigate", {"url": url})
         self._wait_for_rendered_app(url)
+        visible_text = self._visible_body_text()
+        folded_text = visible_text.casefold()
+        missing = [term for term in visual_terms if term.casefold() not in folded_text]
+        if missing:
+            raise RuntimeError(
+                "scene does not contain required visible terms: " + ", ".join(missing)
+            )
         result = self._call(
             "Page.captureScreenshot",
             {"format": "png", "fromSurface": True, "captureBeyondViewport": False},
@@ -380,6 +424,7 @@ class ChromeCapture(AbstractContextManager["ChromeCapture"]):
         if not isinstance(encoded, str):
             raise RuntimeError("Chrome DevTools screenshot did not contain image data")
         output.write_bytes(base64.b64decode(encoded, validate=True))
+        return visual_terms
 
     def __exit__(
         self,
@@ -406,12 +451,34 @@ def capture_scenes(timeline: Timeline, config: VideoConfig) -> dict[str, Path]:
     for old in screenshots.glob("*.png"):
         old.unlink()
     assets: dict[str, Path] = {}
+    manifest_scenes: dict[str, dict[str, object]] = {}
     with DemoServices(config) as services, ChromeCapture(config) as browser:
         services.prime_runtime()
         for scene in timeline.scenes:
             output = screenshots / f"{scene.order:03d}_{scene.id}.png"
-            browser.capture(_capture_url(scene, config), output)
+            url = _capture_url(scene, config, services.dashboard_port)
+            matched = browser.capture(url, output, scene.visual_terms)
             if not output.exists() or output.stat().st_size < 10_000:
                 raise RuntimeError(f"capture is missing or implausibly small: {scene.id}")
             assets[scene.id] = output
+            manifest_scenes[scene.id] = {
+                "status": "passed",
+                "capture": scene.capture,
+                "file": str(output.relative_to(REPO_ROOT)),
+                "size_bytes": output.stat().st_size,
+                "matched_visual_terms": list(matched),
+            }
+    manifest_path = config.tmp_dir / "capture-manifest.json"
+    temporary = manifest_path.with_name(manifest_path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(
+            {"status": "passed", "scenes": manifest_scenes},
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(manifest_path)
     return assets

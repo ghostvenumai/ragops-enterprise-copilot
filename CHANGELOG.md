@@ -1,12 +1,37 @@
 # Changelog
 
+## Unreleased
+
+- Replaced text-decoding placeholders for PDF and DOCX ingestion with real
+  binary format parsers (`pypdf`, `python-docx`).
+- Regenerated the synthetic PDF and DOCX fixtures as real PDF 1.3 and OOXML
+  `.docx` files with identical front matter and body content, so ingestion,
+  retrieval, and evaluation behavior is unchanged.
+- Added dedicated loader unit tests covering PDF extraction, DOCX extraction,
+  suffix dispatch, and unsupported-suffix rejection.
+- Updated `docs/ASSUMPTIONS.md` to reflect real binary parsing instead of the
+  previous text-layer-decoding placeholder.
+
+## 0.3.1 - 2026-08-11
+
+- Added a fail-closed `VERIFY_NARRATION` phase before TTS cache or provider access.
+- Bound every German narration sentence to concrete repository evidence and visible demo terms.
+- Added machine-readable narration QA reports for claims, code, demo alignment, timing, and hype.
+- Replaced fixed scene trimming with validated audio duration plus explicit pre/post pauses.
+- Added bounded FFmpeg video/audio crossfades between scenes.
+- Changed subtitles to a synchronized sidecar by default with explicit optional burn-in.
+- Corrected two narration claims that overstated incremental indexing and injection refusal behavior.
+- Added focused narration, timing, transition, and subtitle regression tests.
+
 ## 0.3.0 - 2026-08-10
 
 - Added a persistent master state machine from application discovery through video QA.
 - Added bounded transient retries, atomic state, machine-readable history, resume, and dry run.
 - Added a real deterministic demo controller and allowlisted dashboard recording scenes.
 - Added a German 150-second timeline, narration, SRT generation, headless capture, and FFmpeg rendering.
-- Added optional cached OpenAI TTS with an explicit external-blocker state when no key exists.
+- Added persistent content-addressable OpenAI TTS caching with per-scene invalidation.
+- Added FFprobe validation, atomic cache/manifest writes, file locks, secret redaction, and lazy credentials.
+- Added dry-run, cache-only, force, API-call and retry limits plus five-build cost-control simulations.
 - Added H.264/AAC, 1080p, frame-rate, duration, full-decode, and sample-frame video QA.
 - Extended MyPy, Ruff, Bandit, tests, documentation, and security checks to automation and video code.
 

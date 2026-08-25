@@ -23,6 +23,42 @@ ALLOWED_CAPTURES = {
 
 
 @dataclass(frozen=True)
+class EvidenceReference:
+    path: str
+    contains: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> EvidenceReference:
+        try:
+            return cls(path=str(payload["path"]), contains=str(payload["contains"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid narration evidence reference: {payload!r}") from exc
+
+
+@dataclass(frozen=True)
+class NarrationClaim:
+    statement: str
+    evidence: tuple[EvidenceReference, ...]
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> NarrationClaim:
+        try:
+            raw_evidence = payload["evidence"]
+            if not isinstance(raw_evidence, list):
+                raise TypeError("evidence must be a list")
+            return cls(
+                statement=str(payload["statement"]),
+                evidence=tuple(
+                    EvidenceReference.from_dict(item)
+                    for item in raw_evidence
+                    if isinstance(item, dict)
+                ),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid narration claim: {payload!r}") from exc
+
+
+@dataclass(frozen=True)
 class Scene:
     id: str
     order: int
@@ -33,6 +69,8 @@ class Scene:
     capture: str
     pause_before: float = 0.5
     pause_after: float = 0.8
+    claims: tuple[NarrationClaim, ...] = ()
+    visual_terms: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Scene:
@@ -47,6 +85,12 @@ class Scene:
                 capture=str(payload["capture"]),
                 pause_before=float(payload.get("pause_before", 0.5)),
                 pause_after=float(payload.get("pause_after", 0.8)),
+                claims=tuple(
+                    NarrationClaim.from_dict(item)
+                    for item in payload.get("claims", [])
+                    if isinstance(item, dict)
+                ),
+                visual_terms=tuple(str(item) for item in payload.get("visual_terms", [])),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f"invalid timeline scene: {payload!r}") from exc
@@ -100,6 +144,16 @@ def validate_timeline(
             raise ValueError(f"scene {scene.id} has empty required fields")
         if scene.capture not in ALLOWED_CAPTURES:
             raise ValueError(f"scene {scene.id} has unsupported capture mode")
+        if any(not claim.statement or not claim.evidence for claim in scene.claims):
+            raise ValueError(f"scene {scene.id} has incomplete narration claims")
+        if any(
+            not reference.path or not reference.contains
+            for claim in scene.claims
+            for reference in claim.evidence
+        ):
+            raise ValueError(f"scene {scene.id} has incomplete evidence references")
+        if any(not term.strip() for term in scene.visual_terms):
+            raise ValueError(f"scene {scene.id} has empty visual terms")
         if not 3 <= scene.planned_duration <= 40 or scene.narration_duration < 1:
             raise ValueError(f"scene {scene.id} has invalid timing")
     if not min_duration <= timeline.total_duration <= max_duration:

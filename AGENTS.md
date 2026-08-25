@@ -56,13 +56,19 @@ not bypass authorization, retrieval, validation, or audit behavior.
 A final video requires this ordered evidence chain:
 
 ```text
-APPLICATION_QA -> DEMO_QA -> VIDEO_QA
+APPLICATION_QA -> DEMO_QA -> NARRATION_QA -> TTS -> VIDEO_QA
 ```
 
-`dist/solcom_demo.mp4` is final only when real voice assets exist. If the TTS
-credential is unavailable, generate only `dist/solcom_demo_preview.mp4`, report
-`READY_EXCEPT_EXTERNAL_BLOCKER`, and resume with `./run_loop.sh --resume` after
-credential configuration. Never label silent or placeholder audio as final.
+Narration claims, code evidence, visible demo terms, language, hype, and timing
+must pass `VERIFY_NARRATION` before any TTS cache lookup or provider call.
+`dist/solcom_demo.mp4` is final only when validated voice assets exist. Reuse
+the persistent content-addressable TTS cache before checking credentials. If a
+segment is missing and the credential is unavailable, report
+`READY_EXCEPT_EXTERNAL_BLOCKER`, create no replacement audio, and resume with
+`./run_loop.sh --resume` after the cache or environment is ready. Never clear
+the TTS cache or enable force mode automatically. Silent preview audio is allowed
+only for an explicit `--skip-tts` command and is never final. Subtitles remain
+a sidecar by default; burn-in requires explicit `VIDEO_BURN_SUBTITLES=true`.
 
 ## Quality Gates
 

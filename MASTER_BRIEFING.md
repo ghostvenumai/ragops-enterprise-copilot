@@ -30,6 +30,8 @@ RECORD
      ↓
 NARRATION
      ↓
+NARRATION QUALITY GATE
+     ↓
 AI VOICE
      ↓
 SUBTITLES
@@ -191,6 +193,8 @@ DEMO_RUN
 RECORD
    ↓
 GENERATE_NARRATION
+   ↓
+VERIFY_NARRATION
    ↓
 GENERATE_VOICE
    ↓
@@ -658,6 +662,73 @@ unbreakable
 
 Stattdessen präzise technische Aussagen.
 
+## 18.1 VERBINDLICHES NARRATION QUALITY GATE
+
+Vor jedem TTS-Cache-Lookup und vor jedem externen TTS-Aufruf muss ein
+fail-closed Quality Gate laufen:
+
+```text
+GENERATE NARRATION
+        ↓
+VERIFY AGAINST CODE
+        ↓
+VERIFY AGAINST DEMO
+        ↓
+VERIFY TIMING
+        ↓
+VERIFY NO INVENTED FEATURES
+        ↓
+PASS
+        ↓
+TTS CACHE / TTS API
+```
+
+Das Gate prüft mindestens:
+
+```text
+✓ Jede genannte Funktion besitzt einen konkreten Repository-Beleg
+✓ Jeder Narrationssatz ist einem maschinenlesbaren Claim zugeordnet
+✓ Sprechertext und sichtbare Demo-Szene stimmen überein
+✓ Keine übertriebenen oder absoluten Aussagen
+✓ Keine erfundenen Technologien oder Funktionen
+✓ Technische Begriffe sind korrekt
+✓ Geschätzte Sprechdauer passt in das Szenenbudget
+✓ Gesamtlänge liegt zwischen zwei und drei Minuten
+```
+
+Die Belege werden in der Timeline als Repository-Pfad plus erwartetes
+Codefragment gepflegt. Die Aufnahme prüft erwartete sichtbare Begriffe gegen den
+tatsächlich gerenderten DOM und speichert nur die Prüfergebnisse, nicht den
+vollständigen Seiteninhalt.
+
+Ein fehlgeschlagenes Gate muss folgenden Status erzeugen:
+
+```text
+NARRATION_QUALITY_GATE_FAILED
+```
+
+In diesem Fall sind sowohl Cache-Lookup als auch TTS-Provider-Aufruf verboten.
+Das Ergebnis wird maschinenlesbar unter
+`dist/narration_qa_report.json` dokumentiert.
+
+Erst nach bestandenem Gate gilt weiterhin Cache First:
+
+```text
+Sprechertext unverändert?
+        │
+       JA
+        ↓
+validiertes Cache-Audio verwenden
+API-Aufruf = 0
+
+       NEIN
+        ↓
+nur geänderte Szene erzeugen
+```
+
+Änderungen an Schnitt, Auflösung, Overlays, Übergängen oder der optionalen
+Untertiteldarstellung dürfen den TTS-Cache nicht invalidieren.
+
 ---
 
 # 19. SPRACHE
@@ -827,6 +898,11 @@ Sicherstellen:
 - korrekte Reihenfolge,
 - synchrones Timing.
 
+Die SRT-Datei ist standardmäßig ein separates Accessibility-Artefakt und wird
+nicht in das finale Video eingebrannt. Ein Einbrennen darf ausschließlich
+explizit über `VIDEO_BURN_SUBTITLES=true` aktiviert werden. Das Standardvideo
+muss ohne sichtbare Untertitel gerendert werden.
+
 ---
 
 # 24. VIDEO-OVERLAYS
@@ -914,7 +990,7 @@ FFmpeg soll nach Möglichkeit übernehmen:
 - Intro,
 - Outro,
 - Overlays,
-- Untertitel,
+- optional eingebrannte Untertitel,
 - Encoding,
 - finalen Export.
 

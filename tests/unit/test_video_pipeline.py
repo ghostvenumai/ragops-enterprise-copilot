@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import socket
+import wave
 from pathlib import Path
 
 import pytest
 from video.config import VideoConfig
 from video.narration.tts import MissingCredentialError, generate_voice_assets
 from video.qa.validator import validate_probe_payload
-from video.recording.capture import _validated_local_url
+from video.recording.capture import _resolve_free_port, _validated_local_url
 from video.subtitles.generator import generate_subtitles, srt_timestamp
 from video.timeline import Scene, Timeline, load_timeline
 
@@ -18,6 +20,7 @@ def config_for(tmp_path: Path) -> VideoConfig:
         tmp_dir=tmp_path / "tmp",
         logs_dir=tmp_path / "logs",
         dist_dir=tmp_path / "dist",
+        tts_cache_dir=tmp_path / "cache",
     )
 
 
@@ -43,10 +46,14 @@ class RecordingVoiceProvider:
     def __init__(self) -> None:
         self.calls = 0
 
-    def generate(self, text: str, output_path: Path) -> None:
+    def synthesize(self, request: object, output_path: Path) -> None:
         self.calls += 1
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(b"RIFF-test-wave")
+        with wave.open(str(output_path), "wb") as audio:
+            audio.setnchannels(1)
+            audio.setsampwidth(2)
+            audio.setframerate(8_000)
+            audio.writeframes(b"\x00\x00" * 8_000)
 
 
 def test_recording_url_is_restricted_to_local_http() -> None:
@@ -57,6 +64,34 @@ def test_recording_url_is_restricted_to_local_http() -> None:
         _validated_local_url("file:///tmp/report")
 
 
+def test_resolve_free_port_keeps_preferred_port_when_available() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+
+    assert _resolve_free_port(free_port, set()) == free_port
+
+
+def test_resolve_free_port_falls_back_when_preferred_port_is_occupied() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        blocker.bind(("127.0.0.1", 0))
+        blocker.listen(1)
+        occupied_port = blocker.getsockname()[1]
+
+        resolved = _resolve_free_port(occupied_port, set())
+
+        assert resolved != occupied_port
+
+
+def test_resolve_free_port_avoids_already_taken_ports() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+
+    assert _resolve_free_port(free_port, {free_port}) != free_port
+
+
 def test_repository_timeline_is_valid_and_two_to_three_minutes() -> None:
     timeline_path = Path(__file__).resolve().parents[2] / "video/script/timeline.json"
 
@@ -64,7 +99,7 @@ def test_repository_timeline_is_valid_and_two_to_three_minutes() -> None:
 
     assert timeline.language == "de"
     assert 120 <= timeline.total_duration <= 180
-    assert timeline.total_duration == 150
+    assert timeline.total_duration == 179
 
 
 def test_timeline_rejects_unallowlisted_capture(tmp_path: Path) -> None:
@@ -106,9 +141,10 @@ def test_voice_assets_are_cached_by_content(tmp_path: Path) -> None:
     first = generate_voice_assets(short_timeline(), config, provider)
     second = generate_voice_assets(short_timeline(), config, provider)
 
-    assert first == second
+    assert first.assets == second.assets
     assert provider.calls == 1
-    assert first["intro"].exists()
+    assert first.assets["intro"].exists()
+    assert second.stats.api_requests == 0
 
 
 def test_voice_generation_without_key_fails_closed(

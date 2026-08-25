@@ -11,7 +11,7 @@ services:
       RAGOPS_DATA_DIR: data/synthetic
       RAGOPS_EVIDENCE_DIR: evidence
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -40,7 +40,7 @@ services:
     environment:
       RAGOPS_API_URL: http://api:8000
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m

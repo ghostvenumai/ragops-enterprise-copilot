@@ -12,10 +12,11 @@ build/
 .env
 .env.*
 !.env.example
+*.secret
 .loop/logs/*.log
 .loop/tmp/
 data/runtime/
-automation/state/*.json
-automation/state/*.jsonl
+automation/state/
 video/tmp/
 video/logs/
+video/cache/tts/

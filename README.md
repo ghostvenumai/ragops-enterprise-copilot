@@ -232,8 +232,8 @@ Details: [docs/LOOP_ARCHITECTURE.md](docs/LOOP_ARCHITECTURE.md).
 Neben dem aufgabenbezogenen Codex-Entwicklungsloop besitzt das Repository einen
 zweiten, vollständig deterministischen Master-Loop. Er prüft die echte
 Anwendung, startet eine reproduzierbare Demo, nimmt definierte GUI-Zustände auf,
-erzeugt deutschen Sprechertext und Untertitel, rendert das Video mit FFmpeg und
-validiert das Ergebnis technisch.
+erzeugt deutschen Sprechertext, validiert ihn vor TTS gegen Code, Demo und
+Timing, rendert das Video mit FFmpeg und prüft das Ergebnis technisch.
 
 ```bash
 # Planung, Abhängigkeiten und Timeline ohne Aufnahme prüfen
@@ -248,30 +248,35 @@ validiert das Ergebnis technisch.
 
 Die Phasen reichen von `DISCOVER`, `STATIC_CHECK`, `UNIT_TEST` und
 `SECURITY_CHECK` über `APPLICATION_QA`, `RECORD`,
-`GENERATE_VOICE` und `RENDER` bis `VIDEO_QA` und
+`VERIFY_NARRATION`, `GENERATE_VOICE` und `RENDER` bis `VIDEO_QA` und
 `FINAL_VERIFY`. Zustand, Retry-Zähler, Blocker und Historie werden atomar
 unter `automation/state/` gespeichert. Pro Phase gelten maximal drei Versuche,
 global standardmäßig 30 Iterationen und ein konfigurierbares Kommando-Timeout.
 
 Die Video-Timeline in [video/script/timeline.json](video/script/timeline.json)
 ist die gemeinsame Source of Truth für Szenen, Dauer, deutsche Narration,
-Aufnahmeziel und Overlay. Die Aufnahme verwendet reale lokale FastAPI- und
+Codebelege, sichtbare Begriffe, Aufnahmeziel und Overlay. Die Aufnahme verwendet reale lokale FastAPI- und
 Streamlit-Prozesse sowie allowlistete Demo-Zustände; sie führt keine
 Mauskoordinaten und keinen aus Modelltext übernommenen Shell-Code aus.
 
 Benötigte Systemwerkzeuge:
 
 - Python 3.12 in der Projekt-Virtual-Environment
-- FFmpeg und FFprobe mit H.264-, AAC- und Untertitel-Unterstützung
+- FFmpeg und FFprobe mit H.264-, AAC-, xfade- und acrossfade-Unterstützung
 - Google Chrome im Headless-Modus
 
 OpenAI TTS ist optional. Der Schlüssel wird ausschließlich aus
-`OPENAI_API_KEY` gelesen. Ohne Schlüssel laufen Aufnahme, Untertitel,
-Rendering und Video-QA weiter, aber das Ergebnis heißt
-`dist/solcom_demo_preview.mp4` und der Build endet korrekt mit Exit-Code
-`10` sowie `READY_EXCEPT_EXTERNAL_BLOCKER`. Erst ein echter Voice-Build
-erzeugt `dist/solcom_demo.mp4`; eine stumme Vorschau wird nie als finales
-Voiceover ausgegeben.
+`OPENAI_API_KEY` gelesen. Voice-Segmente liegen in einem persistenten,
+inhaltsadressierten und nicht versionierten Cache unter `video/cache/tts/`.
+Unveränderte TTS-Eingaben verursachen dadurch keine neuen API-Aufrufe; auch ein
+Build ohne Schlüssel funktioniert, wenn alle benötigten Segmente validiert im
+Cache vorliegen. Fehlen Cache-Einträge und der Schlüssel, meldet der Build
+`READY_EXCEPT_EXTERNAL_BLOCKER` mit Exit-Code `10` und erzeugt kein
+Ersatz-Audio. Eine stumme Vorschau entsteht nur nach explizitem `--skip-tts`.
+Dry Run, Cache-only, Force-Modus, API-Limit und sichere Cache-Pflege sind in
+[docs/TTS_CACHE.md](docs/TTS_CACHE.md) beschrieben. Das vorgeschaltete
+Narration-Gate ist in [docs/NARRATION_QA.md](docs/NARRATION_QA.md) dokumentiert.
+Untertitel werden standardmäßig nur als SRT-Sidecar erzeugt und nicht eingebrannt.
 
 Alternative Make-Ziele:
 
@@ -377,6 +382,8 @@ dist/                     generierte Build- und Video-Artefakte, nicht versionie
 - [Codex-Loop-Architektur](docs/LOOP_ARCHITECTURE.md)
 - [Master-Loop- und Video-Architektur](docs/AUTOMATION_ARCHITECTURE.md)
 - [Video-Build-Handbuch](video/README.md)
+- [Sicherer TTS-Cache und Kostenkontrolle](docs/TTS_CACHE.md)
+- [Narration Quality Gate](docs/NARRATION_QA.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Drei-Minuten-Demo](docs/DEMO_SCRIPT.md)
 - [Architecture Decision Records](docs/adr/)

@@ -21,8 +21,9 @@ sys.path.insert(0, str(REPO_ROOT))
 EVIDENCE_DIR = REPO_ROOT / "evidence"
 
 SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9]{20,}"),
-    re.compile(r"(?i)(api[_-]?key|secret|token)[ \t]*=[ \t]*['\"]?[A-Za-z0-9_./+-]{12,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"(?i)authorization\s*:\s*bearer\s+[^\s,;]+"),
+    re.compile(r"(?i)(api[_-]?key|secret|token)[ \t]*=[ \t]*['\"][A-Za-z0-9_./+-]{12,}"),
     re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"),
 ]
 
@@ -86,6 +87,42 @@ def check_no_env_files() -> dict[str, object]:
     }
 
 
+def check_no_tracked_secret_files() -> dict[str, object]:
+    git = shutil.which("git")
+    if not git:
+        return {
+            "name": "tracked-secret-file-check",
+            "status": "failed",
+            "reason": "git executable is unavailable",
+        }
+    completed = subprocess.run(  # noqa: S603 - resolved binary, fixed arguments.
+        [git, "ls-files"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode:
+        return {
+            "name": "tracked-secret-file-check",
+            "status": "failed",
+            "reason": "git ls-files failed",
+        }
+    tracked = completed.stdout.splitlines()
+    prohibited = [
+        path
+        for path in tracked
+        if Path(path).name in {".env", ".env.local"}
+        or (Path(path).name.startswith(".env.") and Path(path).name != ".env.example")
+        or Path(path).suffix == ".secret"
+    ]
+    return {
+        "name": "tracked-secret-file-check",
+        "status": "passed" if not prohibited else "failed",
+        "prohibited_tracked_files": prohibited,
+    }
+
+
 def secret_scan() -> dict[str, object]:
     findings: list[dict[str, str]] = []
     for path in iter_repo_files():
@@ -96,12 +133,12 @@ def secret_scan() -> dict[str, object]:
         except UnicodeDecodeError:
             continue
         for pattern in SECRET_PATTERNS:
-            for match in pattern.finditer(text):
+            for _ in pattern.finditer(text):
                 findings.append(
                     {
                         "path": str(path.relative_to(REPO_ROOT)),
                         "pattern": pattern.pattern,
-                        "preview": match.group(0)[:20] + "...",
+                        "preview": "[REDACTED]",
                     }
                 )
     report: dict[str, object] = {
@@ -324,6 +361,8 @@ def main(argv: list[str] | None = None) -> int:
         ]
     elif args.only == "security":
         results = [
+            check_no_env_files(),
+            check_no_tracked_secret_files(),
             secret_scan(),
             docker_config_check(),
             run_command(
@@ -350,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         results = [
             check_no_env_files(),
+            check_no_tracked_secret_files(),
             secret_scan(),
             synthetic_data_scan(),
             docker_config_check(),
@@ -369,7 +409,13 @@ def main(argv: list[str] | None = None) -> int:
         result
         for result in results
         if result.get("name")
-        in {"secret-scan", "synthetic-data-scan", "container-config-check", "bandit"}
+        in {
+            "tracked-secret-file-check",
+            "secret-scan",
+            "synthetic-data-scan",
+            "container-config-check",
+            "bandit",
+        }
     ]
     write_json(
         "security-report.json",

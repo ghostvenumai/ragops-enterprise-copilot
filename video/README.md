@@ -32,38 +32,52 @@ Der übergeordnete Ablauf inklusive aller Application- und Security-Gates ist:
 
 1. Timeline und lokale Werkzeuge prüfen
 2. echten Demo-Controller ausführen
-3. deutschen Sprechertext und SRT aus der Timeline erzeugen
+3. deutschen Sprechertext aus der Timeline erzeugen
 4. FastAPI und Streamlit lokal starten
-5. allowlistete GUI-Szenen mit Headless Chrome aufnehmen
-6. Voice-Segmente erzeugen oder explizite Preview-Stille markieren
-7. Szenen mit FFmpeg als H.264/AAC rendern
-8. Untertitel einbrennen und MP4 für Streaming optimieren
-9. Codec, Streams, Auflösung, 30 FPS, Dauer, Dateigröße und Volldecode prüfen
-10. drei Stichprobenframes extrahieren und den QA-Bericht schreiben
+5. allowlistete GUI-Szenen aufnehmen und sichtbare Begriffe prüfen
+6. Narration gegen Code, Demo, Timing und unbelegte Claims validieren
+7. erst nach bestandenem Gate Voice-Cache beziehungsweise TTS verwenden
+8. reale Audiodauern messen und das optionale SRT-Sidecar synchronisieren
+9. Szenen vollständig mit Vor-/Nachpause und weichen Übergängen rendern
+10. MP4 ohne eingebrannte Untertitel für Streaming optimieren
+11. Codec, Streams, Auflösung, 30 FPS, Dauer, Dateigröße und Volldecode prüfen
+12. drei Stichprobenframes extrahieren und den QA-Bericht schreiben
 
-## TTS-Konfiguration
+Details zum Gate: [docs/NARRATION_QA.md](../docs/NARRATION_QA.md).
+
+## TTS-Konfiguration und Cache
 
 ```bash
 export OPENAI_API_KEY="<nur in der Shell oder einem Secret Store>"
-export OPENAI_TTS_MODEL="gpt-4o-mini-tts"
-export OPENAI_TTS_VOICE="coral"
+export TTS_PROVIDER="openai"
+export TTS_MODEL="gpt-4o-mini-tts"
+export TTS_VOICE="coral"
 ./run_loop.sh --resume
 ```
 
-Der Schlüssel darf nie in `.env`, Logs, Screenshots oder Git geschrieben
-werden. Szenen-Audio wird unter `video/tmp/audio/` inhaltsadressiert
-gecacht.
+Der Schlüssel darf nie in `.env`, Logs, Reports, Screenshots, Video, Cache-Key
+oder Git geschrieben werden. Szenen-Audio wird persistent unter
+`video/cache/tts/` gespeichert und vor jeder Wiederverwendung mit FFprobe
+validiert. Der Cache überlebt normale Builds und `--clean-temp`.
 
-Fehlt der Schlüssel, ist dies kein Application-Fehler. Der Build erzeugt
-`dist/solcom_demo_preview.mp4`, setzt Status
-`READY_EXCEPT_EXTERNAL_BLOCKER` und beendet sich mit Code `10`. Die
-Vorschau enthält bewusst Stille und darf nicht als finales Voiceover
-veröffentlicht werden.
+```bash
+./video/build_demo.sh --dry-run
+./video/build_demo.sh --cache-only
+./video/build_demo.sh --clean-temp
+```
+
+Fehlt der Schlüssel bei vollständigem Cache, wird das finale Video ohne
+API-Aufruf gebaut. Fehlen Segmente, setzt der Build
+`BLOCKED_EXTERNAL_CREDENTIAL`, beendet sich mit Code `10` und erzeugt kein
+Fake-Audio. Eine stumme Vorschau gibt es ausschließlich über `--skip-tts`.
+Details zu Hash-Feldern, Locks, Validierung, Limits und Reports:
+[docs/TTS_CACHE.md](../docs/TTS_CACHE.md).
 
 ## Outputs
 
 - final: `dist/solcom_demo.mp4`
 - stumme Vorschau: `dist/solcom_demo_preview.mp4`
+- Narration-QA: `dist/narration_qa_report.json`
 - QA: `dist/video_qa_report.json`
 - Bericht: `dist/build_report.md`
 - Narration: `video/script/narration.md`
@@ -73,10 +87,13 @@ veröffentlicht werden.
 
 ## Determinismus und Wartung
 
-Szenenreihenfolge, Text, Dauer, Capture-Modus und Overlay stehen ausschließlich
-in `video/script/timeline.json`. Capture-Modi außerhalb der Code-Allowlist
-werden abgelehnt. Änderungen an Produktfunktionen erfordern eine Aktualisierung
-von Timeline, Narration und Tests.
+Szenenreihenfolge, Text, Dauer, Capture-Modus, Overlay, Claims, Codebelege und
+sichtbare Begriffe stehen in `video/script/timeline.json`. Capture-Modi
+außerhalb der Code-Allowlist werden abgelehnt. Änderungen an Produktfunktionen
+erfordern eine Aktualisierung von Timeline, Narration und Tests.
+
+`VIDEO_BURN_SUBTITLES=false` ist der Standard. Optionales Einbrennen und
+`VIDEO_TRANSITION_SECONDS` verändern den TTS-Cache-Key nicht.
 
 ## Troubleshooting
 
@@ -87,13 +104,13 @@ lokale Ports setzen.
 bereitstellen. Der Loop installiert keine Hostpakete und verwendet kein
 `sudo`.
 
-**FFmpeg-Fehler:** FFmpeg-Build auf `libx264`, AAC und den
-`subtitles`-Filter prüfen.
+**FFmpeg-Fehler:** FFmpeg-Build auf `libx264`, AAC, `xfade` und
+`acrossfade` prüfen. Der `subtitles`-Filter ist nur bei explizitem Burn-in nötig.
 
 **Aufnahme bleibt leer:** `video/logs/recording-api.log`,
 `video/logs/recording-dashboard.log` und den szenenspezifischen
 Capture-Log prüfen.
 
-**TTS blockiert:** Schlüssel sicher in der Prozessumgebung setzen und
-`./run_loop.sh --resume` ausführen. Bereits bestandene Phasen werden nicht
-unnötig neu ausgeführt.
+**TTS blockiert:** Cache mit `--dry-run` prüfen. Anschließend entweder den
+Schlüssel sicher in derselben Prozessumgebung setzen oder fehlende validierte
+Cache-Dateien bereitstellen und `./run_loop.sh --resume` ausführen.

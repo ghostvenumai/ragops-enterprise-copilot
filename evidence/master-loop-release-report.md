@@ -1,7 +1,7 @@
 # RAGOps Master-Loop Build Report
 
-- Build ID: `ragops-20260810T171552Z`
-- Status: **READY_EXCEPT_EXTERNAL_BLOCKER**
+- Build ID: `ragops-20260824T192501Z`
+- Status: **COMPLETE**
 - Letzte erfolgreiche Aktion: `Vollständige Quality Gates bestanden`
 - Letzte Fehlerkategorie: `keine`
 
@@ -20,7 +20,8 @@
 | DEMO_RUN | PASS |
 | RECORD | PASS |
 | GENERATE_NARRATION | PASS |
-| GENERATE_VOICE | BLOCKED |
+| VERIFY_NARRATION | PASS |
+| GENERATE_VOICE | PASS |
 | GENERATE_SUBTITLES | PASS |
 | RENDER | PASS |
 | VIDEO_QA | PASS |
@@ -28,11 +29,25 @@
 
 ## Finaler Output
 
-`dist/solcom_demo_preview.mp4`
+`dist/solcom_demo.mp4`
+
+## TTS Cache
+
+| Messwert | Wert |
+|---|---:|
+| Segmente gesamt | 9 |
+| Cache Hits | 9 |
+| Cache Misses | 0 |
+| Defekte Eintraege | 0 |
+| Erforderliche API-Aufrufe | 0 |
+| Neue API-Aufrufe | 0 |
+| Wiederverwendetes Audio | 9 |
+
+TTS-Status: **PASS**
 
 ## Externe Blocker
 
-- `GENERATE_VOICE`: OPENAI_API_KEY fehlt; Preview-Audio ist explizite Stille
+- Keine
 
 ## Diagnose
 

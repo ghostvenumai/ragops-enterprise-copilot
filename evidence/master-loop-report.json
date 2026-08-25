@@ -3,20 +3,20 @@
     "application_qa": "video/tmp/application_qa/application-demo.json",
     "demo_run": "video/tmp/demo_run/application-demo.json",
     "narration": "video/script/narration.md",
+    "narration_qa": "dist/narration_qa_report.json",
+    "narration_qa_precheck": "video/tmp/narration-qa-precheck.json",
     "recording": "video/tmp/screenshots",
     "subtitles": "video/tmp/subtitles.srt",
-    "video": "dist/solcom_demo_preview.mp4",
-    "video_mode": "preview",
+    "tts_api_requests": "0",
+    "tts_cache_report": "video/tmp/tts-cache-report.json",
+    "video": "dist/solcom_demo.mp4",
+    "video_mode": "final",
     "video_qa": "dist/video_qa_report.json",
-    "voice_mode": "preview-silence"
+    "voice_mode": "openai"
   },
-  "blocked_phases": [
-    "GENERATE_VOICE"
-  ],
-  "blocker_details": {
-    "GENERATE_VOICE": "OPENAI_API_KEY fehlt; Preview-Audio ist explizite Stille"
-  },
-  "build_id": "ragops-20260810T171552Z",
+  "blocked_phases": [],
+  "blocker_details": {},
+  "build_id": "ragops-20260824T192501Z",
   "completed_phases": [
     "DISCOVER",
     "PRECHECK",
@@ -31,25 +31,32 @@
     "DEMO_RUN",
     "RECORD",
     "GENERATE_NARRATION",
+    "VERIFY_NARRATION",
+    "GENERATE_VOICE",
     "GENERATE_SUBTITLES",
     "RENDER",
     "VIDEO_QA",
     "FINAL_VERIFY"
   ],
-  "created_at": "2026-08-10T17:15:52.742655+00:00",
+  "created_at": "2026-08-24T19:25:01.364457+00:00",
   "current_phase": "COMPLETE",
-  "failed_phases": [
-    "STATIC_CHECK",
-    "FINAL_VERIFY"
-  ],
-  "global_iterations": 20,
+  "failed_phases": [],
+  "global_iterations": 19,
   "last_error": "",
   "last_error_category": "",
   "last_successful_action": "Vollst\u00e4ndige Quality Gates bestanden",
-  "retry_counts": {
-    "FINAL_VERIFY": 1,
-    "STATIC_CHECK": 1
+  "retry_counts": {},
+  "status": "COMPLETE",
+  "tts_cache": {
+    "api_calls_needed": 0,
+    "api_requests": 0,
+    "cache_hits": 9,
+    "cache_misses": 0,
+    "characters_to_generate": 0,
+    "corrupt_entries": 0,
+    "reused_audio": 9,
+    "segments_total": 9,
+    "status": "PASS"
   },
-  "status": "READY_EXCEPT_EXTERNAL_BLOCKER",
-  "updated_at": "2026-08-10T17:23:24.336516+00:00"
+  "updated_at": "2026-08-24T19:29:34.682780+00:00"
 }

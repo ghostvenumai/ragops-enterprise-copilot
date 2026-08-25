@@ -22,6 +22,7 @@ def classify_error(phase: Phase, error: BaseException) -> ErrorCategory:
         Phase.STATIC_CHECK: ErrorCategory.TEST_FAILURE,
         Phase.SECURITY_CHECK: ErrorCategory.SECURITY_BLOCK,
         Phase.RECORD: ErrorCategory.RECORDING_FAILURE,
+        Phase.VERIFY_NARRATION: ErrorCategory.NARRATION_QA_FAILURE,
         Phase.GENERATE_VOICE: ErrorCategory.TTS_FAILURE,
         Phase.RENDER: ErrorCategory.RENDER_FAILURE,
         Phase.VIDEO_QA: ErrorCategory.VIDEO_QA_FAILURE,

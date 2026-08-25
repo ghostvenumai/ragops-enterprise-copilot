@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from video.config import REPO_ROOT, VideoConfig
+from video.narration.cache import AudioValidator
 from video.timeline import Scene, Timeline
 from video.tools import require_tool, run_checked
 
@@ -19,9 +20,12 @@ def build_segment_command(
     image_path: Path,
     audio_path: Path,
     output_path: Path,
+    audio_duration: float,
+    segment_duration: float,
     config: VideoConfig,
 ) -> list[str]:
     overlay = _drawtext_value(scene.overlay)
+    delay_ms = round(scene.pause_before * 1000)
     video_filter = (
         f"scale={config.width}:{config.height}:force_original_aspect_ratio=decrease,"
         f"pad={config.width}:{config.height}:(ow-iw)/2:(oh-ih)/2:#101722,"
@@ -44,13 +48,17 @@ def build_segment_command(
         "-i",
         str(audio_path),
         "-filter_complex",
-        f"[0:v]{video_filter}[v];[1:a]apad,atrim=0:{scene.planned_duration},aresample=48000[a]",
+        (
+            f"[0:v]{video_filter}[v];"
+            f"[1:a]atrim=0:{audio_duration:.3f},adelay={delay_ms}:all=1,"
+            f"apad,atrim=0:{segment_duration:.3f},aresample=48000[a]"
+        ),
         "-map",
         "[v]",
         "-map",
         "[a]",
         "-t",
-        str(scene.planned_duration),
+        f"{segment_duration:.3f}",
         "-r",
         str(config.fps),
         "-c:v",
@@ -77,47 +85,89 @@ def _subtitle_filter(path: Path) -> str:
     return f"subtitles='{escaped}':force_style='{style}'"
 
 
-def render_video(
+def measure_audio_durations(
     timeline: Timeline,
-    images: dict[str, Path],
     audio: dict[str, Path],
-    subtitles: Path,
     config: VideoConfig,
     *,
     preview: bool,
-) -> Path:
-    ffmpeg = require_tool("ffmpeg")
-    segment_dir = config.tmp_dir / "segments"
-    segment_dir.mkdir(parents=True, exist_ok=True)
-    segment_paths: list[Path] = []
+) -> dict[str, float]:
+    validator = AudioValidator(min_size_bytes=config.tts_min_audio_bytes)
+    durations: dict[str, float] = {}
     for scene in timeline.scenes:
-        output = segment_dir / f"{scene.order:03d}_{scene.id}.mp4"
-        run_checked(
-            build_segment_command(ffmpeg, scene, images[scene.id], audio[scene.id], output, config),
-            cwd=REPO_ROOT,
-            timeout=180,
-            log_path=config.logs_dir / f"render-{scene.order:03d}-{scene.id}.log",
+        if preview:
+            durations[scene.id] = scene.narration_duration
+            continue
+        path = audio[scene.id]
+        expected_format = path.suffix.lower().lstrip(".")
+        metadata = validator.validate(path, expected_format)
+        durations[scene.id] = metadata.duration_seconds
+    return durations
+
+
+def scene_render_durations(
+    timeline: Timeline,
+    speech_durations: dict[str, float],
+) -> dict[str, float]:
+    return {
+        scene.id: round(
+            scene.pause_before + speech_durations[scene.id] + scene.pause_after,
+            3,
         )
-        segment_paths.append(output)
-    concat_path = config.tmp_dir / "segments.txt"
-    concat_path.write_text(
-        "".join(f"file '{path.as_posix()}'\n" for path in segment_paths), encoding="utf-8"
-    )
-    output = config.dist_dir / ("solcom_demo_preview.mp4" if preview else "solcom_demo.mp4")
-    run_checked(
+        for scene in timeline.scenes
+    }
+
+
+def build_final_command(
+    ffmpeg: str,
+    segment_paths: list[Path],
+    segment_durations: list[float],
+    subtitles: Path | None,
+    output: Path,
+    config: VideoConfig,
+) -> list[str]:
+    if len(segment_paths) != len(segment_durations) or not segment_paths:
+        raise ValueError("segments and durations must be non-empty and aligned")
+    command = [ffmpeg, "-y", "-v", "error"]
+    for path in segment_paths:
+        command.extend(["-i", str(path)])
+
+    filters: list[str] = []
+    video_label = "0:v"
+    audio_label = "0:a"
+    accumulated = segment_durations[0]
+    transition = min(config.transition_seconds, min(segment_durations) / 4)
+    for index, duration in enumerate(segment_durations[1:], start=1):
+        video_output = f"v{index}"
+        audio_output = f"a{index}"
+        offset = accumulated - transition
+        filters.append(
+            f"[{video_label}][{index}:v]xfade=transition=fade:"
+            f"duration={transition:.3f}:offset={offset:.3f}[{video_output}]"
+        )
+        filters.append(
+            f"[{audio_label}][{index}:a]acrossfade=d={transition:.3f}:c1=tri:c2=tri[{audio_output}]"
+        )
+        video_label = video_output
+        audio_label = audio_output
+        accumulated += duration - transition
+
+    if len(segment_paths) == 1:
+        filters.extend(["[0:v]null[vbase]", "[0:a]anull[abase]"])
+        video_label = "vbase"
+        audio_label = "abase"
+    if subtitles is not None:
+        filters.append(f"[{video_label}]{_subtitle_filter(subtitles)}[vout]")
+        video_label = "vout"
+
+    command.extend(
         [
-            ffmpeg,
-            "-y",
-            "-v",
-            "error",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_path),
-            "-vf",
-            _subtitle_filter(subtitles),
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            f"[{video_label}]",
+            "-map",
+            f"[{audio_label}]",
             "-r",
             str(config.fps),
             "-c:v",
@@ -133,7 +183,54 @@ def render_video(
             "-movflags",
             "+faststart",
             str(output),
-        ],
+        ]
+    )
+    return command
+
+
+def render_video(
+    timeline: Timeline,
+    images: dict[str, Path],
+    audio: dict[str, Path],
+    subtitles: Path | None,
+    config: VideoConfig,
+    *,
+    preview: bool,
+) -> Path:
+    ffmpeg = require_tool("ffmpeg")
+    speech_durations = measure_audio_durations(timeline, audio, config, preview=preview)
+    durations = scene_render_durations(timeline, speech_durations)
+    segment_dir = config.tmp_dir / "segments"
+    segment_dir.mkdir(parents=True, exist_ok=True)
+    segment_paths: list[Path] = []
+    for scene in timeline.scenes:
+        output = segment_dir / f"{scene.order:03d}_{scene.id}.mp4"
+        run_checked(
+            build_segment_command(
+                ffmpeg,
+                scene,
+                images[scene.id],
+                audio[scene.id],
+                output,
+                speech_durations[scene.id],
+                durations[scene.id],
+                config,
+            ),
+            cwd=REPO_ROOT,
+            timeout=180,
+            log_path=config.logs_dir / f"render-{scene.order:03d}-{scene.id}.log",
+        )
+        segment_paths.append(output)
+    output = config.dist_dir / ("solcom_demo_preview.mp4" if preview else "solcom_demo.mp4")
+    run_checked(
+        build_final_command(
+            ffmpeg,
+            segment_paths,
+            [durations[scene.id] for scene in timeline.scenes],
+            subtitles if config.burn_subtitles else None,
+            output,
+            config,
+        ),
         cwd=REPO_ROOT,
         timeout=600,
         log_path=config.logs_dir / "render-final.log",

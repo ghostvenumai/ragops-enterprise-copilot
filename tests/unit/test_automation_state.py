@@ -8,7 +8,15 @@ import pytest
 from automation.diagnostics import classify_error
 from automation.reports import portable_state, write_reports
 from automation.retry import RetryPolicy
-from automation.state import ErrorCategory, LoopState, Phase, StateStore, next_phase
+from automation.run_loop import _resume_state
+from automation.state import (
+    BuildStatus,
+    ErrorCategory,
+    LoopState,
+    Phase,
+    StateStore,
+    next_phase,
+)
 
 
 def test_state_machine_allows_only_current_or_next_phase() -> None:
@@ -55,6 +63,33 @@ def test_blocker_detail_and_retry_count_are_persisted() -> None:
     assert state.blocked_phases == [Phase.GENERATE_VOICE.value]
     assert state.blocker_details == {Phase.GENERATE_VOICE.value: "Schlüssel fehlt"}
     assert attempts == 1
+
+
+def test_resume_clears_every_blocker_in_the_voice_rerun_range(tmp_path: Path) -> None:
+    store = StateStore(tmp_path / "loop-state.json")
+    state = LoopState(
+        build_id="blocked-build",
+        current_phase=Phase.COMPLETE.value,
+        status=BuildStatus.READY_EXCEPT_EXTERNAL_BLOCKER.value,
+        blocked_phases=[
+            Phase.GENERATE_VOICE.value,
+            Phase.RENDER.value,
+            Phase.VIDEO_QA.value,
+        ],
+        blocker_details={
+            Phase.GENERATE_VOICE.value: "credential missing",
+            Phase.RENDER.value: "voice unavailable",
+            Phase.VIDEO_QA.value: "video unavailable",
+        },
+    )
+    store.save(state)
+
+    resumed = _resume_state(store)
+
+    assert resumed.phase is Phase.VERIFY_NARRATION
+    assert resumed.status == BuildStatus.RUNNING.value
+    assert resumed.blocked_phases == []
+    assert resumed.blocker_details == {}
 
 
 def test_retry_policy_retries_only_transient_failures() -> None:

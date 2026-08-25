@@ -36,6 +36,19 @@ def phase_status(state: LoopState, phase: Phase) -> str:
     return "NOT_RUN"
 
 
+def load_tts_cache_report() -> dict[str, object]:
+    path = REPO_ROOT / "video/tmp/tts-cache-report.json"
+    if not path.exists():
+        return {"status": "NOT_RUN", "api_requests": 0}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"status": "INVALID_REPORT", "api_requests": 0}
+    if not isinstance(payload, dict):
+        return {"status": "INVALID_REPORT", "api_requests": 0}
+    return payload
+
+
 def write_reports(
     state: LoopState, dist_dir: Path, evidence_dir: Path | None = None
 ) -> tuple[Path, Path]:
@@ -44,7 +57,9 @@ def write_reports(
     evidence_dir.mkdir(parents=True, exist_ok=True)
     json_path = dist_dir / "master_loop_report.json"
     markdown_path = dist_dir / "build_report.md"
-    json_text = json.dumps(portable_state(state), indent=2, sort_keys=True) + "\n"
+    report_payload = portable_state(state)
+    report_payload["tts_cache"] = load_tts_cache_report()
+    json_text = json.dumps(report_payload, indent=2, sort_keys=True) + "\n"
     json_path.write_text(json_text, encoding="utf-8")
     rows = "\n".join(
         f"| {phase.value} | {phase_status(state, phase)} |"
@@ -59,6 +74,7 @@ def write_reports(
         or "- Keine"
     )
     output = state.artifacts.get("video", "Nicht erzeugt")
+    tts = load_tts_cache_report()
     text = f"""# RAGOps Master-Loop Build Report
 
 - Build ID: `{state.build_id}`
@@ -73,6 +89,20 @@ def write_reports(
 ## Finaler Output
 
 `{output}`
+
+## TTS Cache
+
+| Messwert | Wert |
+|---|---:|
+| Segmente gesamt | {tts.get("segments_total", 0)} |
+| Cache Hits | {tts.get("cache_hits", 0)} |
+| Cache Misses | {tts.get("cache_misses", 0)} |
+| Defekte Eintraege | {tts.get("corrupt_entries", 0)} |
+| Erforderliche API-Aufrufe | {tts.get("api_calls_needed", 0)} |
+| Neue API-Aufrufe | {tts.get("api_requests", 0)} |
+| Wiederverwendetes Audio | {tts.get("reused_audio", 0)} |
+
+TTS-Status: **{tts.get("status", "NOT_RUN")}**
 
 ## Externe Blocker
 
@@ -101,6 +131,7 @@ def print_summary(state: LoopState) -> None:
         ("DEMO", Phase.DEMO_RUN),
         ("RECORDING", Phase.RECORD),
         ("NARRATION", Phase.GENERATE_NARRATION),
+        ("NARRATION QA", Phase.VERIFY_NARRATION),
         ("VOICEOVER", Phase.GENERATE_VOICE),
         ("SUBTITLES", Phase.GENERATE_SUBTITLES),
         ("RENDER", Phase.RENDER),
@@ -108,6 +139,8 @@ def print_summary(state: LoopState) -> None:
     )
     for label, phase in labels:
         print(f"{label + ':':20}{phase_status(state, phase)}")
+    tts = load_tts_cache_report()
+    print(f"TTS API REQUESTS:   {tts.get('api_requests', 0)}")
     print(f"\nFINAL STATUS:       {state.status}")
     print(f"VIDEO:              {state.artifacts.get('video', 'nicht erzeugt')}")
     print("REPORT:             dist/build_report.md")

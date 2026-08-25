@@ -1,16 +1,17 @@
 # Assumptions
 
 - `/home/serverserver` was not a Git repository at start. The project was
-  created in `/home/serverserver/ragops-enterprise-copilot` and initialized as a
+  created in `/home/serverserver/tools/ragops-enterprise-copilot` and initialized as a
   dedicated repository.
 - All data in `data/` is synthetic and must remain synthetic.
 - The default LLM provider is deterministic and local. OpenAI and Azure OpenAI
   providers are opt-in through environment variables.
 - The portfolio dashboard and deterministic default answers use German. Stable
   source titles and source IDs remain unchanged for evaluation and audit evidence.
-- Local PDF and DOCX support uses text-layer extraction by UTF-8 or Latin-1
-  decoding for synthetic fixtures. Production-grade binary parsing is a planned
-  adapter extension.
+- Local PDF and DOCX ingestion uses real binary format parsers (`pypdf`,
+  `python-docx`) that extract the text layer/paragraphs from actual PDF and
+  OOXML `.docx` fixtures. Plain-text-with-extension fixtures are no longer
+  used for these two suffixes.
 - PostgreSQL and Qdrant are deployed as hardened Docker services. Core tests
   remain file-backed and deterministic, so external services are not required
   for the default test provider.
@@ -27,9 +28,10 @@
   Chrome. Xvfb is not required because capture is browser-headless and contains
   no desktop-coordinate automation.
 - OpenAI text-to-speech is optional and reads its credential only from
-  `OPENAI_API_KEY`. Without that external credential, the pipeline produces a
-  technically validated, explicitly named silent preview and reports
-  `READY_EXCEPT_EXTERNAL_BLOCKER`; it does not claim a final voiceover.
+  `OPENAI_API_KEY`. A complete validated local cache works without that
+  credential. A cache miss without it reports `READY_EXCEPT_EXTERNAL_BLOCKER`
+  and creates no replacement audio; silence is available only through the
+  explicit `--skip-tts` preview mode.
 - `MASTER_BRIEFING.md` describes a generic Python data processor. In this
   repository, the existing RAGOps application is the real processor: ingestion,
   validation, retrieval, security, export, and demo actions execute production

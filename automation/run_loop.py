@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import UTC, datetime
 
@@ -74,18 +73,16 @@ def run_dry_run() -> tuple[LoopState, ExitCode]:
 
 def _resume_state(store: StateStore) -> LoopState:
     state = store.load()
-    if state.status == BuildStatus.READY_EXCEPT_EXTERNAL_BLOCKER.value and os.getenv(
-        "OPENAI_API_KEY"
-    ):
-        voice_index = list(Phase).index(Phase.GENERATE_VOICE)
-        rerun = {phase.value for phase in list(Phase)[voice_index:]}
+    if state.status == BuildStatus.READY_EXCEPT_EXTERNAL_BLOCKER.value:
+        # A complete local cache can resolve the blocker without any credential.
+        qa_index = list(Phase).index(Phase.VERIFY_NARRATION)
+        rerun = {phase.value for phase in list(Phase)[qa_index:]}
         state.completed_phases = [item for item in state.completed_phases if item not in rerun]
         state.failed_phases = [item for item in state.failed_phases if item not in rerun]
-        state.blocked_phases = [
-            item for item in state.blocked_phases if item != Phase.GENERATE_VOICE.value
-        ]
-        state.blocker_details.pop(Phase.GENERATE_VOICE.value, None)
-        state.current_phase = Phase.GENERATE_VOICE.value
+        state.blocked_phases = [item for item in state.blocked_phases if item not in rerun]
+        for phase_name in rerun:
+            state.blocker_details.pop(phase_name, None)
+        state.current_phase = Phase.VERIFY_NARRATION.value
         state.status = BuildStatus.RUNNING.value
     return state
 
@@ -95,7 +92,7 @@ def _failure_exit(phase: Phase, category: ErrorCategory) -> ExitCode:
         return ExitCode.SECURITY_BLOCK
     if category is ErrorCategory.TEST_FAILURE:
         return ExitCode.TEST_FAILURE
-    if phase in {Phase.RECORD, Phase.RENDER, Phase.VIDEO_QA}:
+    if phase in {Phase.RECORD, Phase.VERIFY_NARRATION, Phase.RENDER, Phase.VIDEO_QA}:
         return ExitCode.VIDEO_FAILURE
     return ExitCode.FAILURE
 

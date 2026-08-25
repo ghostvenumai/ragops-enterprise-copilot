@@ -32,6 +32,7 @@ jiter==0.16.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 license-expression==30.4.4
+lxml==6.1.2
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
@@ -65,6 +66,7 @@ pyparsing==3.3.2
 pytest==9.1.1
 pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
+python-docx==1.2.0
 python-multipart==0.0.32
 pytz==2026.3.post1
 PyYAML==6.0.3
