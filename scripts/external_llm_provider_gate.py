@@ -104,9 +104,21 @@ def main() -> int:
     # The connectivity probe is deliberately tiny and the SDK is configured with
     # zero retries, so one gate run produces at most one billable request.
     os.environ["RAGOPS_LLM_MAX_OUTPUT_TOKENS"] = "16"
-    started = time.perf_counter()
     try:
         provider = provider_from_env()
+    except Exception as exc:  # client construction fails before any provider request
+        _write(
+            {
+                **base,
+                "status": "FAIL",
+                "reason": "External provider configuration failed before any request",
+                "error_type": type(exc).__name__,
+                "integration_test_exit_code": 1,
+            }
+        )
+        return 1
+    started = time.perf_counter()
+    try:
         response = provider.generate(
             "Return a short confirmation that the live external provider is reachable.",
             [],

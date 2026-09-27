@@ -474,7 +474,7 @@ def _generate_responses_completion(
                     text_parts.append(text)
         content = "\n".join(text_parts)
     if not isinstance(content, str) or not content.strip():
-        raise ProviderError(ProviderErrorCategory.PROVIDER_ERROR, "provider returned no text")
+        raise _empty_response_error(response)
     usage = getattr(response, "usage", None)
     prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
     completion_tokens = int(getattr(usage, "output_tokens", 0) or 0)
@@ -495,6 +495,30 @@ def _generate_responses_completion(
             model=str(getattr(response, "model", None) or provider.model),
         ),
         used_source_ids=used_source_ids,
+    )
+
+
+def _empty_response_error(response: Any) -> ProviderError:
+    """An HTTP 200 without text; keep the Responses status/reason instead of a bare failure."""
+
+    def text(value: object) -> str | None:
+        return value if isinstance(value, str) and value else None
+
+    error = getattr(response, "error", None)
+    sensitive_values = (os.getenv("OPENAI_API_KEY", ""),)
+    return ProviderError(
+        ProviderErrorCategory.PROVIDER_ERROR,
+        "provider returned no text",
+        provider_error_code=sanitize_provider_diagnostic(
+            text(getattr(error, "code", None)), sensitive_values=sensitive_values
+        ),
+        sanitized_provider_message=sanitize_provider_diagnostic(
+            text(getattr(error, "message", None)), sensitive_values=sensitive_values
+        ),
+        provider_response_status=text(getattr(response, "status", None)),
+        provider_incomplete_reason=text(
+            getattr(getattr(response, "incomplete_details", None), "reason", None)
+        ),
     )
 
 

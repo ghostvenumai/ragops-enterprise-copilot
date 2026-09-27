@@ -40,6 +40,8 @@ class ProviderError(RuntimeError):
         provider_error_code: str | None = None,
         provider_error_param: str | None = None,
         sanitized_provider_message: str | None = None,
+        provider_response_status: str | None = None,
+        provider_incomplete_reason: str | None = None,
     ) -> None:
         super().__init__(message)
         self.category = category
@@ -55,6 +57,9 @@ class ProviderError(RuntimeError):
         self.sanitized_provider_message = sanitize_provider_diagnostic(
             sanitized_provider_message if sanitized_provider_message is not None else message
         )
+        # Responses API status/reason for a request that returned HTTP 200 without text.
+        self.provider_response_status = sanitize_provider_diagnostic(provider_response_status)
+        self.provider_incomplete_reason = sanitize_provider_diagnostic(provider_incomplete_reason)
 
     def diagnostic_fields(self, *, sensitive_values: tuple[str, ...] = ()) -> dict[str, object]:
         """Allowlisted, re-sanitized fields for evidence; no exception/request dump."""
@@ -64,6 +69,7 @@ class ProviderError(RuntimeError):
         for name in (
             "provider_exception_class", "provider_error_type", "provider_error_code",
             "provider_error_param", "sanitized_provider_message",
+            "provider_response_status", "provider_incomplete_reason",
         ):
             value = sanitize_provider_diagnostic(
                 getattr(self, name), sensitive_values=sensitive_values

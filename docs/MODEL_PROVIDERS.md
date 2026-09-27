@@ -29,7 +29,7 @@ cat evidence/product-v1/rc-live/external-llm-provider.json
 ```
 
 `PASS` is valid only when the command has completed exactly one actual external
-chat completion with `RAGOPS_ALLOW_PAID_INTEGRATION_TESTS=1`. The recommended
+provider request (OpenAI: Responses API) with `RAGOPS_ALLOW_PAID_INTEGRATION_TESTS=1`. The recommended
 low-cost smoke-test model is `gpt-5.6-luna`; it remains operator-configurable
 and is not hard-coded into routing policy. Network, credential, provider, or
 configuration failures remain `BLOCKED`/`FAIL` and must not be reclassified.
@@ -42,10 +42,18 @@ The external gate preserves optional SDK diagnostics on a failed opted-in reques
 Existing callers can continue to use `ProviderError.category` and its message.
 
 Previously, the adapter discarded these fields when wrapping exceptions in
-`ProviderError`, and the gate recorded only the category. A response without text
-also became `PROVIDER_ERROR`; it now carries the safe diagnostic
-`provider returned no text`. The actual cause of a failed live request still
-requires a new authorized host run; offline diagnostics tests do not establish it.
+`ProviderError`, and the gate recorded only the category. An HTTP 200 Responses
+result without text remains `PROVIDER_ERROR` with the message
+`provider returned no text`, and now also records the Responses
+`provider_response_status` (for example `incomplete` or `failed`), the
+`provider_incomplete_reason` (for example `max_output_tokens`) and, for a failed
+response, the sanitized `provider_error_code` and message. The actual cause of a
+failed live request still requires a new authorized host run; offline diagnostics
+tests do not establish it.
+
+If the provider client cannot be constructed from the configuration, the gate
+reports `FAIL` with `live_request_status: NOT_EXECUTED` and `request_count: 0`,
+because no provider request was sent.
 
 Diagnostics select individual scalar fields from SDK error bodies. They never
 dump the request, response, headers, environment, or exception. API key patterns,
