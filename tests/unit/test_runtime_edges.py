@@ -63,8 +63,7 @@ def test_provider_selection_requires_explicit_credentials(monkeypatch: pytest.Mo
     monkeypatch.setenv("OPENAI_MODEL", "synthetic-model")
     openai_provider = provider_from_env()
     assert isinstance(openai_provider, OpenAIProvider)
-    with pytest.raises(NotImplementedError):
-        openai_provider.generate("question", [], "")
+    assert openai_provider.model == "synthetic-model"
 
     monkeypatch.setenv("RAGOPS_LLM_PROVIDER", "azure_openai")
     for name in (
@@ -83,8 +82,7 @@ def test_provider_selection_requires_explicit_credentials(monkeypatch: pytest.Mo
     monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2026-01-01")
     azure_provider = provider_from_env()
     assert isinstance(azure_provider, AzureOpenAIProvider)
-    with pytest.raises(NotImplementedError):
-        azure_provider.generate("question", [], "")
+    assert azure_provider.model == "synthetic-deployment"
 
 
 def test_settings_and_ingestion_edge_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
