@@ -15,7 +15,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]" -c constraints.txt
+          python -m pip install -e ".[dev,persistence,identity,vector]" -c constraints.txt
       - name: Verify
         run: make verify
       - name: Upload evidence
@@ -30,3 +30,37 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t ragops-enterprise-copilot:ci .
+
+  postgres-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ragops_test_ci
+          POSTGRES_USER: ragops_test
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ragops_test -d ragops_test_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RAGOPS_TEST_DATABASE_URL: postgresql+psycopg://ragops_test:synthetic-ci-only@127.0.0.1:5432/ragops_test_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install declared dependencies
+        run: python -m pip install ".[dev,persistence,identity,vector]" -c constraints.txt
+      - name: SQLite migration and tenant repository contracts
+        run: python -m pytest tests/product/test_persistence.py --junitxml=evidence/product-v1/migration-contracts.xml
+      - name: Empty PostgreSQL migration and tenant constraints
+        run: python -m pytest tests/product/test_postgres.py --junitxml=evidence/product-v1/postgres-tests.xml
+      - name: Upload migration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-migration-evidence
+          path: evidence/product-v1/

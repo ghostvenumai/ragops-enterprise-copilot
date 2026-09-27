@@ -40,13 +40,24 @@ def run_command(name: str, command: list[str], output_file: str | None = None) -
     if shutil.which(command[0]) is None:
         return {"name": name, "status": "not_executed", "reason": f"{command[0]} not available"}
     started = perf_counter()
-    completed = subprocess.run(  # noqa: S603 - command lists are fixed quality gates.
-        command,
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(  # noqa: S603 - command lists are fixed quality gates.
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        timeout_result: dict[str, object] = {
+            "name": name,
+            "status": "failed",
+            "reason": "gate timed out after 120s",
+        }
+        if output_file:
+            write_json(output_file, timeout_result)
+        return timeout_result
     result: dict[str, object] = {
         "name": name,
         "status": "passed" if completed.returncode == 0 else "failed",
@@ -56,10 +67,15 @@ def run_command(name: str, command: list[str], output_file: str | None = None) -
         "stderr_tail": completed.stderr[-4000:],
     }
     if output_file:
-        (EVIDENCE_DIR / output_file).write_text(
-            completed.stdout,
-            encoding="utf-8",
-        )
+        if output_file.endswith(".json"):
+            try:
+                json.loads(completed.stdout)
+            except ValueError:
+                write_json(output_file, result)
+            else:
+                (EVIDENCE_DIR / output_file).write_text(completed.stdout, encoding="utf-8")
+        else:
+            (EVIDENCE_DIR / output_file).write_text(completed.stdout, encoding="utf-8")
     return result
 
 
@@ -196,6 +212,9 @@ def docker_config_check() -> dict[str, object]:
 
 def run_pytest() -> dict[str, object]:
     coverage_xml = EVIDENCE_DIR / "coverage.xml"
+    # A failed run must not leave a previous successful report looking current.
+    coverage_xml.unlink(missing_ok=True)
+    (EVIDENCE_DIR / "test-results.xml").unlink(missing_ok=True)
     result = run_command(
         "pytest",
         [
@@ -308,6 +327,8 @@ def run_external_tool_gates() -> list[dict[str, object]]:
             str(EVIDENCE_DIR / "software-bill-of-materials.json"),
         ],
     )
+    if sbom_result["status"] != "passed":
+        write_json("software-bill-of-materials.json", sbom_result)
     results.append(sbom_result)
     return results
 
