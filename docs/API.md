@@ -60,13 +60,13 @@ pass status is preserved in the generated evidence file.
 
 ## Audit Contract
 
-GET /v1/audit-events returns the latest 100 redacted events as structured JSON
-objects. Fields include timestamp, event type, tenant ID, user ID, outcome,
+GET /v1/audit-events returns the caller's tenant's latest 100 redacted events as
+structured JSON objects; events of other tenants are never returned. Fields include timestamp, event type, tenant ID, user ID, outcome,
 correlation ID, and bounded details. Full questions and document bodies are not
 returned.
 # Model governance administration
 
-Admins can inspect and manage the in-process approved catalog with `GET/POST/PATCH /v1/admin/providers`, `GET/POST/PATCH /v1/admin/models`, tenant policy `GET /v1/admin/model-policies` and `PUT /v1/admin/model-policies/{tenant_id}`. `POST /v1/admin/model-router/simulate` returns a sanitized deterministic routing decision and never invokes a provider.
+Admins can inspect and manage the in-process approved catalog with `GET/POST/PATCH /v1/admin/providers`, `GET/POST/PATCH /v1/admin/models`, tenant policy `GET /v1/admin/model-policies` and `PUT /v1/admin/model-policies/{tenant_id}`. Admins are tenant-bound: policy listing and updates cover only the admin's own tenant. The provider/model catalog itself is shared process configuration, so any tenant admin can change it for all tenants; non-admin roles receive 403. `POST /v1/admin/model-router/simulate` returns a sanitized deterministic routing decision and never invokes a provider.
 # FinOps endpoints
 
 Protected admin routes include `/v1/admin/finops/summary`, `/usage`, `/forecast`, `/alerts`, `/budgets`, budget creation and `/v1/admin/finops/policy/simulate`. Tenant identity is authoritative; simulation has no provider side effect.

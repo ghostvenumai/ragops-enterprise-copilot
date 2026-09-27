@@ -210,11 +210,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/admin/model-policies")
     def list_model_policies(
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(admin),  # noqa: B008
     ) -> list[dict[str, object]]:
         return [
             {"tenant_id": tenant, "max_routing_tier": policy.max_routing_tier.value}
             for tenant, policy in model_policies.items()
+            if tenant == identity_context.tenant_id
         ]
 
     @app.put("/v1/admin/model-policies/{tenant_id}")
@@ -762,17 +763,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/audit-events")
     def audit_events(
-        _identity: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
     ) -> list[dict[str, Any]]:
         path = settings.evidence_dir / "audit-events.jsonl"
         if not path.exists():
             return []
         events: list[dict[str, Any]] = []
-        for line in path.read_text(encoding="utf-8").splitlines()[-100:]:
+        for line in path.read_text(encoding="utf-8").splitlines():
             event = json.loads(line)
-            if isinstance(event, dict):
+            # Filter before the 100-event window so other tenants cannot crowd it out.
+            if isinstance(event, dict) and event.get("tenant_id") == identity_context.tenant_id:
                 events.append(event)
-        return events
+        return events[-100:]
 
     @app.get("/v1/costs/summary")
     def costs(

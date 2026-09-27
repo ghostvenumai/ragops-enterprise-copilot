@@ -68,8 +68,12 @@ def identity_dependency(settings: Settings) -> Callable[..., AuthenticatedUserCo
 def admin_dependency(
     settings: Settings,
 ) -> Callable[[AuthenticatedUserContext], AuthenticatedUserContext]:
+    authenticated = identity_dependency(settings)
+
+    # Depends() must stay out of the postponed (string) annotation: FastAPI cannot
+    # evaluate the closure there and would expect `identity` as a query parameter.
     def dependency(
-        identity: Annotated[AuthenticatedUserContext, Depends(identity_dependency(settings))],
+        identity: AuthenticatedUserContext = Depends(authenticated),  # noqa: B008
     ) -> AuthenticatedUserContext:
         if not identity.is_admin:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")

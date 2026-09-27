@@ -30,6 +30,10 @@ GATES = (
     "browser_e2e",
     "security",
 )
+# Gates that persist their own detailed evidence, which the runner merges instead of replacing.
+DETAILED_EVIDENCE_GATES = frozenset(
+    {"redis_worker", "qdrant", "external_llm_provider", "tenant_isolation"}
+)
 
 
 def aggregate_statuses(statuses: dict[str, str]) -> tuple[str, str]:
@@ -190,6 +194,12 @@ def main() -> int:
             "status": status,
             "detail": detail or "See sanitized external-llm-provider.json evidence",
         }
+    if "tenant_isolation" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/tenant_isolation_gate.py"])
+        gate_results["tenant_isolation"] = {
+            "status": status,
+            "detail": detail or "See sanitized tenant-isolation.json evidence",
+        }
     previous: dict[str, object] = {}
     try:
         previous = json.loads((OUT / "final-release-gate.json").read_text(encoding="utf-8"))
@@ -205,7 +215,7 @@ def main() -> int:
     for gate in selected.intersection(GATES):
         gate_result = gate_results.get(gate, {"status": "BLOCKED", "reason": reason})
         evidence_path = OUT / f"{gate.replace('_', '-')}.json"
-        if gate in {"redis_worker", "qdrant", "external_llm_provider"}:
+        if gate in DETAILED_EVIDENCE_GATES:
             try:
                 persisted = json.loads(evidence_path.read_text(encoding="utf-8"))
             except (FileNotFoundError, json.JSONDecodeError):
