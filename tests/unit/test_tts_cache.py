@@ -70,9 +70,7 @@ class FakeTTSProvider:
             audio.writeframes(b"\x00\x00" * 8_000)
 
 
-def test_five_build_cost_control_scenarios(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_five_build_cost_control_scenarios(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     config = make_config(tmp_path)
     provider = FakeTTSProvider()
@@ -148,12 +146,8 @@ def test_changed_voice_and_text_create_targeted_cache_misses(tmp_path: Path) -> 
     timeline = make_timeline(count=1)
     generate_voice_assets(timeline, config, provider)
 
-    changed_voice = generate_voice_assets(
-        timeline, replace(config, tts_voice="alloy"), provider
-    )
-    changed_text = generate_voice_assets(
-        make_timeline(count=1, changed_scene=1), config, provider
-    )
+    changed_voice = generate_voice_assets(timeline, replace(config, tts_voice="alloy"), provider)
+    changed_text = generate_voice_assets(make_timeline(count=1, changed_scene=1), config, provider)
 
     assert changed_voice.stats.api_requests == 1
     assert changed_text.stats.api_requests == 1
@@ -262,7 +256,7 @@ def test_cache_material_excludes_api_key_and_redacts_credentials(
     payload = {"cache_key": item.cache_key, "request": asdict(item.request)}
 
     assert key not in json.dumps(payload)
-    message = f"Author" f"ization: Bearer {key}; provider rejected {key}"
+    message = f"Authorization: Bearer {key}; provider rejected {key}"
     redacted = redact_secrets(message, key)
     assert key not in redacted
     assert redacted.count("[REDACTED]") == 2
