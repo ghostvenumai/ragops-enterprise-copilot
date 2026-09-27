@@ -14,7 +14,15 @@ class UnsafeUploadError(ValueError):
 
 def safe_filename(name: str) -> str:
     candidate = Path(name)
-    if candidate.name != name or ".." in candidate.parts or name.strip() in {"", ".", ".."}:
+    if (
+        candidate.name != name
+        or ".." in candidate.parts
+        or name.strip() in {"", ".", ".."}
+        or name != name.strip()
+        or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        or any(char in name for char in ("\\", ":"))
+        or len(name.encode("utf-8")) > 255
+    ):
         raise UnsafeUploadError("unsafe file name")
     return candidate.name
 
