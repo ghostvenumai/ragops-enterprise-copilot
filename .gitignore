@@ -12,6 +12,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.integration.example
 *.secret
 .loop/logs/*.log
 .loop/tmp/
