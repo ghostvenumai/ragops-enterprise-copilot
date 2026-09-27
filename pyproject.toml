@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragops-enterprise-copilot"
-version = "0.1.0"
+version = "0.2.0.dev0"
 description = "Local-first enterprise RAG and multi-agent portfolio project with deterministic tests."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -23,9 +23,25 @@ dependencies = [
   "openai==1.98.0",
   "pypdf==6.16.2",
   "python-docx==1.2.0",
+  "redis==6.4.0",
 ]
 
 [project.optional-dependencies]
+persistence = [
+  "SQLAlchemy==2.0.52",
+  "alembic==1.20.0",
+  "psycopg[binary]==3.3.5",
+]
+identity = [
+  "PyJWT[crypto]==2.10.1",
+]
+async = [
+  # Compatibility extra; Redis is also a core runtime dependency for workers.
+  "redis==6.4.0",
+]
+vector = [
+  "qdrant-client==1.15.1",
+]
 dev = [
   "pytest==9.1.1",
   "pytest-cov==7.1.0",
