@@ -64,6 +64,55 @@ services:
       api:
         condition: service_healthy
 
+  redis:
+    image: redis:7.4-alpine
+    profiles: ["async", "production"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - datanet
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    image: ragops-enterprise-copilot:local
+    profiles: ["async", "production"]
+    command: ["python", "-m", "ragops.workers.runtime"]
+    environment:
+      RAGOPS_ENV: local
+      RAGOPS_REDIS_URL: redis://redis:6379/0
+      RAGOPS_ASYNC_INGESTION_REQUIRED: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - datanet
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+
   postgres:
     image: postgres:16-alpine
     profiles: ["development", "demo"]
@@ -132,6 +181,7 @@ volumes:
   ragops-evidence:
   postgres-data:
   qdrant-data:
+  redis-data:
 
 networks:
   appnet:

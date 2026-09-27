@@ -8,7 +8,7 @@ COPY pyproject.toml constraints.txt README.md ./
 COPY src ./src
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip==26.2 setuptools==83.0.0 wheel==0.47.0 \
-    && /opt/venv/bin/pip install . -c constraints.txt
+    && /opt/venv/bin/pip install ".[persistence,identity,async,vector]" -c constraints.txt
 
 FROM python:3.12-slim AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \

@@ -20,3 +20,7 @@ automation/state/
 video/tmp/
 video/logs/
 video/cache/tts/
+
+# Productization V1: host-local / transient evidence (never commit)
+evidence/product-v1/rc-live/
+evidence/**/*.log
