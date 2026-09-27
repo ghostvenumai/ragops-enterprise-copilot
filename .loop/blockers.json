@@ -19,5 +19,40 @@
     "reason": "BuildKit containers could not resolve PyPI although standard isolated containers could.",
     "safe_alternative": "Used the classic Docker builder on the standard isolated bridge network; no host networking or privileged mode was enabled. Make defaults to this compatible builder and can be overridden.",
     "status": "mitigated"
+  },
+  {
+    "id": "product-pypi-unavailable",
+    "first_seen": "2026-09-13",
+    "status": "resolved",
+    "reason": "PyPI DNS resolution failed; SQLAlchemy/Alembic/Psycopg missing.",
+    "safe_alternative": "Declare optional persistence extra, implement isolated foundation and tests; keep production blocked until real execution and dependency scan."
+  },
+  {
+    "id": "product-docker-denied",
+    "first_seen": "2026-09-13",
+    "status": "open",
+    "reason": "Docker API access at /var/run/docker.sock denied in sandbox.",
+    "safe_alternative": "Prepare disposable PostgreSQL CI gate; do not escalate or deploy services."
+  },
+  {
+    "id": "product-sockets-denied",
+    "first_seen": "2026-09-13",
+    "status": "open",
+    "reason": "socket creation raises PermissionError; baseline has three video failures and stalled API TestClient.",
+    "safe_alternative": "Keep existing tests unchanged; run bounded full checks and targeted socket-independent tests with honest failure reports."
+  },
+  {
+    "id": "product-coverage-gap",
+    "first_seen": "2026-09-13",
+    "status": "open",
+    "reason": "Broader product coverage across src/loop/automation/video is 63.23%, below required 80%.",
+    "safe_alternative": "Keep threshold and all tests; address meaningful coverage and complete dependency/API gates before release."
+  },
+  {
+    "id": "external-llm-diagnostics-host-rerun",
+    "first_seen": "2026-09-19",
+    "status": "open",
+    "reason": "Existing external LLM live evidence is FAIL; the diagnostics briefing prohibits a paid request in Codex.",
+    "safe_alternative": "Validate sanitized SDK diagnostics with MockTransport; preserve all rc-live evidence and let the operator rerun the selected gate once on the authorized host."
   }
 ]

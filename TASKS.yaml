@@ -169,3 +169,521 @@ tasks:
       - Dependency audit found zero known vulnerabilities
     review_result: passed
     blockers: []
+
+  - id: ENT-00
+    title: Audit and implementation roadmap
+    description: Enterprise briefing phase 0; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 10
+    dependencies: []
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: done
+    attempts: 0
+    test_results: []
+    review_result: pending
+    blockers: []
+
+  - id: ENT-01
+    title: PostgreSQL schema migrations and repository contracts
+    description: Enterprise briefing phase 1; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 11
+    dependencies: [ENT-00]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results: []
+    review_result: pending
+    blockers:
+      - Docker socket access denied.
+      - Production PostgreSQL execution remains unavailable in the sandbox.
+
+  - id: ENT-02
+    title: Verified JWT identity and strict tenant isolation
+    description: Enterprise briefing phase 2; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 12
+    dependencies: [ENT-01]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - Phase 2 verification passed: 17 identity tests and 19 authorization/persistence tests.
+      - MyPy, Ruff and local fail-closed configuration checks passed.
+      - Live OIDC provider integration is not available in the sandbox.
+    review_result: pending
+    blockers:
+      - External OIDC provider and production PostgreSQL are unavailable in sandbox.
+
+  - id: ENT-03
+    title: Workspaces collections documents versions APIs
+    description: Enterprise briefing phase 3; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 13
+    dependencies: [ENT-02]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - Phase 3 verification passed: 2 KM, 6 tenant/persistence and 18 security tests.
+      - Alembic migration, MyPy and Ruff passed locally.
+      - Production PostgreSQL, Docker and full OIDC ASGI integration are not executed.
+    review_result: pending
+    blockers:
+      - External PostgreSQL and Docker/socket integration unavailable in sandbox.
+
+  - id: ENT-04
+    title: Redis queue and bounded ingestion recovery
+    description: Enterprise briefing phase 4; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 14
+    dependencies: [ENT-03]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - Phase 4 local verification passed: worker, lifecycle, isolation and security tests.
+      - Alembic, MyPy and Ruff passed; Redis/Docker/PostgreSQL integrations are not executed.
+    review_result: pending
+    blockers:
+      - Redis/socket, Docker and external PostgreSQL services are unavailable in sandbox.
+
+  - id: ENT-05
+    title: Persistent authorization-filtered Qdrant retrieval
+    description: Enterprise briefing phase 5; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 15
+    dependencies: [ENT-04]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - Phase 5 vector contract, lifecycle, tenant/security, RAG regression, migration, MyPy and Ruff checks passed locally.
+      - Live Qdrant integration is NOT_EXECUTED because socket/service access is unavailable.
+    review_result: pending
+    blockers:
+      - Live Qdrant, Docker and external PostgreSQL services unavailable in sandbox.
+
+  - id: ENT-06
+    title: Approved deterministic model routing
+    description: Enterprise briefing phase 6; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 16
+    dependencies: [ENT-05]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - "8 model routing/fallback/usage tests passed"
+      - "ruff and mypy passed"
+    review_result: pending
+    blockers:
+      - "live provider integrations unavailable in sandbox"
+
+  - id: ENT-07
+    title: Durable usage monthly budgets and concurrency controls
+    description: Enterprise briefing phase 7; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 17
+    dependencies: [ENT-06]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - "6 FinOps/persistence tests passed"
+      - "Ruff and MyPy passed"
+    review_result: pending
+    blockers:
+      - "PostgreSQL locking and external provider gates unavailable in sandbox"
+
+  - id: ENT-08
+    title: Health readiness rate limits backup and retention
+    description: Enterprise briefing phase 8; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 18
+    dependencies: [ENT-07]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - "8 operations and FinOps persistence tests passed"
+      - "Ruff and MyPy passed"
+    review_result: pending
+    blockers:
+      - "Live infrastructure and timed DR restore unavailable in sandbox"
+
+  - id: ENT-09
+    title: Authenticated product UI and administration
+    description: Enterprise briefing phase 9; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 19
+    dependencies: [ENT-08]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - "UI service, product, security and workflow checks passed"
+      - "Ruff and MyPy passed"
+    review_result: pending
+    blockers:
+      - "Browser automation and live infrastructure unavailable in sandbox"
+
+  - id: ENT-10
+    title: Hardened production Compose and proxy
+    description: Enterprise briefing phase 10; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 20
+    dependencies: [ENT-09]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: in_progress
+    attempts: 1
+    test_results:
+      - "RC preflight and evidence generator executed"
+      - "Phase 10H targeted vector/Qdrant tests: 20 passed, 1 skipped (optional live dependency unavailable)"
+      - "Phase 10H Ruff and MyPy passed; static RC Compose validation passed"
+      - "Broad local regression sweep: 242 passed, 5 skipped after excluding two unrelated existing failures"
+      - "The excluded failures are recorded in the end report: provider exception expectation and OpenAPI ForwardRef schema generation"
+      - "Phase 10H adds an isolated Qdrant RC service and production-adapter lifecycle/filter scenario"
+      - "Qdrant live execution remains blocked until authorized Docker host is available"
+    review_result: pending
+    blockers:
+      - "Authorized live integration host unavailable; mandatory RC gates BLOCKED"
+      - "Phase 10H Qdrant live scenario not executed inside the restricted sandbox"
+
+  - id: ENT-11
+    title: Fail-closed CI release SBOM and loop integration
+    description: Enterprise briefing phase 11; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 21
+    dependencies: [ENT-10]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: pending
+    attempts: 0
+    test_results: []
+    review_result: pending
+    blockers: []
+
+  - id: ENT-12
+    title: Full service verification and adversarial review
+    description: Enterprise briefing phase 12; see docs/PRODUCTIZATION_AUDIT.md.
+    priority: 22
+    dependencies: [ENT-11]
+    allowed_paths:
+      - src/**
+      - apps/**
+      - tests/**
+      - docs/**
+      - evidence/**
+      - scripts/**
+      - loop/**
+      - automation/**
+      - .github/**
+      - migrations/**
+      - deploy/**
+      - Makefile
+      - Dockerfile
+      - docker-compose.prod.yml
+      - pyproject.toml
+      - constraints.txt
+      - alembic.ini
+      - TASKS.yaml
+      - SPEC.md
+      - README.md
+      - README_DE.md
+      - SECURITY.md
+    acceptance_criteria:
+      - Targeted tests and security tests pass; unavailable checks recorded honestly.
+      - Existing deterministic demo and quality gates preserved.
+    status: pending
+    attempts: 0
+    test_results: []
+    review_result: pending
+    blockers: []

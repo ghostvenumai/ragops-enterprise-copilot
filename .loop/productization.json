@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0.dev0",
+  "phase": "ENT-10",
+  "status": "in_progress",
+  "completed": [
+    "ENT-00"
+  ],
+  "implemented": [
+    "SQLAlchemy entity schema",
+    "Alembic initial revision",
+    "tenant-scoped repository",
+    "SQLite/PostgreSQL migration tests and CI",
+    "immutable authenticated identity context",
+    "development identity provider",
+    "OIDC JWT validation",
+    "FastAPI authentication dependencies"
+    ,"tenant-scoped knowledge management service"
+    ,"workspace and collection lifecycle metadata"
+    ,"versioned secure document blob storage"
+    ,"durable ingestion job state and bounded worker retries"
+    ,"Redis and deterministic queue adapters"
+    ,"VectorIndex abstraction with deterministic and Qdrant adapters"
+    ,"mandatory tenant/RBAC/lifecycle vector filters"
+    ,"deterministic model catalog and cost-aware router"
+    ,"tenant model policies and bounded provider fallback"
+    ,"normalized usage and cost accounting"
+    ,"tenant budgets, quota foundation and deterministic FinOps preflight"
+    ,"budget alerts and spend forecasting"
+    ,"versioned backup manifests and checksum verification"
+    ,"tenant/user-aware deterministic rate limiter"
+    ,"production Compose and TLS-capable reverse proxy preparation"
+    ,"coherent Streamlit product navigation and authenticated-context shell"
+    ,"FinOps and System/Operations operator views"
+    ,"verification-first release-candidate gate evidence generator"
+  ],
+  "model_tier": "D",
+  "tier_reason": "Security and persistence architecture; bounded foundation review",
+  "selected_model": null,
+  "model_selection_note": "Current session model selection is not exposed; no model switch or additional model invocation recorded.",
+  "blockers": [
+    "product-docker-denied",
+    "product-sockets-denied",
+    "product-coverage-gap"
+  ],
+  "next_step": "Run rc-gate on an authorized host with Docker, PostgreSQL, Redis, Qdrant, live OIDC and an approved provider.",
+  "evidence": "evidence/product-v1/rc/release-gate.json"
+}

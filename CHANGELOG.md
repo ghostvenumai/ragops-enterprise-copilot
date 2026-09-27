@@ -1,6 +1,52 @@
 # Changelog
 
+## 0.2.0.dev0 — Phase 10H Qdrant live gate
+
+- Added a disposable, isolated host-side Qdrant RC gate using the production
+  `VectorIndex` adapter and deterministic synthetic embeddings.
+- Enforced both vector validity-window boundaries inside Qdrant filters.
+- Added dynamic loopback port discovery and sanitized per-gate evidence.
+
+## 0.2.0.dev0 — Phase 2 identity boundary
+
+- Added immutable authenticated user context and provider abstraction.
+- Added development identity restricted to non-production environments.
+- Added provider-neutral asymmetric OIDC/JWT validation with configurable
+  issuer, audience, tenant and role claims.
+- Added FastAPI bearer authentication and tenant-scoped admin dependencies.
+- OIDC routes ignore client-supplied identity fields; legacy selectors remain
+  development/demo compatibility only.
+- Added negative JWT, configuration, admin and tenant-override tests.
+
+Production remains blocked pending persistent API integration, workers, Qdrant,
+OIDC deployment key management and release gates.
+
+## 0.2.0.dev0 — Phase 3 knowledge management
+
+- Added tenant-owned workspace, collection, document and document-version metadata.
+- Added explicit lifecycle transitions, secure local blob storage, MIME/size/hash
+  validation, duplicate detection and historical version preservation.
+- Added tenant-scoped management service, workspace/collection/upload/version and
+  reindex API contracts, and Knowledge Base workspace/collection UI controls.
+- Added Phase 3 migration, isolation/security tests and machine-readable evidence.
+
+## 0.2.0.dev0 — Phase 4 asynchronous ingestion
+
+- Added explicit ingestion job status, stages, retry metadata and timestamps.
+- Added deterministic and Redis queue adapters plus a bounded idempotent worker.
+- Uploads now create and enqueue a job and return `202 Accepted` with job IDs.
+- Added job status/list/cancel APIs, processing status UI, async configuration,
+  Compose Redis/worker preparation and Phase 4 evidence.
+
 ## Unreleased
+
+## 0.2.0.dev0 — Phase 5 vector persistence
+
+- Added `VectorIndex` abstraction with deterministic and Qdrant adapters.
+- Added deterministic vector IDs, payload schema, mandatory tenant/RBAC/lifecycle
+  filters, strict dimensions and explicit version/document deletion operations.
+- Added embedding provider boundary, Qdrant configuration validation, vector
+  contract/security tests and Phase 5 evidence.
 
 - Hardened prompt-injection detection: added multilingual phrase patterns
   (EN/DE/FR/ES), jailbreak/role-play and system-prompt-extraction patterns,
@@ -78,3 +124,9 @@
 - Initial portfolio project foundation.
 - Added controlled autonomous loop design.
 - Added deterministic local RAG architecture.
+# 0.2.0.dev0
+
+- ENT-07: added tenant budgets, quota policy foundation, budget alerts, deterministic preflight decisions and forecast service.
+- ENT-10: added verification-first release-candidate gate and machine-readable blocked-gate evidence.
+- ENT-06: added deterministic model catalog, tenant policy constraints, cost-aware routing, bounded provider fallback and normalized usage accounting.
+- Added protected model/provider administration and routing simulation endpoints.
