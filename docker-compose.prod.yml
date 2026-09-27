@@ -1,0 +1,38 @@
+services:
+  api:
+    environment:
+      RAGOPS_ENV: production
+      RAGOPS_IDENTITY_PROVIDER: oidc
+      RAGOPS_VECTOR_PROVIDER: qdrant
+      RAGOPS_ASYNC_INGESTION_REQUIRED: "true"
+    restart: unless-stopped
+  worker:
+    environment:
+      RAGOPS_ENV: production
+    restart: unless-stopped
+  redis:
+    restart: unless-stopped
+  postgres:
+    restart: unless-stopped
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    profiles: ["production"]
+    expose: ["6333"]
+    volumes: [qdrant-data:/qdrant/storage]
+    networks: [datanet]
+    restart: unless-stopped
+  reverse-proxy:
+    image: caddy:2-alpine
+    profiles: ["production"]
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api, dashboard]
+    networks: [appnet]
+
+volumes:
+  qdrant-data:
+  caddy-data:
+  caddy-config:
