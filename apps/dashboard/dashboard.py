@@ -37,7 +37,14 @@ SUGGESTED_QUESTIONS = (
     ("Preise", "Welche aktuellen Preisregeln gelten für Enterprise-Verträge?"),
     ("Compliance", "Welche Compliance-Richtlinien gelten für Kundendaten?"),
 )
-NAVIGATION_ITEMS = ("Copilot", "Wissensbasis", "Monitoring", "Governance & Audit")
+NAVIGATION_ITEMS = (
+    "Copilot",
+    "Wissensbasis",
+    "Monitoring",
+    "FinOps",
+    "Governance & Audit",
+    "System / Operations",
+)
 DEMO_SCENE_NAVIGATION = {
     "overview": "Copilot",
     "answer": "Copilot",
@@ -339,8 +346,15 @@ def render_sidebar(default_navigation: str = "Copilot") -> tuple[str, str, int, 
             st.session_state.pop("messages", None)
             st.rerun()
         st.divider()
-        tenant_label = st.selectbox("Mandant", tuple(TENANTS))
-        role_label = st.selectbox("Rolle", tuple(ROLES))
+        production = os.getenv("RAGOPS_ENV", "local").lower() == "production"
+        if production:
+            tenant_id = os.getenv("RAGOPS_DEV_TENANT_ID", "authenticated-tenant")
+            role = os.getenv("RAGOPS_DEV_ROLES", "viewer").split(",")[0]
+            st.caption(f"Authentifizierter Kontext · {tenant_id} · {role}")
+            tenant_label, role_label = None, None
+        else:
+            tenant_label = st.selectbox("Mandant", tuple(TENANTS))
+            role_label = st.selectbox("Rolle", tuple(ROLES))
         with st.expander("Retrieval-Einstellungen"):
             top_k = st.slider("Maximale Quellen", min_value=2, max_value=10, value=5)
         st.write("")
@@ -355,6 +369,9 @@ def render_sidebar(default_navigation: str = "Copilot") -> tuple[str, str, int, 
             )
         except DashboardApiError:
             st.error("API nicht erreichbar")
+    if production:
+        return tenant_id, role, top_k, navigation
+    assert tenant_label is not None and role_label is not None
     return TENANTS[tenant_label], ROLES[role_label], top_k, navigation
 
 
@@ -518,15 +535,54 @@ def render_knowledge_base(tenant_id: str) -> None:
         "Versionierte und klassifizierte Quellen des aktiven Mandanten.",
     )
     try:
+        workspaces = api_request("GET", "/v1/workspaces")
+        workspace_options = {
+            str(item.get("name", item.get("id"))): str(item.get("id"))
+            for item in workspaces
+            if isinstance(item, dict)
+        }
+        selected_workspace = st.selectbox(
+            "Workspace", list(workspace_options) or ["Keine Workspaces"]
+        )
+        selected_workspace_id = workspace_options.get(selected_workspace)
+        collections = api_request(
+            "GET",
+            "/v1/collections"
+            + (f"?workspace_id={selected_workspace_id}" if selected_workspace_id else ""),
+        )
         documents = api_request("GET", "/v1/documents")
+        jobs = api_request("GET", "/v1/ingestion/jobs")
     except DashboardApiError as exc:
         st.error(str(exc))
         return
+    st.caption("Collections")
+    st.dataframe(
+        [item for item in collections if isinstance(item, dict)],
+        column_config={"name": "Collection", "access_level": "Zugriff", "active": "Aktiv"},
+        hide_index=True,
+        use_container_width=True,
+    )
+    with st.expander("Dokument hochladen"):
+        upload = st.file_uploader("Datei", type=["pdf", "docx", "md", "txt", "csv"])
+        st.caption("Upload und Reindexing werden durch die tenant-gebundene API validiert.")
+        if upload is not None:
+            st.info(f"{upload.name} · {upload.size} Bytes · Bereit zur validierten Übertragung")
     tenant_documents = [
         document
         for document in documents
         if isinstance(document, dict) and document.get("tenant_id") == tenant_id
     ]
+    job_by_document = {
+        str(item.get("document_id")): item
+        for item in jobs
+        if isinstance(item, dict) and item.get("document_id")
+    }
+    for document in tenant_documents:
+        job = job_by_document.get(str(document.get("document_id")))
+        if job:
+            document["processing_status"] = job.get("status")
+            document["stage"] = job.get("stage")
+            document["progress"] = job.get("progress")
     cols = st.columns(3)
     cols[0].metric("Verfügbare Dokumente", len(tenant_documents))
     cols[1].metric("Aktiver Mandant", option_label(TENANTS, tenant_id))
@@ -541,7 +597,15 @@ def render_knowledge_base(tenant_id: str) -> None:
     if tenant_documents:
         st.dataframe(
             tenant_documents,
-            column_order=("title", "version", "access_level", "document_id"),
+            column_order=(
+                "title",
+                "version",
+                "processing_status",
+                "stage",
+                "progress",
+                "access_level",
+                "document_id",
+            ),
             column_config={
                 "title": "Dokument",
                 "version": "Version",
@@ -634,6 +698,58 @@ def render_governance() -> None:
         "Governance & Audit",
         "Aktive Kontrollen und revisionsfähige Anfragenachweise.",
     )
+    st.subheader("AI Providers und Model Routing")
+    try:
+        models = api_request("GET", "/v1/admin/models")
+        st.dataframe(
+            models,
+            column_config={
+                "provider_id": "Provider",
+                "model_id": "Modell",
+                "routing_tier": "Routing-Tier",
+                "enabled": "Aktiv",
+            },
+            hide_index=True,
+            use_container_width=True,
+        )
+    except DashboardApiError:
+        st.caption("Model-Katalog ist nur für authentifizierte Administratoren verfügbar.")
+    st.subheader("AI FinOps")
+    try:
+        summary = api_request("GET", "/v1/admin/finops/summary")
+        forecast = api_request("GET", "/v1/admin/finops/forecast")
+        cols = st.columns(3)
+        cols[0].metric("Spend", f"EUR {summary.get('spend', 0)}")
+        cols[1].metric("Anfragen", int(summary.get("requests", 0)))
+        cols[2].metric("Forecast (Schätzung)", f"EUR {forecast.get('projected_spend', 0)}")
+    except DashboardApiError:
+        st.caption("FinOps ist nur für authentifizierte Administratoren verfügbar.")
+
+
+def render_finops() -> None:
+    render_page_header(
+        "Kostenkontrolle", "AI FinOps", "Budget, Verbrauch und Forecast aus UsageRecord-Daten."
+    )
+    try:
+        summary = api_request("GET", "/v1/admin/finops/summary")
+        forecast = api_request("GET", "/v1/admin/finops/forecast")
+        cols = st.columns(3)
+        cols[0].metric("Spend", f"EUR {summary.get('spend', 0)}")
+        cols[1].metric("Anfragen", int(summary.get("requests", 0)))
+        cols[2].metric("Forecast · Schätzung", f"EUR {forecast.get('projected_spend', 0)}")
+        st.info("Budgetentscheidungen bleiben serverseitig autoritativ.")
+    except DashboardApiError as exc:
+        st.error(str(exc))
+
+
+def render_system() -> None:
+    render_page_header("Betrieb", "System / Operations", "Readiness, Versionen und Abhängigkeiten.")
+    st.metric("Anwendung", "0.2.0.dev0")
+    try:
+        ready = api_request("GET", "/ready")
+        st.success(f"Readiness: {ready.get('status', 'unknown')}")
+    except DashboardApiError:
+        st.error("DEPENDENCY_UNAVAILABLE · Readiness nicht verfügbar")
     try:
         live = parse_prometheus(api_text("/metrics"))
         events = api_request("GET", "/v1/audit-events")
@@ -724,6 +840,10 @@ def main() -> None:
         render_knowledge_base(tenant_id)
     elif navigation == "Monitoring":
         render_observability()
+    elif navigation == "FinOps":
+        render_finops()
+    elif navigation == "System / Operations":
+        render_system()
     else:
         render_governance()
 

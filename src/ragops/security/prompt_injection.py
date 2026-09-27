@@ -138,9 +138,7 @@ def detect_prompt_injection(text: str) -> list[str]:
     findings = [pattern.pattern for pattern in INJECTION_PATTERNS if pattern.search(normalized)]
 
     compact = _compact(text)
-    findings.extend(
-        f"compact-evasion:{phrase}" for phrase in _COMPACT_PHRASES if phrase in compact
-    )
+    findings.extend(f"compact-evasion:{phrase}" for phrase in _COMPACT_PHRASES if phrase in compact)
 
     for match in _HTML_COMMENT.finditer(normalized):
         inner = match.group(1)

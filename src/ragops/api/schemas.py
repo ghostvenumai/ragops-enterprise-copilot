@@ -11,9 +11,13 @@ class QueryApiRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(min_length=1, max_length=4000)
-    tenant_id: str = Field(min_length=1, max_length=64, pattern=r"^tenant-[a-z0-9-]+$")
-    user_id: str = Field(default="demo-user", min_length=1, max_length=128)
-    role: Role = "sales"
+    # Legacy fields are accepted only by explicit development/demo identity.
+    # Production routes ignore them and use verified claims instead.
+    tenant_id: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^tenant-[a-z0-9-]+$"
+    )
+    user_id: str | None = Field(default=None, min_length=1, max_length=128)
+    role: Role | None = None
     top_k: int = Field(default=5, ge=1, le=20)
 
 
