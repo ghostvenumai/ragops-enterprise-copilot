@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +25,7 @@ from ragops.api.schemas import (
 from ragops.auth.dependencies import admin_dependency, identity_dependency
 from ragops.auth.identity import AuthenticatedUserContext
 from ragops.config.settings import Settings
-from ragops.finops.service import BudgetState
+from ragops.finops.service import budget_decision, valid_amount
 from ragops.governance.audit import AuditLogger
 from ragops.knowledge.service import (
     KnowledgeAuthorizationError,
@@ -40,6 +42,7 @@ from ragops.modeling.router import (
 )
 from ragops.monitoring.metrics import MetricsRegistry
 from ragops.persistence.database import open_engine
+from ragops.persistence.models import TenantBudget
 from ragops.storage.json_store import JsonRepository
 from ragops.storage.models import QueryUser
 from ragops.workers.queue import IngestionMessage, InMemoryIngestionQueue
@@ -135,6 +138,19 @@ def _policy_view(policy: TenantModelPolicy) -> dict[str, object]:
         "cost_ceiling_eur": policy.cost_ceiling_eur,
         "fallback_enabled": policy.fallback_enabled,
     }
+
+
+def _money_payload(value: object) -> Decimal:
+    """Parse a monetary payload value exactly; floats go through their decimal repr."""
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        raise HTTPException(status_code=422, detail="monetary values must be numbers")
+    try:
+        amount = Decimal(str(value))
+    except InvalidOperation:
+        raise HTTPException(status_code=422, detail="monetary values must be numbers") from None
+    if not valid_amount(amount):
+        raise HTTPException(status_code=422, detail="monetary values must be finite and >= 0")
+    return amount
 
 
 def _int_payload(value: object, default: int = 0) -> int:
@@ -377,17 +393,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def simulate_finops_policy(
         payload: dict[str, object], _identity: AuthenticatedUserContext = Depends(admin)
     ) -> dict[str, object]:  # noqa: B008
-        estimated = _int_payload(payload.get("estimated_cost", 0))
-        threshold = _int_payload(payload.get("budget_amount", 1), 1)
-        ratio = estimated / max(threshold, 1)
-        decision = (
-            "DENY_BUDGET_LIMIT" if ratio >= 1.2 else "ROUTE_CHEAPER" if ratio >= 1 else "ALLOW"
+        estimated = _money_payload(payload.get("estimated_cost", 0))
+        amount = _money_payload(payload.get("budget_amount", 1))
+        if amount <= 0:
+            raise HTTPException(status_code=422, detail="budget_amount must be positive")
+        # Same decision function as preflight, on the default hard-limit policy thresholds.
+        policy = TenantBudget(
+            period_start=date.today(),
+            period_end=date.today(),
+            budget_amount=amount,
+            currency="EUR",
+            warning_threshold=Decimal("0.80"),
+            soft_limit_threshold=Decimal("1.00"),
+            hard_limit_threshold=Decimal("1.20"),
+            enforcement_mode="hard_limit",
         )
+        decision = budget_decision(policy, Decimal("0"), estimated)
         return {
-            "decision": decision,
-            "state": BudgetState.HARD_LIMIT if decision.startswith("DENY") else BudgetState.NORMAL,
-            "reason_codes": ("SIMULATION_ONLY",),
-            "estimated_post_request_spend": estimated,
+            "decision": decision.decision,
+            "state": decision.state,
+            "reason_codes": ("SIMULATION_ONLY", *decision.reason_codes),
+            "estimated_post_request_spend": str(decision.projected_spend),
         }
 
     @app.post("/v1/admin/model-router/simulate")

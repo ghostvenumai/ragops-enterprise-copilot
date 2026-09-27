@@ -26,6 +26,56 @@ class BudgetDecision:
     projected_spend: Decimal
 
 
+def valid_amount(value: object) -> bool:
+    """Money is a finite, non-negative Decimal; floats and NaN/Infinity never enter accounting."""
+    return isinstance(value, Decimal) and value.is_finite() and value >= 0
+
+
+def hard_limit_ratio(budget: TenantBudget) -> Decimal:
+    """A hard-limit budget without an explicit threshold fails closed at the budget amount."""
+    threshold = budget.hard_limit_threshold
+    return Decimal("1") if threshold is None else threshold
+
+
+def budget_decision(
+    budget: TenantBudget, current: Decimal, estimated_cost: Decimal, *, exempt: bool = False
+) -> BudgetDecision:
+    """Pure threshold decision shared by preflight and the admin simulation."""
+    if (
+        not valid_amount(estimated_cost)
+        or not valid_amount(current)
+        or budget.budget_amount <= 0
+        or budget.currency != "EUR"
+    ):
+        raise ValueError("invalid monetary policy")
+    projected = current + estimated_cost
+    ratio = projected / budget.budget_amount
+    if (
+        ratio >= hard_limit_ratio(budget)
+        and budget.enforcement_mode == "hard_limit"
+        and not exempt
+    ):
+        return BudgetDecision(
+            "DENY_BUDGET_LIMIT", BudgetState.HARD_LIMIT, ("HARD_LIMIT",), current, projected
+        )
+    if ratio >= budget.soft_limit_threshold and budget.enforcement_mode in {
+        "optimize",
+        "hard_limit",
+    }:
+        return BudgetDecision(
+            "ROUTE_CHEAPER", BudgetState.SOFT_LIMIT, ("SOFT_LIMIT",), current, projected
+        )
+    if ratio >= budget.warning_threshold:
+        return BudgetDecision(
+            "ALLOW_WITH_WARNING",
+            BudgetState.WARNING,
+            ("WARNING_THRESHOLD",),
+            current,
+            projected,
+        )
+    return BudgetDecision("ALLOW", BudgetState.NORMAL, (), current, projected)
+
+
 class FinOpsService:
     def __init__(self, session: Session, tenant_id: str) -> None:
         if not tenant_id:
@@ -46,40 +96,14 @@ class FinOpsService:
     def preflight(
         self, budget: TenantBudget, estimated_cost: Decimal, *, exempt: bool = False
     ) -> BudgetDecision:
-        if estimated_cost < 0 or budget.budget_amount <= 0 or budget.currency != "EUR":
-            raise ValueError("invalid monetary policy")
         current = self.spend(budget.period_start, budget.period_end)
-        projected = current + estimated_cost
-        ratio = projected / budget.budget_amount
-        if (
-            ratio >= (budget.hard_limit_threshold or Decimal("999"))
-            and budget.enforcement_mode == "hard_limit"
-            and not exempt
-        ):
-            return BudgetDecision(
-                "DENY_BUDGET_LIMIT", BudgetState.HARD_LIMIT, ("HARD_LIMIT",), current, projected
-            )
-        if ratio >= budget.soft_limit_threshold and budget.enforcement_mode in {
-            "optimize",
-            "hard_limit",
-        }:
-            return BudgetDecision(
-                "ROUTE_CHEAPER", BudgetState.SOFT_LIMIT, ("SOFT_LIMIT",), current, projected
-            )
-        if ratio >= budget.warning_threshold:
-            return BudgetDecision(
-                "ALLOW_WITH_WARNING",
-                BudgetState.WARNING,
-                ("WARNING_THRESHOLD",),
-                current,
-                projected,
-            )
-        return BudgetDecision("ALLOW", BudgetState.NORMAL, (), current, projected)
+        return budget_decision(budget, current, estimated_cost, exempt=exempt)
 
     def forecast(self, start: date, end: date, today: date | None = None) -> Decimal:
         today = today or date.today()
-        elapsed = max((today - start).days + 1, 1)
         total_days = max((end - start).days, 1)
+        # After the period ends the forecast equals actual spend instead of shrinking below it.
+        elapsed = min(max((today - start).days + 1, 1), total_days)
         return (
             self.spend(start, min(today + timedelta(days=1), end))
             * Decimal(total_days)

@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+import math
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from ragops.modeling.router import ModelSpec, RoutingDecision
 from ragops.persistence.models import UsageRecord
+
+MONEY_QUANTUM = Decimal("0.00000001")  # UsageRecord.cost is Numeric(18, 8)
+
+
+def to_money(value: float) -> Decimal:
+    """Quantize like PostgreSQL numeric so stored cost is identical on every backend."""
+    if not math.isfinite(value) or value < 0:
+        raise ValueError("cost must be a finite, non-negative amount")
+    return Decimal(str(value)).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def estimate_cost(model: ModelSpec, input_tokens: int, output_tokens: int) -> float:
@@ -54,7 +64,7 @@ class UsageService:
             correlation_id=correlation_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost=Decimal(str(actual_cost if actual_cost is not None else decision.estimated_cost)),
+            cost=to_money(actual_cost if actual_cost is not None else decision.estimated_cost),
             latency_ms=latency_ms,
             endpoint="rag",
             workflow="query",
@@ -63,8 +73,8 @@ class UsageService:
             routing_class=decision.routing_class.value,
             routing_reason=",".join(decision.reason_codes),
             total_tokens=input_tokens + output_tokens,
-            estimated_cost=Decimal(str(decision.estimated_cost)),
-            actual_cost=Decimal(str(actual_cost)) if actual_cost is not None else None,
+            estimated_cost=to_money(decision.estimated_cost),
+            actual_cost=to_money(actual_cost) if actual_cost is not None else None,
             fallback_count=fallback_count,
             request_id=str(correlation_id),
         )

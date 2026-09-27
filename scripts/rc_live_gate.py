@@ -32,7 +32,14 @@ GATES = (
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
 DETAILED_EVIDENCE_GATES = frozenset(
-    {"redis_worker", "qdrant", "external_llm_provider", "tenant_isolation", "model_router"}
+    {
+        "redis_worker",
+        "qdrant",
+        "external_llm_provider",
+        "tenant_isolation",
+        "model_router",
+        "finops",
+    }
 )
 
 
@@ -205,6 +212,12 @@ def main() -> int:
         gate_results["model_router"] = {
             "status": status,
             "detail": detail or "See sanitized model-router.json evidence",
+        }
+    if "finops" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/finops_gate.py"])
+        gate_results["finops"] = {
+            "status": status,
+            "detail": detail or "See sanitized finops.json evidence",
         }
     previous: dict[str, object] = {}
     try:
