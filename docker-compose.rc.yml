@@ -1,0 +1,55 @@
+# Host-only RC integration exposure. Production Compose remains unchanged.
+services:
+  rc-qdrant:
+    image: qdrant/qdrant:v1.15.1
+    profiles: ["rc"]
+    ports:
+      - "127.0.0.1::6333"
+    read_only: true
+    tmpfs:
+      - /qdrant/storage:rw,noexec,nosuid,size=256m,mode=1777
+      - /qdrant/snapshots:rw,noexec,nosuid,size=32m,mode=1777
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  rc-redis:
+    image: redis:7.4-alpine
+    profiles: ["rc"]
+    user: redis
+    command:
+      - redis-server
+      - --bind
+      - 0.0.0.0
+      - --protected-mode
+      - "no"
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --dir
+      - /tmp
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "127.0.0.1::6379"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 1s
+      retries: 15
