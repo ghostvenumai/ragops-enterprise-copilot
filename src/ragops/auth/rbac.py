@@ -30,7 +30,8 @@ def can_access_level(role: Role, access_level: AccessLevel) -> bool:
 
 
 def require_tenant(user: QueryUser, tenant_id: str) -> None:
-    if user.role != "admin" and user.tenant_id != tenant_id:
+    # Administration is tenant-scoped; it does not grant access to another tenant.
+    if not user.tenant_id or user.tenant_id != tenant_id:
         raise AuthorizationError("cross-tenant access denied")
 
 
