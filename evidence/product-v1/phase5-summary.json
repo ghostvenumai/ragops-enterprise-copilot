@@ -1,0 +1,70 @@
+{
+  "checks": [
+    {
+      "name": "vector-contract-tests",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.06s\n"
+    },
+    {
+      "name": "worker-regression",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 1.00s\n"
+    },
+    {
+      "name": "knowledge-regression",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 0.94s\n"
+    },
+    {
+      "name": "tenant-security",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "....................................                                     [100%]\n36 passed in 1.99s\n"
+    },
+    {
+      "name": "rag-regression",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "........                                                                 [100%]\n8 passed in 1.24s\n"
+    },
+    {
+      "name": "typecheck",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "Success: no issues found in 14 source files\n"
+    },
+    {
+      "name": "lint",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "All checks passed!\n"
+    },
+    {
+      "name": "migration",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": ".....                                                                    [100%]\n"
+    }
+  ],
+  "phase": "PHASE-5",
+  "production_ready": false,
+  "qdrant_integration": {
+    "reason": "Qdrant/socket access is unavailable in sandbox",
+    "status": "NOT_EXECUTED"
+  },
+  "run_id": "20260913T142349151583Z",
+  "status": "PASSED",
+  "tenant_leakage_expected": 0,
+  "version": "0.2.0.dev0"
+}

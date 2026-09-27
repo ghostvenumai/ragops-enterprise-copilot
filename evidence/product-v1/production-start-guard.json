@@ -1,0 +1,5 @@
+{
+  "status": "PASSED",
+  "production_started": false,
+  "reason": "Production runtime is unavailable: verified identity, persistent retrieval and workers must pass product-verify before production can be enabled."
+}

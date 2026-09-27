@@ -1,0 +1,11 @@
+{
+  "command": [
+    ".venv/bin/pytest",
+    "tests/product/test_operations.py",
+    "tests/product/test_finops.py",
+    "-q"
+  ],
+  "returncode": 0,
+  "stdout": "...                                                                      [100%]\n",
+  "stderr": ""
+}

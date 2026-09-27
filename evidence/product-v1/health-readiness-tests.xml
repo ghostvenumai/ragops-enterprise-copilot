@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "liveness": true,
+  "production_fail_closed": true
+}

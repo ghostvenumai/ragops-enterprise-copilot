@@ -1,0 +1,5 @@
+{
+  "fixture_evaluation": "rag-evaluation.json",
+  "reason": "No production load/restart test environment",
+  "status": "NOT_EXECUTED"
+}

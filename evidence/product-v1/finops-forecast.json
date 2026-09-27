@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "formula": "current_spend * period_days / elapsed_days",
+  "estimate": true
+}

@@ -1,18 +1,15 @@
 {
-  "critical_or_high_open": 0,
-  "findings": [
-    {
-      "id": "loop-fixed-commands",
-      "severity": "informational"
-    },
-    {
-      "id": "deterministic-default-provider",
-      "severity": "informational"
-    },
-    {
-      "id": "local-file-backed-storage",
-      "severity": "low"
-    }
+  "checks": {
+    "admin_tenant_boundary": true,
+    "fixed_loop_arguments": true,
+    "no_shell_keyword_in_loop": true
+  },
+  "limitations": [
+    "JWT, migrations, persistence, worker recovery and restore remain unverified",
+    "Does not replace separate adversarial enterprise review"
   ],
+  "production_findings": "docs/PRODUCTIZATION_AUDIT.md",
+  "production_readiness": "blocked",
+  "scope": "bounded executable regression checks, not independent security review",
   "status": "passed"
 }

@@ -6,7 +6,7 @@
       "Atlas Control Plane Product Guide v2#1",
       "Atlas Control Plane Product Guide v1 outdated#1"
     ],
-    "evidence_score": 1.5234,
+    "evidence_score": 1.7683,
     "name": "normal_rag_question"
   },
   {
@@ -17,7 +17,7 @@
       "CRM:CUST-A-001:TIC-A-001:CON-A-001",
       "CRM:CUST-A-003:TIC-A-004:CON-A-003"
     ],
-    "evidence_score": 1.1361,
+    "evidence_score": 1.1587,
     "name": "multi_document_question"
   },
   {
@@ -28,7 +28,7 @@
       "CRM:CUST-A-001:TIC-A-001:CON-A-001",
       "CRM:CUST-A-003:TIC-A-004:CON-A-003"
     ],
-    "evidence_score": 0.8229,
+    "evidence_score": 0.8532,
     "name": "crm_document_question"
   },
   {

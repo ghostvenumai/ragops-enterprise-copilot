@@ -1,0 +1,10 @@
+{
+  "command": [
+    ".venv/bin/pytest",
+    "tests/product/test_persistence.py",
+    "-q"
+  ],
+  "returncode": 0,
+  "stdout": ".....                                                                    [100%]\n",
+  "stderr": ""
+}

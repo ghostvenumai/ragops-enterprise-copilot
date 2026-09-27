@@ -1,0 +1,24 @@
+{
+  "phase": "external_llm_provider",
+  "status": "BLOCKED",
+  "provider_gate": {
+    "gate": "external_llm_provider",
+    "provider": "UNCONFIGURED",
+    "timestamp": "2026-09-18T06:29:24.936753+00:00",
+    "status": "BLOCKED",
+    "reason": "A real external provider is required",
+    "tested_commit": "d2696e2e513619075ac5098b69e4f8efd2441f81"
+  },
+  "tests": {
+    "tests": 33,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS"
+  },
+  "live_execution_required": true,
+  "reason": "No external provider credentials/network are available in the sandbox; no PASS was claimed."
+}

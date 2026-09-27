@@ -1,0 +1,4 @@
+{
+  "status": "BLOCKED",
+  "reason": "NOT_EXECUTED/BLOCKED: authorized live integration host and required services/credentials are unavailable in current sandbox"
+}

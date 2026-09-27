@@ -1,0 +1,4 @@
+{
+  "status": "NOT_EXECUTED",
+  "reason": "Declared persistence dependencies cannot be resolved/audited; no SBOM claiming to represent the new full environment was generated."
+}

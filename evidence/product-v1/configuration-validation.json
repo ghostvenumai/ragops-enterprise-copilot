@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "development_identity_rejected_in_production": true,
+    "oidc_missing_config_rejected": true,
+    "production_runtime_still_disabled": true,
+    "unsupported_algorithm_rejected": true
+  },
+  "name": "configuration-validation",
+  "scope": "local deterministic configuration checks",
+  "status": "PASSED"
+}

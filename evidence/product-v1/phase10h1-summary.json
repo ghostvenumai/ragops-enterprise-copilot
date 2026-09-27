@@ -1,0 +1,27 @@
+{
+  "phase": "10H.1",
+  "dependency": {
+    "package": "qdrant-client",
+    "version": "1.15.1",
+    "installed": true,
+    "sync_command": "make setup"
+  },
+  "qdrant_gate": {
+    "status": "BLOCKED",
+    "reason": "Docker daemon or image-registry network is unavailable",
+    "bootstrap_status": "BLOCKED",
+    "readiness_status": "NOT_RUN",
+    "integration_status": "NOT_EXECUTED"
+  },
+  "tests": {
+    "total": 25,
+    "skipped": 1,
+    "failed": 0,
+    "errors": 0
+  },
+  "typecheck": "PASS",
+  "migration_check": {
+    "status": "NOT_EXECUTED",
+    "reason": "RAGOPS_DATABASE_URL is not configured in sandbox"
+  }
+}

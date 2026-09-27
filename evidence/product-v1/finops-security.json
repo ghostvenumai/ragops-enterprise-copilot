@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "tenant_scoped": true,
+  "invalid_money_rejected": true
+}

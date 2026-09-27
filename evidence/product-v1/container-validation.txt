@@ -1,0 +1,5 @@
+NOT_EXECUTED — production container verification
+Observed command: docker version --format '{{.Server.Version}}'
+Observed result: permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+Production Compose, worker and Redis topology are not implemented.
+No sandbox escalation was attempted.

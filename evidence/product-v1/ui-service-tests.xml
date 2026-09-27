@@ -1,0 +1,13 @@
+{
+  "command": [
+    ".venv/bin/pytest",
+    "tests/product",
+    "tests/security/test_product_foundation.py",
+    "tests/security/test_identity.py",
+    "tests/integration/test_workflow.py",
+    "-q"
+  ],
+  "returncode": 0,
+  "stdout": "....................s...............................................     [100%]\n",
+  "stderr": ""
+}

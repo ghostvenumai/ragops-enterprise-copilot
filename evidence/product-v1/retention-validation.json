@@ -1,0 +1,5 @@
+{
+  "name": "retention-validation",
+  "reason": "Retention and vector deletion not implemented",
+  "status": "NOT_EXECUTED"
+}

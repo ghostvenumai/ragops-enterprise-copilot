@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-09-14T10:44:45.889319+00:00",
+  "host": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "docker": "Docker version 29.1.3, build 29.1.3-0ubuntu3~24.04.2",
+  "compose": "Docker Compose version v2.24.5",
+  "repository_commit": "d2696e2e513619075ac5098b69e4f8efd2441f81",
+  "dirty": true,
+  "secrets_present": {
+    "RAGOPS_DATABASE_URL": false,
+    "RAGOPS_REDIS_URL": false,
+    "RAGOPS_QDRANT_URL": false,
+    "RAGOPS_OIDC_ISSUER": false,
+    "OPENAI_API_KEY": false
+  }
+}

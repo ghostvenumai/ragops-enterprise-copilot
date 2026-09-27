@@ -1,0 +1,6 @@
+{
+  "log": "dependency-audit.log",
+  "name": "dependency-audit",
+  "returncode": 1,
+  "status": "FAILED"
+}

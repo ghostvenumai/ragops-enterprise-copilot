@@ -1,0 +1,14 @@
+{
+  "command": [
+    ".venv/bin/mypy",
+    "src",
+    "loop",
+    "scripts",
+    "automation",
+    "video",
+    "apps"
+  ],
+  "returncode": 0,
+  "stdout": "Success: no issues found in 103 source files\n",
+  "stderr": ""
+}

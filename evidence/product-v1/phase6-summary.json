@@ -1,0 +1,56 @@
+{
+  "phase": "ENT-06",
+  "tests": {
+    "command": [
+      ".venv/bin/pytest",
+      "tests/product/test_model_router.py",
+      "tests/product/test_model_fallback.py",
+      "tests/product/test_model_usage.py",
+      "-q"
+    ],
+    "returncode": 0,
+    "stdout": "........                                                                 [100%]\n",
+    "stderr": ""
+  },
+  "lint": {
+    "command": [
+      ".venv/bin/ruff",
+      "check",
+      "src",
+      "tests",
+      "apps",
+      "scripts"
+    ],
+    "returncode": 0,
+    "stdout": "All checks passed!\n",
+    "stderr": ""
+  },
+  "typecheck": {
+    "command": [
+      ".venv/bin/mypy",
+      "src",
+      "loop",
+      "scripts",
+      "automation",
+      "video",
+      "apps"
+    ],
+    "returncode": 0,
+    "stdout": "Success: no issues found in 95 source files\n",
+    "stderr": ""
+  },
+  "migration": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "alembic",
+      "check"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/__main__.py\", line 4, in <module>\n    main(prog=\"alembic\")\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/config.py\", line 1039, in main\n    CommandLine(prog=prog).main(argv=argv)\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/config.py\", line 1029, in main\n    self.run_cmd(cfg, options)\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/config.py\", line 963, in run_cmd\n    fn(\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/command.py\", line 360, in check\n    script_directory.run_env()\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/script/base.py\", line 550, in run_env\n    util.load_python_file(self.dir, \"env.py\")\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/util/pyfiles.py\", line 114, in load_python_file\n    module = load_module_py(module_id, path)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/.venv/lib/python3.12/site-packages/alembic/util/pyfiles.py\", line 132, in load_module_py\n    spec.loader.exec_module(module)  # type: ignore\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap_external>\", line 995, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 488, in _call_with_frames_removed\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/migrations/env.py\", line 38, in <module>\n    run_migrations()\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/migrations/env.py\", line 26, in run_migrations\n    engine = open_engine()\n             ^^^^^^^^^^^^^\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/src/ragops/persistence/database.py\", line 36, in open_engine\n    url = database_url()\n          ^^^^^^^^^^^^^^\n  File \"/home/serverserver/tools/ragops-enterprise-copilot/src/ragops/persistence/database.py\", line 23, in database_url\n    raise ValueError(\"RAGOPS_DATABASE_URL or RAGOPS_DATABASE_URL_FILE is required\")\nValueError: RAGOPS_DATABASE_URL or RAGOPS_DATABASE_URL_FILE is required\n",
+    "status": "NOT_EXECUTED",
+    "reason": "database URL unavailable in sandbox; SQLite upgrade covered by persistence tests"
+  },
+  "live_provider_integrations": "NOT_EXECUTED: no credentials/network in sandbox"
+}

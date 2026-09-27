@@ -1,0 +1,13 @@
+{
+  "command": [
+    "docker-compose",
+    "-f",
+    "docker-compose.yml",
+    "-f",
+    "docker-compose.prod.yml",
+    "config"
+  ],
+  "returncode": 0,
+  "stdout": "name: ragops-enterprise-copilot\nservices: {}\n",
+  "stderr": ""
+}

@@ -1,0 +1,17 @@
+{
+  "commit": "d2696e2e513619075ac5098b69e4f8efd2441f81",
+  "overall": "BLOCKED",
+  "mandatory_gates": {
+    "docker_compose": "BLOCKED",
+    "postgresql": "BLOCKED",
+    "redis": "BLOCKED",
+    "qdrant": "BLOCKED",
+    "oidc": "BLOCKED",
+    "external_provider": "BLOCKED",
+    "tenant_isolation": "BLOCKED",
+    "backup_restore": "BLOCKED",
+    "browser_e2e": "BLOCKED",
+    "security": "BLOCKED"
+  },
+  "reason": "NOT_EXECUTED/BLOCKED: authorized live integration host and required services/credentials are unavailable in current sandbox"
+}

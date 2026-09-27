@@ -1,0 +1,12 @@
+{
+  "command": [
+    ".venv/bin/pytest",
+    "tests/product/test_model_router.py",
+    "tests/product/test_model_fallback.py",
+    "tests/product/test_model_usage.py",
+    "-q"
+  ],
+  "returncode": 0,
+  "stdout": "........                                                                 [100%]\n",
+  "stderr": ""
+}

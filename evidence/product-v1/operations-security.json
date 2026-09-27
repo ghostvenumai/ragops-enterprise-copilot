@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "secrets_in_manifest": false,
+  "tenant_aware_rate_limit": true
+}

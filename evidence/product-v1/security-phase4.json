@@ -1,0 +1,10 @@
+{
+  "checks": {
+    "name": "security",
+    "returncode": 0,
+    "status": "PASSED",
+    "stderr_tail": "",
+    "stdout_tail": "...................................                                      [100%]\n35 passed in 1.93s\n"
+  },
+  "tenant_leakage_expected": 0
+}

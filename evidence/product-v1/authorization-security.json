@@ -1,0 +1,7 @@
+{
+  "name": "authorization-tests",
+  "returncode": 0,
+  "status": "PASSED",
+  "stderr_tail": "",
+  "stdout_tail": "...................                                                      [100%]\n19 passed in 0.79s\n"
+}

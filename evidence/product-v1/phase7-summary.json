@@ -1,0 +1,44 @@
+{
+  "phase": "ENT-07",
+  "tests": {
+    "command": [
+      ".venv/bin/pytest",
+      "tests/product/test_finops.py",
+      "tests/product/test_model_router.py",
+      "tests/product/test_model_fallback.py",
+      "tests/product/test_model_usage.py",
+      "-q"
+    ],
+    "returncode": 0,
+    "stdout": ".........                                                                [100%]\n",
+    "stderr": ""
+  },
+  "lint": {
+    "command": [
+      ".venv/bin/ruff",
+      "check",
+      "src",
+      "tests",
+      "apps",
+      "scripts"
+    ],
+    "returncode": 0,
+    "stdout": "All checks passed!\n",
+    "stderr": ""
+  },
+  "typecheck": {
+    "command": [
+      ".venv/bin/mypy",
+      "src",
+      "loop",
+      "scripts",
+      "automation",
+      "video",
+      "apps"
+    ],
+    "returncode": 0,
+    "stdout": "Success: no issues found in 98 source files\n",
+    "stderr": ""
+  },
+  "external_gates": "NOT_EXECUTED: PostgreSQL/Redis/Qdrant/Docker/live providers unavailable in sandbox"
+}

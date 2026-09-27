@@ -1,0 +1,99 @@
+{
+  "loop_mode": false,
+  "results": [
+    {
+      "name": "env-file-check",
+      "status": "passed",
+      "unexpected_env_files": []
+    },
+    {
+      "name": "tracked-secret-file-check",
+      "prohibited_tracked_files": [],
+      "status": "passed"
+    },
+    {
+      "findings": [],
+      "name": "secret-scan",
+      "status": "passed"
+    },
+    {
+      "issues": [],
+      "name": "synthetic-data-scan",
+      "status": "passed"
+    },
+    {
+      "checks": {
+        "compose_drop_capabilities": true,
+        "compose_healthchecks": true,
+        "compose_no_host_network": true,
+        "compose_no_new_privileges": true,
+        "compose_no_privileged_true": true,
+        "dockerfile_non_root_user": true
+      },
+      "name": "container-config-check",
+      "status": "passed"
+    },
+    {
+      "name": "pytest",
+      "reason": "gate timed out after 120s",
+      "status": "failed"
+    },
+    {
+      "duration_ms": 608.493,
+      "name": "evaluation",
+      "returncode": 0,
+      "status": "passed",
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"abstention_rate\": 0.4286,\n  \"avg_latency_ms\": 10.198,\n  \"case_count\": 28,\n  \"citation_coverage\": 1.0,\n  \"duration_ms\": 291.943,\n  \"precision_at_5\": 0.7738,\n  \"recall_at_5\": 1.0,\n  \"retrieval_hit_rate\": 1.0,\n  \"security_test_pass_rate\": 1.0,\n  \"status\": \"passed\",\n  \"tenant_leakage_count\": 0,\n  \"total_cost_eur\": 0.0\n}\n"
+    },
+    {
+      "duration_ms": 105.226,
+      "name": "review",
+      "returncode": 0,
+      "status": "passed",
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    {
+      "duration_ms": 90.444,
+      "name": "ruff",
+      "returncode": 0,
+      "status": "passed",
+      "stderr_tail": "",
+      "stdout_tail": "[]"
+    },
+    {
+      "duration_ms": 2456.785,
+      "name": "mypy",
+      "returncode": 1,
+      "status": "failed",
+      "stderr_tail": "",
+      "stdout_tail": "src/ragops/persistence/database.py:10: error: Cannot find implementation or library stub for module named \"sqlalchemy\"  [import-not-found]\nsrc/ragops/persistence/database.py:11: error: Cannot find implementation or library stub for module named \"sqlalchemy.engine\"  [import-not-found]\nsrc/ragops/persistence/database.py:11: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports\nsrc/ragops/persistence/database.py:12: error: Cannot find implementation or library stub for module named \"sqlalchemy.orm\"  [import-not-found]\nsrc/ragops/persistence/models.py:14: error: Cannot find implementation or library stub for module named \"sqlalchemy\"  [import-not-found]\nsrc/ragops/persistence/models.py:27: error: Cannot find implementation or library stub for module named \"sqlalchemy.orm\"  [import-not-found]\nsrc/ragops/persistence/models.py:30: error: Class cannot subclass \"DeclarativeBase\" (has type \"Any\")  [misc]\nsrc/ragops/persistence/repository.py:8: error: Cannot find implementation or library stub for module named \"sqlalchemy\"  [import-not-found]\nsrc/ragops/persistence/repository.py:9: error: Cannot find implementation or library stub for module named \"sqlalchemy.orm\"  [import-not-found]\nsrc/ragops/persistence/repository.py:32: error: Returning Any from function declared to return \"Record | None\"  [no-any-return]\nFound 9 errors in 3 files (checked 76 source files)\n"
+    },
+    {
+      "duration_ms": 1730.472,
+      "name": "bandit",
+      "returncode": 0,
+      "status": "passed",
+      "stderr_tail": "",
+      "stdout_tail": " \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/pipeline.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 385,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/qa/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/qa/narration.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 245,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/qa/validator.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 134,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/recording/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/recording/capture.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 447,\n      \"nosec\": 0,\n      \"skipped_tests\": 6\n    },\n    \"video/rendering/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/rendering/renderer.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 218,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/subtitles/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/subtitles/generator.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 50,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/timeline.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 142,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"video/tools.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 30,\n      \"nosec\": 0,\n      \"skipped_tests\": 2\n    }\n  },\n  \"results\": []\n}"
+    },
+    {
+      "duration_ms": 21009.913,
+      "name": "pip-audit",
+      "returncode": 1,
+      "status": "failed",
+      "stderr_tail": "ERROR:pip_audit._cli:Failed to upgrade `pip`: ['/home/serverserver/tools/ragops-enterprise-copilot/.loop/tmp/central-verify/tmpgwna3ei0/bin/python3.12', '-m', 'pip', 'install', '--upgrade', 'pip', 'wheel', 'setuptools']\n",
+      "stdout_tail": ""
+    },
+    {
+      "duration_ms": 20690.541,
+      "name": "sbom",
+      "returncode": 1,
+      "status": "failed",
+      "stderr_tail": "ERROR:pip_audit._cli:Failed to upgrade `pip`: ['/home/serverserver/tools/ragops-enterprise-copilot/.loop/tmp/central-verify/tmpr8q0ymeh/bin/python3.12', '-m', 'pip', 'install', '--upgrade', 'pip', 'wheel', 'setuptools']\n",
+      "stdout_tail": ""
+    }
+  ],
+  "status": "failed"
+}

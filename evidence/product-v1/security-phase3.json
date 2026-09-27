@@ -1,0 +1,10 @@
+{
+  "tenant_leakage_expected": 0,
+  "upload": {
+    "name": "security-upload-tests",
+    "returncode": 0,
+    "status": "PASSED",
+    "stderr_tail": "",
+    "stdout_tail": "..................                                                       [100%]\n18 passed in 1.07s\n"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "server_authorization": true,
+  "tenant_leakage": 0
+}

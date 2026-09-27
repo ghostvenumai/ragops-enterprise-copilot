@@ -1,0 +1,99 @@
+{
+  "production_enabled": false,
+  "results": [
+    {
+      "log": "local-tests.log",
+      "name": "local-tests",
+      "returncode": 1,
+      "status": "FAILED"
+    },
+    {
+      "name": "api-tests",
+      "reason": "Timed out after 30s",
+      "status": "FAILED"
+    },
+    {
+      "log": "lint.log",
+      "name": "lint",
+      "returncode": 0,
+      "status": "PASSED"
+    },
+    {
+      "log": "typecheck.log",
+      "name": "typecheck",
+      "returncode": 0,
+      "status": "PASSED"
+    },
+    {
+      "log": "security.log",
+      "name": "security",
+      "returncode": 0,
+      "status": "PASSED"
+    },
+    {
+      "name": "rag-evaluation",
+      "scope": "deterministic synthetic fixtures",
+      "status": "PASSED"
+    },
+    {
+      "log": "migrations.log",
+      "name": "migrations",
+      "returncode": 0,
+      "status": "PASSED"
+    },
+    {
+      "name": "postgres",
+      "reason": "Persistence dependencies or explicit disposable test DB unavailable",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "log": "dependency-audit.log",
+      "name": "dependency-audit",
+      "returncode": 1,
+      "status": "FAILED"
+    },
+    {
+      "name": "auth-test-results",
+      "reason": "OIDC/JWT not implemented; production blocked",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "tenant-isolation",
+      "reason": "Persistent Qdrant tenant isolation is not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "worker-flow",
+      "reason": "Redis queue, workers and crash recovery are not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "backup-validation",
+      "reason": "Coordinated backup/restore is not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "container-validation",
+      "reason": "Production Compose topology is not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "finops-validation",
+      "reason": "Usage enforcement and approved model routing not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "retention-validation",
+      "reason": "Retention and vector deletion not implemented",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "adversarial-review",
+      "reason": "Separate enterprise adversarial review has not been executed",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "run_id": "20260913T132109957135Z",
+  "status": "BLOCKED",
+  "version": "0.2.0.dev0"
+}

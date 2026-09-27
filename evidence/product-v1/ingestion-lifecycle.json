@@ -1,0 +1,7 @@
+{
+  "name": "ingestion-lifecycle",
+  "returncode": 0,
+  "status": "PASSED",
+  "stderr_tail": "",
+  "stdout_tail": "..                                                                       [100%]\n2 passed in 0.96s\n"
+}

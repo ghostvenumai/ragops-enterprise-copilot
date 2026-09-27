@@ -1,0 +1,5 @@
+{
+  "name": "postgres",
+  "reason": "Persistence dependencies or explicit disposable test DB unavailable",
+  "status": "NOT_EXECUTED"
+}

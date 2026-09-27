@@ -1,0 +1,1 @@
+{"name": "migrations", "status": "PASSED", "returncode": 0, "log": "migrations.log"}

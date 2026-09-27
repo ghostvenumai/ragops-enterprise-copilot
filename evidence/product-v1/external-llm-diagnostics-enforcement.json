@@ -1,0 +1,130 @@
+{
+  "phase": "external_llm_diagnostics_enforcement",
+  "timestamp": "2026-09-19T13:09:10.670468+00:00",
+  "local_validation": "PASS",
+  "openai_sdk_version": "1.98.0",
+  "tests": {
+    "tests": 107,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "checks": [
+    {
+      "name": "ruff",
+      "command": [
+        ".venv/bin/ruff",
+        "check",
+        "src/ragops/modeling/diagnostics.py",
+        "src/ragops/modeling/router.py",
+        "src/ragops/llm/providers.py",
+        "scripts/external_llm_provider_gate.py",
+        "scripts/rc_live_gate.py",
+        "tests/product/test_provider_diagnostics.py",
+        "tests/product/test_external_llm_provider.py"
+      ],
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    {
+      "name": "mypy",
+      "command": [
+        ".venv/bin/mypy",
+        "src/ragops",
+        "scripts/external_llm_provider_gate.py",
+        "scripts/rc_live_gate.py"
+      ],
+      "exit_code": 0,
+      "output": "Success: no issues found in 62 source files\n"
+    },
+    {
+      "name": "tests",
+      "command": [
+        ".venv/bin/pytest",
+        "-q",
+        "tests/product/test_provider_diagnostics.py",
+        "tests/product/test_external_llm_provider.py",
+        "tests/product/test_rc_gate_aggregation.py",
+        "tests/product/test_model_router.py",
+        "tests/product/test_model_fallback.py",
+        "tests/product/test_model_usage.py",
+        "tests/product/test_finops.py",
+        "tests/product/test_finops_reservation.py",
+        "tests/product/test_qdrant_live_gate.py",
+        "tests/unit/test_runtime_edges.py",
+        "tests/evaluation/test_evaluation_runner.py",
+        "tests/product/test_vector_index.py",
+        "tests/security/test_identity.py",
+        "--junitxml=evidence/product-v1/external-llm-diagnostics-tests.xml"
+      ],
+      "exit_code": 0,
+      "output": "........................................................................ [ 67%]\n...................................                                      [100%]\n"
+    }
+  ],
+  "live_gate": {
+    "status": "FAIL",
+    "execution_this_phase": "NOT_EXECUTED",
+    "reason": "Paid provider execution is prohibited by the briefing; authorized host rerun required."
+  },
+  "existing_rc_live_evidence": {
+    "unchanged": true,
+    "files_compared": 26,
+    "hashes_before": {
+      "evidence/product-v1/rc-live/qdrant.json": "782dc1e9c769e5f0126f5cae989284f9883c57fbc7e050e99f3cd67d797f2d39",
+      "evidence/product-v1/rc-live/final-release-gate.json": "63aa7f5c433dc5e21058c89a981bf4745029693b298ca0c439340ff8db0bcfde",
+      "evidence/product-v1/rc-live/redis-worker.json": "1f5a9afdaf5df42c9587bf2362846057d30cb711468f6ed4caac64f8a0d7ae66",
+      "evidence/product-v1/rc-live/secret-scan.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/compose-validation.txt": "369f94594c3ef72d8b6e8412620a63cbbd93f8a9d82f7a488fa85628daed9899",
+      "evidence/product-v1/rc-live/model-router.json": "f43088625a38503829a3438151ce84b9c9816aa062d54485c54a7a2084951838",
+      "evidence/product-v1/rc-live/host-preflight.json": "1cd9b768b53b45ede5ebc1f0f40b5fb445a58b94a6bbd80e0bc0e03a1542ec0f",
+      "evidence/product-v1/rc-live/security.json": "770b18e190cd6a9892e465b67a99b2cc107a27e17782b26c78d7db9b7290c82b",
+      "evidence/product-v1/rc-live/backup-restore.json": "c763b4cc69752bfdb84f60410dff5d28cc2e2e3a5066bf1f37a18dc4aa8307cb",
+      "evidence/product-v1/rc-live/rto-rpo.json": "6b1688e18f189f008a6b95e6130215d5bcd5986eb3e184401de1b4545a4932bc",
+      "evidence/product-v1/rc-live/phase10f-selective-gate-concurrency.json": "ed67c11929d72e66153d18d6296de7463990407398d78be8b0b9fb884bd5c5df",
+      "evidence/product-v1/rc-live/docker-compose.json": "36b339b6beb0a13833231604750cb76ffa3bd233b56d808593701f9cfc9cdea4",
+      "evidence/product-v1/rc-live/rc-live-report.md": "e9b8bfdb136c48a4ea8c45b8484fc2d46eeaedb787f114f5b5b0d6a6c9c6df0b",
+      "evidence/product-v1/rc-live/postgresql-concurrency.json": "45f81547405e520c8290659782eb78f98bc4e3ff519453e56d5a707924845968",
+      "evidence/product-v1/rc-live/tenant-isolation.json": "0aaf3519fedf40e02dca87b9629fb93a2d734c44e6fa3d90e69525f8e4ceed8a",
+      "evidence/product-v1/rc-live/finops.json": "a724f9c3d711e6dd09c6a06474f7d53e7f1df873bcdc9930fcf62c0eb526e960",
+      "evidence/product-v1/rc-live/postgresql.json": "f0622bfebf2855dcd0e16be48c7b87f94956f75f3f293570028327ec11538f99",
+      "evidence/product-v1/rc-live/phase10f-tests.xml": "13b819e4ab9aaaad133ada6866b385de1666e75c76e5b45e76cabfc740a62563",
+      "evidence/product-v1/rc-live/oidc.json": "f1349f70fde63a6439ef59bdae46214b548e57f4168ab7094a1a5ea8b49ab7ef",
+      "evidence/product-v1/rc-live/tested-commit.json": "4577959d2d45492502a35f2211937dd9c242a5108e2535a18f4c6f1c79117289",
+      "evidence/product-v1/rc-live/rate-limiting.json": "660001d865b3eb35d301de5c931f587d0ee65ae7d17f886633e4de94b9086368",
+      "evidence/product-v1/rc-live/container-health.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/performance-sanity.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/readiness-failure-recovery.json": "a8cf659155ad03957405bc6b181405b23b710aa2f44bd8b8e634c65b9055b569",
+      "evidence/product-v1/rc-live/external-llm-provider.json": "7c387d32f86b3165ee0bdc73cb3f062b61b70d2535185eed6c6b55135461d1ae",
+      "evidence/product-v1/rc-live/browser-e2e.json": "64bc3795cd22387737ab9ec5d862bf095b38c4106630800d4ac966d79a613b93"
+    },
+    "hashes_after": {
+      "evidence/product-v1/rc-live/qdrant.json": "782dc1e9c769e5f0126f5cae989284f9883c57fbc7e050e99f3cd67d797f2d39",
+      "evidence/product-v1/rc-live/final-release-gate.json": "63aa7f5c433dc5e21058c89a981bf4745029693b298ca0c439340ff8db0bcfde",
+      "evidence/product-v1/rc-live/redis-worker.json": "1f5a9afdaf5df42c9587bf2362846057d30cb711468f6ed4caac64f8a0d7ae66",
+      "evidence/product-v1/rc-live/secret-scan.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/compose-validation.txt": "369f94594c3ef72d8b6e8412620a63cbbd93f8a9d82f7a488fa85628daed9899",
+      "evidence/product-v1/rc-live/model-router.json": "f43088625a38503829a3438151ce84b9c9816aa062d54485c54a7a2084951838",
+      "evidence/product-v1/rc-live/host-preflight.json": "1cd9b768b53b45ede5ebc1f0f40b5fb445a58b94a6bbd80e0bc0e03a1542ec0f",
+      "evidence/product-v1/rc-live/security.json": "770b18e190cd6a9892e465b67a99b2cc107a27e17782b26c78d7db9b7290c82b",
+      "evidence/product-v1/rc-live/backup-restore.json": "c763b4cc69752bfdb84f60410dff5d28cc2e2e3a5066bf1f37a18dc4aa8307cb",
+      "evidence/product-v1/rc-live/rto-rpo.json": "6b1688e18f189f008a6b95e6130215d5bcd5986eb3e184401de1b4545a4932bc",
+      "evidence/product-v1/rc-live/phase10f-selective-gate-concurrency.json": "ed67c11929d72e66153d18d6296de7463990407398d78be8b0b9fb884bd5c5df",
+      "evidence/product-v1/rc-live/docker-compose.json": "36b339b6beb0a13833231604750cb76ffa3bd233b56d808593701f9cfc9cdea4",
+      "evidence/product-v1/rc-live/rc-live-report.md": "e9b8bfdb136c48a4ea8c45b8484fc2d46eeaedb787f114f5b5b0d6a6c9c6df0b",
+      "evidence/product-v1/rc-live/postgresql-concurrency.json": "45f81547405e520c8290659782eb78f98bc4e3ff519453e56d5a707924845968",
+      "evidence/product-v1/rc-live/tenant-isolation.json": "0aaf3519fedf40e02dca87b9629fb93a2d734c44e6fa3d90e69525f8e4ceed8a",
+      "evidence/product-v1/rc-live/finops.json": "a724f9c3d711e6dd09c6a06474f7d53e7f1df873bcdc9930fcf62c0eb526e960",
+      "evidence/product-v1/rc-live/postgresql.json": "f0622bfebf2855dcd0e16be48c7b87f94956f75f3f293570028327ec11538f99",
+      "evidence/product-v1/rc-live/phase10f-tests.xml": "13b819e4ab9aaaad133ada6866b385de1666e75c76e5b45e76cabfc740a62563",
+      "evidence/product-v1/rc-live/oidc.json": "f1349f70fde63a6439ef59bdae46214b548e57f4168ab7094a1a5ea8b49ab7ef",
+      "evidence/product-v1/rc-live/tested-commit.json": "4577959d2d45492502a35f2211937dd9c242a5108e2535a18f4c6f1c79117289",
+      "evidence/product-v1/rc-live/rate-limiting.json": "660001d865b3eb35d301de5c931f587d0ee65ae7d17f886633e4de94b9086368",
+      "evidence/product-v1/rc-live/container-health.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/performance-sanity.json": "7e063e005ef00afdb784646541bf3817abc4c7fd25506863bfc8a71f7375232e",
+      "evidence/product-v1/rc-live/readiness-failure-recovery.json": "a8cf659155ad03957405bc6b181405b23b710aa2f44bd8b8e634c65b9055b569",
+      "evidence/product-v1/rc-live/external-llm-provider.json": "7c387d32f86b3165ee0bdc73cb3f062b61b70d2535185eed6c6b55135461d1ae",
+      "evidence/product-v1/rc-live/browser-e2e.json": "64bc3795cd22387737ab9ec5d862bf095b38c4106630800d4ac966d79a613b93"
+    }
+  },
+  "evidence": "evidence/product-v1/external-llm-diagnostics-tests.xml"
+}

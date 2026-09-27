@@ -1,0 +1,66 @@
+{
+  "checks": [
+    {
+      "name": "knowledge-management-tests",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 0.93s\n"
+    },
+    {
+      "name": "tenant-isolation-tests",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "......                                                                   [100%]\n6 passed in 1.53s\n"
+    },
+    {
+      "name": "security-upload-tests",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "..................                                                       [100%]\n18 passed in 1.07s\n"
+    },
+    {
+      "name": "typecheck-phase3",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "Success: no issues found in 9 source files\n"
+    },
+    {
+      "name": "lint-phase3",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": "All checks passed!\n"
+    },
+    {
+      "name": "migration-phase3",
+      "returncode": 0,
+      "status": "PASSED",
+      "stderr_tail": "",
+      "stdout_tail": ".....                                                                    [100%]\n"
+    }
+  ],
+  "not_executed": [
+    {
+      "name": "production-postgresql",
+      "reason": "External PostgreSQL is unavailable in the sandbox"
+    },
+    {
+      "name": "live-docker-api-integration",
+      "reason": "Docker/socket access is blocked by the sandbox"
+    },
+    {
+      "name": "full-oidc-asgi-endpoint",
+      "reason": "Sandbox TestClient event-loop/portal integration is blocked"
+    }
+  ],
+  "phase": "PHASE-3",
+  "production_ready": false,
+  "run_id": "20260913T135601939025Z",
+  "status": "PASSED",
+  "tenant_leakage_expected": 0,
+  "version": "0.2.0.dev0"
+}

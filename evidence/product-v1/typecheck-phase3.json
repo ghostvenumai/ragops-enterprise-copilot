@@ -1,0 +1,7 @@
+{
+  "name": "typecheck-phase3",
+  "returncode": 0,
+  "status": "PASSED",
+  "stderr_tail": "",
+  "stdout_tail": "Success: no issues found in 9 source files\n"
+}

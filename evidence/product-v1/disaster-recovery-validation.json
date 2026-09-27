@@ -1,0 +1,4 @@
+{
+  "status": "NOT_EXECUTED",
+  "reason": "live PostgreSQL/Qdrant restore unavailable; deterministic backup contract executed"
+}

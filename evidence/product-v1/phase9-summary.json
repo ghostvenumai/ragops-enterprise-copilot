@@ -1,0 +1,45 @@
+{
+  "phase": "ENT-09",
+  "tests": {
+    "command": [
+      ".venv/bin/pytest",
+      "tests/product",
+      "tests/security/test_product_foundation.py",
+      "tests/security/test_identity.py",
+      "tests/integration/test_workflow.py",
+      "-q"
+    ],
+    "returncode": 0,
+    "stdout": "....................s...............................................     [100%]\n",
+    "stderr": ""
+  },
+  "lint": {
+    "command": [
+      ".venv/bin/ruff",
+      "check",
+      "src",
+      "tests",
+      "apps",
+      "scripts"
+    ],
+    "returncode": 0,
+    "stdout": "All checks passed!\n",
+    "stderr": ""
+  },
+  "typecheck": {
+    "command": [
+      ".venv/bin/mypy",
+      "src",
+      "loop",
+      "scripts",
+      "automation",
+      "video",
+      "apps"
+    ],
+    "returncode": 0,
+    "stdout": "Success: no issues found in 104 source files\n",
+    "stderr": ""
+  },
+  "tenant_leakage": 0,
+  "browser_validation": "NOT_EXECUTED: browser automation unavailable in sandbox"
+}

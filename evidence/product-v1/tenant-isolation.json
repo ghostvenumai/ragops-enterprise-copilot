@@ -1,0 +1,5 @@
+{
+  "name": "tenant-isolation",
+  "reason": "Persistent Qdrant tenant isolation is not implemented",
+  "status": "NOT_EXECUTED"
+}

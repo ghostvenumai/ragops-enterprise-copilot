@@ -1,0 +1,19 @@
+{
+  "phase": "external_llm_provider_responses_api_migration",
+  "status": "BLOCKED",
+  "provider_gate_status": "SEE_RC_LIVE_EVIDENCE",
+  "live_request_status": "NOT_EXECUTED_IN_SANDBOX",
+  "tests": {
+    "tests": 26,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS"
+  },
+  "azure_path": "UNCHANGED_CHAT_COMPLETIONS",
+  "reason": "The prior authorized-host evidence records one failed live request; this migration was validated locally without any paid request. Authorized host rerun required.",
+  "real_paid_request_executed_in_sandbox": false
+}

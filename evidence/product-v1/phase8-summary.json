@@ -1,0 +1,55 @@
+{
+  "phase": "ENT-08",
+  "tests": {
+    "command": [
+      ".venv/bin/pytest",
+      "tests/product/test_operations.py",
+      "tests/product/test_finops.py",
+      "-q"
+    ],
+    "returncode": 0,
+    "stdout": "...                                                                      [100%]\n",
+    "stderr": ""
+  },
+  "lint": {
+    "command": [
+      ".venv/bin/ruff",
+      "check",
+      "src",
+      "tests",
+      "apps",
+      "scripts"
+    ],
+    "returncode": 0,
+    "stdout": "All checks passed!\n",
+    "stderr": ""
+  },
+  "typecheck": {
+    "command": [
+      ".venv/bin/mypy",
+      "src",
+      "loop",
+      "scripts",
+      "automation",
+      "video",
+      "apps"
+    ],
+    "returncode": 0,
+    "stdout": "Success: no issues found in 103 source files\n",
+    "stderr": ""
+  },
+  "compose": {
+    "command": [
+      "docker-compose",
+      "-f",
+      "docker-compose.yml",
+      "-f",
+      "docker-compose.prod.yml",
+      "config"
+    ],
+    "returncode": 0,
+    "stdout": "name: ragops-enterprise-copilot\nservices: {}\n",
+    "stderr": ""
+  },
+  "live_gates": "NOT_EXECUTED: Docker/PostgreSQL/Redis/Qdrant unavailable in sandbox"
+}

@@ -1,0 +1,34 @@
+{
+  "phase": "external_llm_provider_paid_test_safety",
+  "status": "BLOCKED",
+  "gate_evidence": {
+    "gate": "external_llm_provider",
+    "status": "BLOCKED",
+    "provider": "openai",
+    "model": "REPLACE_WITH_OPENAI_MODEL",
+    "paid_integration_opt_in": false,
+    "api_key_configured": false,
+    "live_request_status": "NOT_EXECUTED",
+    "request_count": 0,
+    "provider_response_valid": false,
+    "integration_test_exit_code": 2,
+    "timestamp": "2026-09-18T07:01:36.514518+00:00",
+    "reason": "Paid external integration requires RAGOPS_ALLOW_PAID_INTEGRATION_TESTS=1",
+    "tested_commit": "d2696e2e513619075ac5098b69e4f8efd2441f81"
+  },
+  "tests": {
+    "tests": 25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS"
+  },
+  "real_paid_request_executed": false,
+  "reason": "Opt-in is disabled and credentials remain placeholders; provider call was intentionally not executed.",
+  "paid_integration_opt_in": false,
+  "live_request_status": "NOT_EXECUTED",
+  "request_count": 0
+}
