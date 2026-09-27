@@ -109,7 +109,7 @@ class HybridRetriever:
         query_terms = Counter(query_tokens)
         results: list[SearchResult] = []
         for chunk in self.chunks:
-            if chunk.tenant_id != user.tenant_id and user.role != "admin":
+            if chunk.tenant_id != user.tenant_id:
                 continue
             if not can_access_level(user.role, chunk.metadata.access_level):
                 continue
