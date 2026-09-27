@@ -89,3 +89,17 @@ codex exec --sandbox workspace-write --ask-for-approval never "<task>"
 ## Assumptions
 
 Detailed assumptions are tracked in `docs/ASSUMPTIONS.md`.
+
+## Enterprise productization amendment (0.2.0.dev0)
+
+The v1.0 target expands the synthetic reference application into a self-hosted
+knowledge product. See docs/PRODUCTION_ARCHITECTURE.md and product tasks ENT-00
+through ENT-12. Until those gates pass, the current runtime remains a synthetic
+demo and production startup is refused. Client identity remains unverified in
+demo mode. All admins are now tenant-scoped. External provider classes currently
+raise NotImplementedError during generation. The new schema and migration source
+are not proof of working persistence until SQLite and PostgreSQL checks pass.
+
+The v1.0 release requires every gate in make product-verify, real service restart
+and worker recovery tests, verified identity tests, and a separate adversarial
+review. NOT_EXECUTED never qualifies as a passed release gate.

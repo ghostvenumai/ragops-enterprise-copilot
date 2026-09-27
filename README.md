@@ -1,5 +1,15 @@
 # RAGOps Enterprise Copilot
 
+> **Produktisierungsstand: 0.2.0.dev0 — kein Release Candidate.**
+> Phase 0 ist dokumentiert; die Persistenzgrundlage ist vorbereitet, aber noch
+> nicht ausführungsgeprüft oder an die API angeschlossen. Produktionsstart ist
+> gesperrt. OpenAI/Azure-Generierung ist bisher nicht implementiert.
+> Audit, Blocker und nächste Schritte: [Produktisierungsaudit](docs/PRODUCTIZATION_AUDIT.md),
+> [Datenbank](docs/DATABASE.md), [Produktionsstatus](docs/DEPLOYMENT_PRODUCTION.md).
+> `make product-verify` liefert einen fehlgeschlagenen Freigabestatus, solange
+> Pflichtprüfungen fehlen oder nicht ausgeführt werden können.
+
+
 [![CI](https://github.com/ghostvenumai/ragops-enterprise-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/ghostvenumai/ragops-enterprise-copilot/actions/workflows/ci.yml)
 
 **RAGOps Enterprise Copilot** ist eine lokal ausführbare Referenzplattform für
@@ -28,7 +38,7 @@ reproduzierbare Demos, Sicherheitsprüfungen und Retrieval-Evaluationen.
 - Erkennung widersprüchlicher oder veralteter Quellen
 - Prompt-Injection-Erkennung und PII-Maskierung
 - Audit-Logging, Korrelations-IDs, Kosten- und Latenzmetriken
-- lokale Provider-Abstraktion sowie optionale OpenAI- und Azure-OpenAI-Adapter
+- lokale Provider-Abstraktion sowie Konfigurationsstubs für OpenAI und Azure OpenAI
 - reproduzierbare Evaluation, gehärtete Container und CI/CD
 - einen kontrollierten, wiederaufnehmbaren Codex-Entwicklungsloop
 
@@ -54,7 +64,7 @@ vor, wird die Antwort kontrolliert verweigert.
 
 ```mermaid
 flowchart TD
-    A[Anfrage] --> B[Authentifizierung und Tenant Guard]
+    A[Anfrage] --> B[Demo-Benutzerkontext und Tenant Guard]
     B --> C[Intent Router]
     C --> D[Retrieval Planner]
     D --> E[Knowledge Retrieval Agent]
@@ -146,8 +156,8 @@ in [docs/API.md](docs/API.md).
 | Provider | Standard | Externer Schlüssel | Zweck |
 |---|---:|---:|---|
 | `DeterministicTestProvider` | Ja | Nein | Reproduzierbare lokale Tests und Demo |
-| `OpenAIProvider` | Nein | Ja | Optionaler OpenAI-Betrieb über Umgebungsvariablen |
-| `AzureOpenAIProvider` | Nein | Ja | Optionaler Azure-OpenAI-kompatibler Betrieb |
+| `OpenAIProvider` | Nein | Ja | Konfigurationsstub; Generierung ausstehend |
+| `AzureOpenAIProvider` | Nein | Ja | Konfigurationsstub; Generierung ausstehend |
 
 Die Konfiguration erfolgt ausschließlich über Umgebungsvariablen. Eine sichere
 Vorlage liegt in [.env.example](.env.example); echte `.env`-Dateien sind durch

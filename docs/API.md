@@ -18,6 +18,21 @@ The FastAPI app is created by **ragops.api.app:create_app** and exposed through
 - GET /v1/evaluations
 - GET /v1/audit-events
 - GET /v1/costs/summary
+- GET /v1/workspaces
+- POST /v1/workspaces
+- GET /v1/collections
+- POST /v1/documents/upload
+- GET /v1/documents/{document_id}/versions
+- POST /v1/documents/{document_id}/reindex
+- GET /v1/ingestion/jobs
+- GET /v1/ingestion/jobs/{job_id}
+- POST /v1/ingestion/jobs/{job_id}/cancel
+
+The Phase 3 persistence service provides the tenant-scoped management contract
+for workspace, collection, document upload, version, metadata and reindex
+operations. Its database-backed router is enabled only when a configured
+PostgreSQL session is available; the local demo remains deliberately isolated
+from that runtime.
 
 ## Query Contract
 
@@ -49,3 +64,9 @@ GET /v1/audit-events returns the latest 100 redacted events as structured JSON
 objects. Fields include timestamp, event type, tenant ID, user ID, outcome,
 correlation ID, and bounded details. Full questions and document bodies are not
 returned.
+# Model governance administration
+
+Admins can inspect and manage the in-process approved catalog with `GET/POST/PATCH /v1/admin/providers`, `GET/POST/PATCH /v1/admin/models`, tenant policy `GET /v1/admin/model-policies` and `PUT /v1/admin/model-policies/{tenant_id}`. `POST /v1/admin/model-router/simulate` returns a sanitized deterministic routing decision and never invokes a provider.
+# FinOps endpoints
+
+Protected admin routes include `/v1/admin/finops/summary`, `/usage`, `/forecast`, `/alerts`, `/budgets`, budget creation and `/v1/admin/finops/policy/simulate`. Tenant identity is authoritative; simulation has no provider side effect.

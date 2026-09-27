@@ -36,3 +36,13 @@ include reproduction steps using synthetic data only.
 
 Operational details and test evidence are documented in
 [docs/TTS_CACHE.md](docs/TTS_CACHE.md).
+
+## Productization boundary (0.2.0.dev0)
+
+Production startup is disabled pending verified identity, persistent authorized
+retrieval and workers. Demo identity is client-controlled; do not expose demo
+endpoints to untrusted users or use real data. Tenant administrators no longer
+bypass the selected tenant in RBAC/retrieval. This fixes the backend bypass but
+does not authenticate demo clients. See docs/PRODUCTIZATION_AUDIT.md for unresolved
+release-blocking findings. Static analysis and synthetic evaluation are not a
+security certification. The schema/migrations are not locally execution-verified.

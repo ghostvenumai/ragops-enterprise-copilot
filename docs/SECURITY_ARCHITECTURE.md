@@ -1,21 +1,8 @@
-# Security Architecture
+# Security architecture
 
-## Boundaries
-
-- Tenant boundary: user tenant is enforced before retrieval and CRM filtering.
-- Role boundary: access levels map to role maximums.
-- Data boundary: document text is untrusted and can be penalized or removed.
-- Provider boundary: external provider adapters require environment variables.
-- Telemetry boundary: PII is masked and full confidential text is not logged.
-
-## Controls
-
-- RBAC and tenant guard.
-- File extension allowlist.
-- File size limit.
-- Safe filenames and path traversal checks.
-- Prompt-injection pattern detection.
-- PII masking.
-- Correlation IDs.
-- Audit events.
-- Docker hardening.
+Vector queries require a non-empty trusted tenant and role. Client-supplied
+tenant, collection or vector identifiers cannot broaden `AuthorizedVectorScope`.
+Missing scope, malformed payload dates and unsupported access levels fail closed.
+Cross-tenant IDs produce zero results or an opaque not-found response. Restricted
+content is filtered at the vector-store query boundary according to existing
+RBAC limits.
