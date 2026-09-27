@@ -138,6 +138,11 @@ class RoutingDecision:
     policy_version: str = "v1"
 
 
+def _incomplete(model: ModelSpec) -> bool:
+    """A catalog entry without provider or model identity can never be routed to."""
+    return not model.provider_id.strip() or not model.model_id.strip()
+
+
 class ProviderAdapter(Protocol):
     provider_id: str
 
@@ -173,7 +178,8 @@ class ModelCatalog:
 
     def upsert(self, model: ModelSpec) -> None:
         if (
-            model.input_cost_per_token < 0
+            _incomplete(model)
+            or model.input_cost_per_token < 0
             or model.output_cost_per_token < 0
             or model.context_window < 1
         ):
@@ -331,6 +337,7 @@ class LLMModelRouter:
             key = (model.provider_id, model.model_id)
             if (
                 key in seen
+                or _incomplete(model)
                 or model.input_cost_per_token < 0
                 or model.output_cost_per_token < 0
                 or model.context_window < 1

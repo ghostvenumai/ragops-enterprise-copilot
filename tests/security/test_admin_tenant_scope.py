@@ -3,48 +3,14 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from tests.security.oidc_helpers import AUDIENCE, ISSUER, bearer
 
 from ragops.api.app import create_app
 from ragops.config.settings import Settings
-
-ISSUER = "https://issuer.synthetic.example/"
-AUDIENCE = "ragops-api"
-
-
-@pytest.fixture(scope="module")
-def keys() -> tuple[str, str]:
-    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    private_pem = private.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    ).decode()
-    public_pem = (
-        private.public_key()
-        .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
-        .decode()
-    )
-    return private_pem, public_pem
-
-
-def bearer(private_key: str, tenant: str, roles: list[str]) -> dict[str, str]:
-    claims = {
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "sub": f"user-{tenant}",
-        "tenant_id": tenant,
-        "roles": roles,
-        "exp": datetime.now(UTC) + timedelta(minutes=5),
-    }
-    return {"Authorization": f"Bearer {jwt.encode(claims, private_key, algorithm='RS256')}"}
 
 
 @pytest.fixture

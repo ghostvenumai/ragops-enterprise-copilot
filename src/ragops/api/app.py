@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ from ragops.knowledge.service import (
 )
 from ragops.modeling.router import (
     ComplexitySignals,
+    FallbackPolicyError,
     LLMModelRouter,
     ModelSpec,
     RoutingClass,
@@ -73,6 +75,66 @@ def resolve_authenticated_identity(
         issuer="development-legacy-explicit",
         subject=request.user_id,
     )
+
+
+_POLICY_NAME_SETS = ("allowed_providers", "allowed_models", "high_risk_models")
+_POLICY_FIELDS = frozenset(
+    {*_POLICY_NAME_SETS, "default_tier", "max_routing_tier", "cost_ceiling_eur", "fallback_enabled"}
+)
+
+
+def _policy_from_payload(tenant_id: str, payload: dict[str, object]) -> TenantModelPolicy:
+    """Map an admin payload onto the router's existing policy fields; reject anything else."""
+    unknown = sorted(set(payload) - _POLICY_FIELDS)
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"unknown policy fields: {', '.join(unknown)}")
+    names: dict[str, frozenset[str]] = {}
+    for field in _POLICY_NAME_SETS:
+        value = payload.get(field, [])
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) and item.strip() for item in value
+        ):
+            raise HTTPException(status_code=422, detail=f"{field} must be a list of names")
+        names[field] = frozenset(item.strip() for item in value)
+    tiers: dict[str, RoutingClass] = {}
+    for field, default in (("default_tier", "STANDARD"), ("max_routing_tier", "COMPLEX")):
+        try:
+            tiers[field] = RoutingClass(str(payload.get(field, default)))
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"{field} is invalid") from None
+    ceiling = payload.get("cost_ceiling_eur")
+    if ceiling is not None and (
+        isinstance(ceiling, bool) or not isinstance(ceiling, int | float) or ceiling < 0
+    ):
+        raise HTTPException(
+            status_code=422, detail="cost_ceiling_eur must be a non-negative number"
+        )
+    fallback = payload.get("fallback_enabled", True)
+    if not isinstance(fallback, bool):
+        raise HTTPException(status_code=422, detail="fallback_enabled must be a boolean")
+    return TenantModelPolicy(
+        tenant_id,
+        allowed_providers=names["allowed_providers"],
+        allowed_models=names["allowed_models"],
+        default_tier=tiers["default_tier"],
+        max_routing_tier=tiers["max_routing_tier"],
+        high_risk_models=names["high_risk_models"],
+        cost_ceiling_eur=None if ceiling is None else float(ceiling),
+        fallback_enabled=fallback,
+    )
+
+
+def _policy_view(policy: TenantModelPolicy) -> dict[str, object]:
+    return {
+        "tenant_id": policy.tenant_id,
+        "allowed_providers": sorted(policy.allowed_providers),
+        "allowed_models": sorted(policy.allowed_models),
+        "high_risk_models": sorted(policy.high_risk_models),
+        "default_tier": policy.default_tier.value,
+        "max_routing_tier": policy.max_routing_tier.value,
+        "cost_ceiling_eur": policy.cost_ceiling_eur,
+        "fallback_enabled": policy.fallback_enabled,
+    }
 
 
 def _int_payload(value: object, default: int = 0) -> int:
@@ -140,8 +202,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="provider_id is required and must be unique"
             )
-        model_catalog.append(ModelSpec(provider_id, "default", provider_id))
-        return {"provider_id": provider_id, "enabled": True}
+        # New entries carry no adapter or cost metadata yet: not routable until enabled.
+        model_catalog.append(ModelSpec(provider_id, "default", provider_id, enabled=False))
+        return {"provider_id": provider_id, "enabled": False}
 
     @app.patch("/v1/admin/providers/{provider_id}")
     def update_admin_provider(
@@ -178,11 +241,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         model_id = str(payload.get("model_id", "")).strip()
         if not provider_id or not model_id:
             raise HTTPException(status_code=400, detail="provider_id and model_id are required")
-        model = ModelSpec(provider_id, model_id, str(payload.get("display_name", model_id)))
+        model = ModelSpec(
+            provider_id, model_id, str(payload.get("display_name", model_id)), enabled=False
+        )
         if any(m.provider_id == provider_id and m.model_id == model_id for m in model_catalog):
             raise HTTPException(status_code=409, detail="model already exists")
         model_catalog.append(model)
-        return {"provider_id": provider_id, "model_id": model_id, "enabled": True}
+        return {"provider_id": provider_id, "model_id": model_id, "enabled": False}
 
     @app.patch("/v1/admin/models/{provider_id}/{model_id}")
     def update_admin_model(
@@ -191,16 +256,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         payload: dict[str, object],
         _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
     ) -> dict[str, object]:
+        enabled = payload.get("enabled")
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=422, detail="enabled must be a boolean")
         for index, model in enumerate(model_catalog):
             if model.provider_id == provider_id and model.model_id == model_id:
-                model_catalog[index] = ModelSpec(
-                    model.provider_id,
-                    model.model_id,
-                    model.display_name,
-                    enabled=bool(payload.get("enabled", model.enabled)),
-                    routing_tier=model.routing_tier,
-                    high_risk_allowed=model.high_risk_allowed,
-                )
+                # replace() keeps cost, capability and priority metadata intact.
+                model_catalog[index] = replace(model, enabled=enabled)
                 return {
                     "provider_id": provider_id,
                     "model_id": model_id,
@@ -213,7 +275,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         identity_context: AuthenticatedUserContext = Depends(admin),  # noqa: B008
     ) -> list[dict[str, object]]:
         return [
-            {"tenant_id": tenant, "max_routing_tier": policy.max_routing_tier.value}
+            _policy_view(policy)
             for tenant, policy in model_policies.items()
             if tenant == identity_context.tenant_id
         ]
@@ -226,7 +288,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, object]:
         if tenant_id != identity_context.tenant_id:
             raise HTTPException(status_code=404, detail="policy not found")
-        model_policies[tenant_id] = TenantModelPolicy(tenant_id)
+        model_policies[tenant_id] = _policy_from_payload(tenant_id, payload)
         return {"tenant_id": tenant_id, "updated": True}
 
     @app.get("/v1/admin/budgets")
@@ -344,9 +406,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             estimated_input_tokens=_int_payload(payload.get("estimated_input_tokens", 0)),
             expected_output_tokens=_int_payload(payload.get("expected_output_tokens", 500)),
         )
-        decision = LLMModelRouter(model_catalog, model_policies).route(
-            identity_context.tenant_id, signals
-        )
+        try:
+            decision = LLMModelRouter(model_catalog, model_policies).route(
+                identity_context.tenant_id, signals
+            )
+        except FallbackPolicyError as exc:
+            raise HTTPException(status_code=409, detail=f"NO_ELIGIBLE_MODEL: {exc}") from exc
         return {
             "routing_class": decision.routing_class.value,
             "provider_id": decision.provider_id,

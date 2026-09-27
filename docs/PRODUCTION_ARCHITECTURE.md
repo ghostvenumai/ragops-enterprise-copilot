@@ -28,6 +28,8 @@ context, development identity boundary, asymmetric OIDC JWT validation, and
 reusable FastAPI authentication/admin dependencies, asynchronous ingestion and
 VectorIndex adapters with mandatory tenant filters. Live persistence and
 external service integration remain deployment gates.
+The approved model router is implemented and gated but not yet wired into the
+`/v1/query` generation path, which uses the single configured provider.
 
 Pending: complete database-backed API/workspaces/history wiring, worker crash
 recovery, live Qdrant verification, functional external
