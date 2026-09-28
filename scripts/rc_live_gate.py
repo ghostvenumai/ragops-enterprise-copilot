@@ -41,6 +41,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "finops",
         "rate_limiting",
         "backup_restore",
+        "readiness_failure_recovery",
     }
 )
 
@@ -232,6 +233,14 @@ def main() -> int:
         gate_results["backup_restore"] = {
             "status": status,
             "detail": detail or "See sanitized backup-restore.json evidence",
+        }
+    if "readiness_failure_recovery" in selected:
+        status, detail = run_gate(
+            [".venv/bin/python", "scripts/readiness_failure_recovery_gate.py"]
+        )
+        gate_results["readiness_failure_recovery"] = {
+            "status": status,
+            "detail": detail or "See sanitized readiness-failure-recovery.json evidence",
         }
     previous: dict[str, object] = {}
     try:

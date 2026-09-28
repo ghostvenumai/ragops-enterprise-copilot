@@ -48,6 +48,8 @@ class Settings:
     rate_limit_redis_url: str | None = None
     rate_limit_namespace: str = "ragops:rate-limit"
     rate_limit_timeout_seconds: float = 0.25
+    dependency_timeout_seconds: float = 2.0
+    worker_backoff_max_seconds: float = 5.0
 
     def __post_init__(self) -> None:
         if self.environment not in {"local", "development", "test", "demo", "production"}:
@@ -73,6 +75,10 @@ class Settings:
         validate_policy(self.rate_limit_requests, self.rate_limit_window_seconds)
         if not 0 < self.rate_limit_timeout_seconds <= 5 or not self.rate_limit_namespace:
             raise ValueError("RAGOPS_RATE_LIMIT timeout or namespace is invalid")
+        if not 0 < self.dependency_timeout_seconds <= 10:
+            raise ValueError("RAGOPS_DEPENDENCY_TIMEOUT_SECONDS must be in (0, 10]")
+        if not 0 < self.worker_backoff_max_seconds <= 60:
+            raise ValueError("RAGOPS_WORKER_BACKOFF_MAX_SECONDS must be in (0, 60]")
 
     def require_supported_runtime(self) -> None:
         """Never expose the demo API by merely setting a production environment."""
@@ -195,6 +201,8 @@ class Settings:
             rate_limit_window_seconds=int(os.getenv("RAGOPS_RATE_LIMIT_WINDOW_SECONDS", "60")),
             rate_limit_redis_url=os.getenv("RAGOPS_RATE_LIMIT_REDIS_URL"),
             rate_limit_namespace=os.getenv("RAGOPS_RATE_LIMIT_NAMESPACE", "ragops:rate-limit"),
+            dependency_timeout_seconds=float(os.getenv("RAGOPS_DEPENDENCY_TIMEOUT_SECONDS", "2")),
+            worker_backoff_max_seconds=float(os.getenv("RAGOPS_WORKER_BACKOFF_MAX_SECONDS", "5")),
             rate_limit_timeout_seconds=float(
                 os.getenv("RAGOPS_RATE_LIMIT_TIMEOUT_SECONDS", "0.25")
             ),

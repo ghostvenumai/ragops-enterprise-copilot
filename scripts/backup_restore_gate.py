@@ -140,7 +140,8 @@ def gate_databases(base: str, run_id: str) -> Iterator[dict[str, str]]:
 
 
 @contextmanager
-def provider_guard(result: DrillResult) -> Iterator[None]:
+def provider_guard(result: Any) -> Iterator[None]:
+    # Any result object with provider_invocations and paid_provider_calls counters.
     """Count provider construction and generation; the drill must not reach any provider."""
     from ragops.llm import providers
 

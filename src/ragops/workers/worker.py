@@ -31,6 +31,9 @@ class NoopVectorIndex:
     def upsert(self, tenant_id: str, document_version_id: UUID, content_hash: str) -> None:
         return None
 
+    def delete_version_vectors(self, tenant_id: str, version_id: str) -> int:
+        return 0
+
 
 class IngestionWorker:
     def __init__(
@@ -97,7 +100,8 @@ class IngestionWorker:
         )
         if job is None:
             raise ValueError("job not found")
-        if job.status in {"completed", "cancelled"}:
+        # Terminal jobs are no-ops on redelivery; a failed job runs again only via retry().
+        if job.status in {"completed", "cancelled", "failed"}:
             return job
         if job.status == "running":
             return job  # duplicate delivery is idempotently ignored
@@ -126,25 +130,54 @@ class IngestionWorker:
         if document is None or version is None:
             return self._fail(job, "invalid_relationship", retryable=False)
         document.status = "processing"
-        for index, stage in enumerate(STAGES, start=1):
-            job.stage = stage
-            job.progress = index * 14
-            job.updated_at = datetime.now(UTC)
-            self.audit("ingestion_stage_changed", job)
-            if fail_stage == stage:
-                return self._fail(job, fail_code, retryable=fail_code in RETRYABLE)
-            if stage == "indexing":
-                self.vector_index.upsert(tenant_id, version.id, version.content_hash)
-        document.status = "indexed"
-        version.ingestion_status = "indexed"
-        job.status = job.state = "completed"
-        job.stage = "finalization"
-        job.progress = 100
-        job.completed_at = datetime.now(UTC)
-        job.updated_at = job.completed_at
-        self.session.flush()
+        indexed = False
+        try:
+            for index, stage in enumerate(STAGES, start=1):
+                job.stage = stage
+                job.progress = index * 14
+                job.updated_at = datetime.now(UTC)
+                self.audit("ingestion_stage_changed", job)
+                if fail_stage == stage:
+                    return self._fail(job, fail_code, retryable=fail_code in RETRYABLE)
+                if stage == "indexing":
+                    self.vector_index.upsert(tenant_id, version.id, version.content_hash)
+                    indexed = True
+            document.status = "indexed"
+            version.ingestion_status = "indexed"
+            job.status = job.state = "completed"
+            job.stage = "finalization"
+            job.progress = 100
+            job.completed_at = datetime.now(UTC)
+            job.updated_at = job.completed_at
+            self.session.flush()
+        except Exception:
+            if indexed:
+                self.remove_vectors(tenant_id, version.id)
+            raise
         self.audit("ingestion_completed", job)
         return job
+
+    def remove_vectors(self, tenant_id: str, version_id: UUID) -> None:
+        """Best-effort compensation: vectors of an uncommitted version must not stay visible."""
+        try:
+            self.vector_index.delete_version_vectors(tenant_id, str(version_id))
+        except Exception:  # noqa: BLE001, S110 - retried by the next delivery; upsert is idempotent
+            pass
+
+    def record_failure(self, job_id: UUID, tenant_id: str, code: str) -> IngestionJob:
+        """Persist one failed attempt after the processing transaction was rolled back."""
+        job = self.session.scalar(
+            select(IngestionJob).where(
+                IngestionJob.tenant_id == tenant_id, IngestionJob.id == job_id
+            )
+        )
+        if job is None:
+            raise ValueError("job not found")
+        if job.status in {"completed", "cancelled", "failed"}:
+            return job
+        job.attempt_count = job.attempts = min((job.attempt_count or 0) + 1, job.max_attempts)
+        job.worker_id = self.worker_id
+        return self._fail(job, code, retryable=code in RETRYABLE)
 
     def cancel(self, job_id: UUID, tenant_id: str) -> IngestionJob:
         job = self.session.scalar(

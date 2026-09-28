@@ -5,15 +5,23 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+import os
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 
 from ragops import __version__
@@ -48,11 +56,23 @@ from ragops.ops.rate_limit import (
     RateLimiterUnavailable,
     RedisRateLimiter,
 )
+from ragops.ops.readiness import (
+    DependencyCheck,
+    ReadinessService,
+    postgres_probe,
+    qdrant_probe,
+    redis_probe,
+)
 from ragops.persistence.database import open_engine
 from ragops.persistence.models import TenantBudget
 from ragops.storage.json_store import JsonRepository
 from ragops.storage.models import QueryUser
-from ragops.workers.queue import IngestionMessage, InMemoryIngestionQueue
+from ragops.workers.queue import (
+    IngestionMessage,
+    IngestionQueue,
+    InMemoryIngestionQueue,
+    RedisIngestionQueue,
+)
 from ragops.workers.worker import IngestionWorker
 from ragops.workflows.state_machine import QueryRequest, RAGWorkflow
 
@@ -69,6 +89,51 @@ def rate_limiter_for(settings: Settings) -> RateLimiter:
     return DeterministicRateLimiter(
         settings.rate_limit_requests, settings.rate_limit_window_seconds
     )
+
+
+class AppResources:
+    """Process-wide dependency clients shared by requests and readiness probes.
+
+    One lazily created engine (bounded timeouts, pre-ping) replaces an engine per request,
+    so the same instance reconnects after an outage and pools are closed on shutdown.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self._lock = Lock()
+        self._engine: Engine | None = None
+        self._qdrant: Any = None
+
+    @staticmethod
+    def database_configured() -> bool:
+        return bool(os.getenv("RAGOPS_DATABASE_URL") or os.getenv("RAGOPS_DATABASE_URL_FILE"))
+
+    def engine(self) -> Engine:
+        with self._lock:
+            if self._engine is None:
+                self._engine = open_engine(timeout_seconds=self.settings.dependency_timeout_seconds)
+            return self._engine
+
+    def qdrant(self) -> Any:
+        with self._lock:
+            if self._qdrant is None:
+                from qdrant_client import QdrantClient
+
+                self._qdrant = QdrantClient(
+                    url=self.settings.qdrant_url,
+                    api_key=self.settings.qdrant_api_key,
+                    timeout=max(1, round(self.settings.dependency_timeout_seconds)),
+                )
+            return self._qdrant
+
+    def close(self) -> None:
+        with self._lock:
+            if self._engine is not None:
+                self._engine.dispose()
+                self._engine = None
+            if self._qdrant is not None:
+                self._qdrant.close()
+                self._qdrant = None
 
 
 def _workflow(settings: Settings) -> RAGWorkflow:
@@ -193,9 +258,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.validate_model_configuration()
     settings.validate_rate_limit_configuration()
     settings.require_supported_runtime()
-    app = FastAPI(title="RAGOps Enterprise Copilot", version=__version__)
+    resources = AppResources(settings)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Startup never probes: an instance may start while dependencies are down and stays
+        # unready until they recover. Shutdown turns unready first, then closes clients.
+        yield
+        readiness.begin_shutdown()
+        resources.close()
+        for client in redis_clients:
+            client.close()
+        readiness.close()
+
+    app = FastAPI(title="RAGOps Enterprise Copilot", version=__version__, lifespan=lifespan)
+    app.state.resources = resources
     workflow = _workflow(settings)
-    ingestion_queue = InMemoryIngestionQueue()
+    ingestion_queue: IngestionQueue = (
+        RedisIngestionQueue(
+            settings.redis_url or "",
+            settings.queue_name,
+            timeout_seconds=max(2.0, settings.dependency_timeout_seconds * 2),
+        )
+        if settings.async_ingestion_required
+        else InMemoryIngestionQueue()
+    )
     ingestion_metrics = {"jobs_total": 0, "failures_total": 0, "retries_total": 0}
     model_catalog = [
         ModelSpec(
@@ -218,6 +305,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return admin(trusted)
 
     rate_limiter = rate_limiter_for(settings)
+    redis_clients = [
+        client
+        for client in (
+            getattr(ingestion_queue, "client", None),
+            getattr(rate_limiter, "client", None),
+        )
+        if client is not None
+    ]
+    database = resources.database_configured()
+    readiness = ReadinessService(
+        [
+            DependencyCheck(
+                "postgres", database, postgres_probe(resources.engine) if database else None
+            ),
+            DependencyCheck(
+                "redis",
+                settings.async_ingestion_required or settings.rate_limit_backend == "redis",
+                redis_probe(lambda: redis_clients[0]) if redis_clients else None,
+            ),
+            DependencyCheck(
+                "qdrant",
+                settings.vector_provider == "qdrant",
+                qdrant_probe(resources.qdrant, settings.qdrant_collection)
+                if settings.vector_provider == "qdrant"
+                else None,
+            ),
+        ],
+        timeout_seconds=settings.dependency_timeout_seconds,
+    )
+    app.state.readiness = readiness
+
+    def dependency_unavailable(_request: Any, _exc: Exception) -> JSONResponse:
+        # Stable, detail-free service error; integrity errors are deliberately not mapped.
+        return JSONResponse(
+            {"detail": "dependency unavailable"}, status_code=503, headers={"Retry-After": "1"}
+        )
+
+    for error in (
+        OperationalError,
+        InterfaceError,
+        PoolTimeoutError,
+        RedisConnectionError,
+        RedisTimeoutError,
+    ):
+        app.add_exception_handler(error, dependency_unavailable)
 
     def limited(
         endpoint_class: str,
@@ -521,8 +653,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         identity_context: AuthenticatedUserContext,
     ) -> tuple[KnowledgeManagementService, Session]:
         try:
-            engine = open_engine()
-            session = Session(engine)
+            session = Session(resources.engine())
         except (ValueError, OSError) as exc:
             raise HTTPException(
                 status_code=503, detail="knowledge persistence unavailable"
@@ -629,17 +760,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             job = IngestionWorker(session, max_attempts=settings.job_max_attempts).create_job(
                 identity_context.tenant_id, result.document.id, result.version.id
             )
-            ingestion_queue.enqueue(
-                IngestionMessage(job.id, identity_context.tenant_id, job.correlation_id)
-            )
-            ingestion_metrics["jobs_total"] += 1
-            session.commit()
-            return {
+            accepted: dict[str, object] = {
                 "document_id": str(result.document.id),
                 "version_id": str(result.version.id),
                 "job_id": str(job.id),
                 "status": job.status,
             }
+            message = IngestionMessage(job.id, identity_context.tenant_id, job.correlation_id)
+            # Commit first: a worker may receive the message immediately and must find the job.
+            session.commit()
+            try:
+                ingestion_queue.enqueue(message)
+            except (RedisConnectionError, RedisTimeoutError):
+                # Never leave a queued job without a message: fail it visibly so the
+                # retry endpoint can enqueue it again once the queue recovers.
+                job.status = job.state = "failed"
+                job.error_code = job.failure_code = "queue_unavailable"
+                job.error_message_redacted = "ingestion queue unavailable; retry the job"
+                session.commit()
+                raise
+            ingestion_metrics["jobs_total"] += 1
+            return accepted
         except (ValueError, KnowledgeAuthorizationError) as exc:
             session.rollback()
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -807,8 +948,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/ready")
-    def ready() -> dict[str, str | int]:
-        return {"status": "ready", "documents": len(workflow.repository.chunks())}
+    def ready() -> JSONResponse:
+        status_code, payload = readiness.evaluate()
+        # Aggregate demo-corpus size kept for the dashboard; no tenant data is exposed.
+        payload["documents"] = len(workflow.repository.chunks())
+        return JSONResponse(payload, status_code=status_code)
 
     @app.get("/metrics", response_class=PlainTextResponse)
     def metrics() -> str:
@@ -817,7 +961,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lines.extend(
             [f"ragops_ingestion_{key} {value}" for key, value in ingestion_metrics.items()]
         )
-        lines.append(f"ragops_ingestion_queue_depth {ingestion_queue.status()['queued']}")
+        try:
+            depth, queue_up = ingestion_queue.status()["queued"], 1
+        except (RedisConnectionError, RedisTimeoutError):
+            depth, queue_up = -1, 0  # metrics stay observable and never claim a failed probe
+        lines.append(f"ragops_ingestion_queue_depth {depth}")
+        lines.append(f"ragops_ingestion_queue_up {queue_up}")
         return "\n".join(lines) + "\n"
 
     @app.post("/v1/query", response_model=QueryApiResponse)

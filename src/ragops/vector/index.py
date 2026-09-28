@@ -228,6 +228,7 @@ class QdrantVectorIndex:
         dimension: int,
         api_key: str | None = None,
         schema_version: str = VECTOR_SCHEMA_VERSION,
+        timeout_seconds: int | None = None,
     ) -> None:
         if not url.startswith(("http://", "https://")) or not collection or dimension < 1:
             raise ValueError("Qdrant URL, collection and positive dimension are required")
@@ -237,7 +238,9 @@ class QdrantVectorIndex:
             from qdrant_client import QdrantClient
         except ImportError as exc:  # pragma: no cover - dependency-gated integration
             raise RuntimeError("qdrant-client is required for QdrantVectorIndex") from exc
-        self.client = QdrantClient(url=url, api_key=api_key)
+        if timeout_seconds is not None and not 1 <= timeout_seconds <= 60:
+            raise ValueError("Qdrant timeout must be between 1 and 60 seconds")
+        self.client = QdrantClient(url=url, api_key=api_key, timeout=timeout_seconds)
         self.collection, self.dimension, self.schema_version = collection, dimension, schema_version
 
     def ensure_schema(self) -> None:

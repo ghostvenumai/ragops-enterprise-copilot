@@ -122,12 +122,15 @@ class RedisRateLimiter:
             if not url.startswith(("redis://", "rediss://")):
                 raise ValueError("Redis URL must use redis:// or rediss://")
             import redis
+            from redis.backoff import NoBackoff
+            from redis.retry import Retry
 
+            # One bounded attempt: redis-py 6 would otherwise retry 3 times per request.
             client = redis.Redis.from_url(
                 url,
                 socket_timeout=timeout_seconds,
                 socket_connect_timeout=timeout_seconds,
-                retry_on_timeout=False,
+                retry=Retry(NoBackoff(), 0),
             )
         self.client = client
         self._script = client.register_script(_FIXED_WINDOW)

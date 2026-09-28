@@ -11,5 +11,10 @@ completed, failed or cancelled. Retryable failures are bounded (default three)
 and expose only a redacted safe message. Non-retryable validation and tenant
 relationship errors stop immediately.
 
+The job is committed before its message is enqueued. If the queue is unavailable the
+upload returns `503` and the job is `failed` with the retryable code `queue_unavailable`.
+
 The in-memory adapter is deterministic test infrastructure. Redis integration is
-provided by `RedisIngestionQueue` and is a separate environment gate.
+provided by `RedisIngestionQueue` with reliable per-worker processing lists; see
+[WORKER_ARCHITECTURE.md](WORKER_ARCHITECTURE.md) for acknowledgement, redelivery and
+backoff.

@@ -32,9 +32,24 @@ def database_url() -> URL:
     return url
 
 
-def open_engine() -> Engine:
+def open_engine(*, timeout_seconds: float | None = None) -> Engine:
+    """Engine with bounded connects; a request-serving engine also bounds each statement.
+
+    Without timeout_seconds (migrations, tooling) only the 5 s connect timeout applies.
+    With it, connects, unacknowledged network writes and statements are all bounded, so
+    an unreachable or stalled database fails a request instead of hanging it.
+    """
     url = database_url()
-    arguments = {"connect_timeout": 5} if url.drivername == "postgresql+psycopg" else {}
+    arguments: dict[str, object] = {}
+    if url.drivername == "postgresql+psycopg":
+        arguments["connect_timeout"] = 5
+        if timeout_seconds is not None:
+            milliseconds = int(timeout_seconds * 1000)
+            arguments.update(
+                connect_timeout=max(2, round(timeout_seconds)),  # libpq minimum is 2 s
+                tcp_user_timeout=milliseconds,
+                options=f"-c statement_timeout={milliseconds}",
+            )
     return create_engine(url, pool_pre_ping=True, hide_parameters=True, connect_args=arguments)
 
 
