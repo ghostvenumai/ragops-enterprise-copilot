@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from ragops.ops.rate_limit import validate_policy
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -40,6 +42,12 @@ class Settings:
     embedding_provider: str = "deterministic"
     embedding_model: str = "deterministic-hash-v1"
     embedding_dimension: int = 64
+    rate_limit_backend: str = "memory"
+    rate_limit_requests: int = 60
+    rate_limit_window_seconds: int = 60
+    rate_limit_redis_url: str | None = None
+    rate_limit_namespace: str = "ragops:rate-limit"
+    rate_limit_timeout_seconds: float = 0.25
 
     def __post_init__(self) -> None:
         if self.environment not in {"local", "development", "test", "demo", "production"}:
@@ -60,6 +68,11 @@ class Settings:
             raise ValueError("Unsupported RAGOPS_VECTOR_PROVIDER")
         if self.embedding_dimension < 1:
             raise ValueError("RAGOPS_EMBEDDING_DIMENSION must be positive")
+        if self.rate_limit_backend not in {"memory", "redis"}:
+            raise ValueError("Unsupported RAGOPS_RATE_LIMIT_BACKEND")
+        validate_policy(self.rate_limit_requests, self.rate_limit_window_seconds)
+        if not 0 < self.rate_limit_timeout_seconds <= 5 or not self.rate_limit_namespace:
+            raise ValueError("RAGOPS_RATE_LIMIT timeout or namespace is invalid")
 
     def require_supported_runtime(self) -> None:
         """Never expose the demo API by merely setting a production environment."""
@@ -92,6 +105,20 @@ class Settings:
             not self.redis_url or not self.redis_url.startswith(("redis://", "rediss://"))
         ):
             raise RuntimeError("Async ingestion requires a valid RAGOPS_REDIS_URL")
+
+    @property
+    def effective_rate_limit_redis_url(self) -> str | None:
+        return self.rate_limit_redis_url or self.redis_url
+
+    def validate_rate_limit_configuration(self) -> None:
+        """Production enforces limits in Redis so every instance shares one counter."""
+        if self.environment == "production" and self.rate_limit_backend != "redis":
+            raise RuntimeError("Production requires RAGOPS_RATE_LIMIT_BACKEND=redis")
+        url = self.effective_rate_limit_redis_url
+        if self.rate_limit_backend == "redis" and (
+            not url or not url.startswith(("redis://", "rediss://"))
+        ):
+            raise RuntimeError("Redis rate limiting requires a valid Redis URL")
 
     def validate_vector_configuration(self) -> None:
         if self.environment == "production" and self.vector_provider != "qdrant":
@@ -163,4 +190,12 @@ class Settings:
             embedding_provider=os.getenv("RAGOPS_EMBEDDING_PROVIDER", "deterministic"),
             embedding_model=os.getenv("RAGOPS_EMBEDDING_MODEL", "deterministic-hash-v1"),
             embedding_dimension=int(os.getenv("RAGOPS_EMBEDDING_DIMENSION", "64")),
+            rate_limit_backend=os.getenv("RAGOPS_RATE_LIMIT_BACKEND", "memory").lower(),
+            rate_limit_requests=int(os.getenv("RAGOPS_RATE_LIMIT_REQUESTS", "60")),
+            rate_limit_window_seconds=int(os.getenv("RAGOPS_RATE_LIMIT_WINDOW_SECONDS", "60")),
+            rate_limit_redis_url=os.getenv("RAGOPS_RATE_LIMIT_REDIS_URL"),
+            rate_limit_namespace=os.getenv("RAGOPS_RATE_LIMIT_NAMESPACE", "ragops:rate-limit"),
+            rate_limit_timeout_seconds=float(
+                os.getenv("RAGOPS_RATE_LIMIT_TIMEOUT_SECONDS", "0.25")
+            ),
         )

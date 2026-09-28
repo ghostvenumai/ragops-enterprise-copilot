@@ -70,3 +70,11 @@ Admins can inspect and manage the in-process approved catalog with `GET/POST/PAT
 # FinOps endpoints
 
 Protected admin routes include `/v1/admin/finops/summary`, `/usage`, `/forecast`, `/alerts`, `/budgets`, budget creation and `/v1/admin/finops/policy/simulate`. Tenant identity is authoritative; simulation has no provider side effect. The simulation accepts `estimated_cost` and `budget_amount` as numbers or numeric strings, evaluates them with the preflight Decimal decision on the default hard-limit thresholds (80% / 100% / 120%) and returns `decision`, `state`, `reason_codes` and `estimated_post_request_spend` as an exact decimal string; negative, non-finite or non-numeric amounts return 422.
+
+# Rate limits
+
+All authenticated routes are rate limited per verified tenant, user and endpoint class
+and return `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. An exceeded
+limit returns 429 with `Retry-After`; an unavailable limiter returns 503 with
+`Retry-After: 1`. `/health`, `/ready` and `/metrics` are exempt. See
+[RATE_LIMITING.md](RATE_LIMITING.md).

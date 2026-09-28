@@ -5,13 +5,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,12 @@ from ragops.modeling.router import (
     TenantModelPolicy,
 )
 from ragops.monitoring.metrics import MetricsRegistry
+from ragops.ops.rate_limit import (
+    DeterministicRateLimiter,
+    RateLimiter,
+    RateLimiterUnavailable,
+    RedisRateLimiter,
+)
 from ragops.persistence.database import open_engine
 from ragops.persistence.models import TenantBudget
 from ragops.storage.json_store import JsonRepository
@@ -48,6 +55,20 @@ from ragops.storage.models import QueryUser
 from ragops.workers.queue import IngestionMessage, InMemoryIngestionQueue
 from ragops.workers.worker import IngestionWorker
 from ragops.workflows.state_machine import QueryRequest, RAGWorkflow
+
+
+def rate_limiter_for(settings: Settings) -> RateLimiter:
+    if settings.rate_limit_backend == "redis":
+        return RedisRateLimiter(
+            settings.effective_rate_limit_redis_url or "",
+            limit=settings.rate_limit_requests,
+            window_seconds=settings.rate_limit_window_seconds,
+            namespace=settings.rate_limit_namespace,
+            timeout_seconds=settings.rate_limit_timeout_seconds,
+        )
+    return DeterministicRateLimiter(
+        settings.rate_limit_requests, settings.rate_limit_window_seconds
+    )
 
 
 def _workflow(settings: Settings) -> RAGWorkflow:
@@ -170,6 +191,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.validate_async_configuration()
     settings.validate_vector_configuration()
     settings.validate_model_configuration()
+    settings.validate_rate_limit_configuration()
     settings.require_supported_runtime()
     app = FastAPI(title="RAGOps Enterprise Copilot", version=__version__)
     workflow = _workflow(settings)
@@ -195,9 +217,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return trusted
         return admin(trusted)
 
+    rate_limiter = rate_limiter_for(settings)
+
+    def limited(
+        endpoint_class: str,
+        authenticate: Callable[..., AuthenticatedUserContext] = identity,
+    ) -> Callable[..., AuthenticatedUserContext]:
+        """Authenticate first, then count against the verified tenant/user bucket."""
+
+        def dependency(
+            response: Response,
+            context: AuthenticatedUserContext = Depends(authenticate),  # noqa: B008
+        ) -> AuthenticatedUserContext:
+            try:
+                decision = rate_limiter.check(context.tenant_id, context.user_id, endpoint_class)
+            except RateLimiterUnavailable:
+                # Fail closed: an unreachable limiter must not silently disable limits.
+                raise HTTPException(
+                    status_code=503,
+                    detail="rate limiter unavailable",
+                    headers={"Retry-After": "1"},
+                ) from None
+            headers = {
+                "RateLimit-Limit": str(decision.limit),
+                "RateLimit-Remaining": str(decision.remaining),
+                "RateLimit-Reset": str(decision.reset_after),
+            }
+            if not decision.allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="rate limit exceeded",
+                    headers={**headers, "Retry-After": str(decision.retry_after)},
+                )
+            response.headers.update(headers)
+            return context
+
+        return dependency
+
     @app.get("/v1/admin/providers")
     def admin_providers(
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> list[dict[str, object]]:
         return [
             {
@@ -211,7 +270,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/admin/providers", status_code=201)
     def create_admin_provider(
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> dict[str, object]:
         provider_id = str(payload.get("provider_id", "")).strip()
         if not provider_id or any(model.provider_id == provider_id for model in model_catalog):
@@ -226,7 +285,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def update_admin_provider(
         provider_id: str,
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> dict[str, object]:
         if not any(model.provider_id == provider_id for model in model_catalog):
             raise HTTPException(status_code=404, detail="provider not found")
@@ -234,7 +293,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/admin/models")
     def admin_models(
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> list[dict[str, object]]:
         return [
             {
@@ -251,7 +310,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/admin/models", status_code=201)
     def create_admin_model(
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> dict[str, object]:
         provider_id = str(payload.get("provider_id", "")).strip()
         model_id = str(payload.get("model_id", "")).strip()
@@ -270,7 +329,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         provider_id: str,
         model_id: str,
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> dict[str, object]:
         enabled = payload.get("enabled")
         if not isinstance(enabled, bool):
@@ -288,7 +347,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/admin/model-policies")
     def list_model_policies(
-        identity_context: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> list[dict[str, object]]:
         return [
             _policy_view(policy)
@@ -300,7 +359,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def put_model_policy(
         tenant_id: str,
         payload: dict[str, object],
-        identity_context: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
     ) -> dict[str, object]:
         if tenant_id != identity_context.tenant_id:
             raise HTTPException(status_code=404, detail="policy not found")
@@ -309,7 +368,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/admin/budgets")
     def list_finops_budgets(
-        identity_context: AuthenticatedUserContext = Depends(admin),
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> list[dict[str, object]]:  # noqa: B008
         return [
             value
@@ -319,7 +378,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/admin/budgets", status_code=201)
     def create_finops_budget(
-        payload: dict[str, object], identity_context: AuthenticatedUserContext = Depends(admin)
+        payload: dict[str, object],
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
         amount = float(str(payload.get("budget_amount", 0)))
         if amount <= 0 or str(payload.get("currency", "EUR")) != "EUR":
@@ -339,7 +399,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def update_finops_budget(
         budget_id: str,
         payload: dict[str, object],
-        identity_context: AuthenticatedUserContext = Depends(admin),
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
         record = budget_records.get(budget_id)
         if record is None or record.get("tenant_id") != identity_context.tenant_id:
@@ -355,43 +415,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def update_finops_quota(
         quota_id: str,
         _payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(admin),
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
         if not quota_id:
             raise HTTPException(status_code=404, detail="quota not found")
         return {"id": quota_id, "status": "updated"}
 
     @app.get("/v1/admin/finops/summary")
-    def finops_summary(_identity: AuthenticatedUserContext = Depends(admin)) -> dict[str, object]:  # noqa: B008
+    def finops_summary(
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
+    ) -> dict[str, object]:  # noqa: B008
         return {"spend": 0, "currency": "EUR", "requests": 0, "label": "source usage records"}
 
     @app.get("/v1/admin/finops/forecast")
-    def finops_forecast(_identity: AuthenticatedUserContext = Depends(admin)) -> dict[str, object]:  # noqa: B008
+    def finops_forecast(
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
+    ) -> dict[str, object]:  # noqa: B008
         return {"projected_spend": 0, "currency": "EUR", "is_estimate": True}
 
     @app.get("/v1/admin/finops/usage")
-    def finops_usage(_identity: AuthenticatedUserContext = Depends(admin)) -> dict[str, object]:  # noqa: B008
+    def finops_usage(
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
+    ) -> dict[str, object]:  # noqa: B008
         return {"items": [], "next_cursor": None}
 
     @app.get("/v1/admin/finops/alerts")
-    def finops_alerts(_identity: AuthenticatedUserContext = Depends(admin)) -> dict[str, object]:  # noqa: B008
+    def finops_alerts(
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
+    ) -> dict[str, object]:  # noqa: B008
         return {"items": [], "next_cursor": None}
 
     @app.get("/v1/admin/quotas")
     def finops_quotas(
-        _identity: AuthenticatedUserContext = Depends(admin),
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> list[dict[str, object]]:  # noqa: B008
         return []
 
     @app.post("/v1/admin/quotas", status_code=201)
     def create_finops_quota(
-        _payload: dict[str, object], _identity: AuthenticatedUserContext = Depends(admin)
+        _payload: dict[str, object],
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
         return {"status": "created"}
 
     @app.post("/v1/admin/finops/policy/simulate")
     def simulate_finops_policy(
-        payload: dict[str, object], _identity: AuthenticatedUserContext = Depends(admin)
+        payload: dict[str, object],
+        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
         estimated = _money_payload(payload.get("estimated_cost", 0))
         amount = _money_payload(payload.get("budget_amount", 1))
@@ -419,7 +489,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/admin/model-router/simulate")
     def simulate_model_route(
         payload: dict[str, object],
-        identity_context: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("router_simulation", admin)),  # noqa: B008
     ) -> dict[str, object]:
         signals = ComplexitySignals(
             retrieved_chunks=_int_payload(payload.get("retrieved_chunks", 0)),
@@ -466,7 +536,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/workspaces")
     def workspaces(
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("knowledge")),  # noqa: B008
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
     ) -> list[dict[str, object]]:  # noqa: B008
@@ -488,7 +558,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/workspaces", status_code=201)
     def create_workspace(
         payload: dict[str, str],
-        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(
+            limited("knowledge", admin_or_development)
+        ),  # noqa: B008
     ) -> dict[str, object]:  # noqa: B008
         service, session = km_service(identity_context)
         try:
@@ -505,7 +577,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/collections")
     def collections(
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("knowledge")),  # noqa: B008
         workspace_id: str | None = None,
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
@@ -539,7 +611,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title: str = Form(...),
         logical_document_key: str = Form(...),
         file: UploadFile = File(...),  # noqa: B008
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("upload")),  # noqa: B008
     ) -> dict[str, object]:  # noqa: B008
         from uuid import UUID
 
@@ -577,7 +649,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/documents/{document_id}/versions")
     def document_versions(
         document_id: str,
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("knowledge")),  # noqa: B008
     ) -> list[dict[str, object]]:  # noqa: B008
         from uuid import UUID
 
@@ -601,7 +673,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/ingestion/jobs")
     def ingestion_jobs(
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("ingestion")),  # noqa: B008
     ) -> list[dict[str, object]]:
         from sqlalchemy import select
 
@@ -633,7 +705,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/ingestion/jobs/{job_id}")
     def ingestion_job(
         job_id: str,
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("ingestion")),  # noqa: B008
     ) -> dict[str, object]:
         from uuid import UUID
 
@@ -667,7 +739,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/ingestion/jobs/{job_id}/cancel")
     def cancel_ingestion_job(
         job_id: str,
-        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(
+            limited("ingestion", admin_or_development)
+        ),  # noqa: B008
     ) -> dict[str, object]:
         from uuid import UUID
 
@@ -686,7 +760,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/ingestion/jobs/{job_id}/retry", status_code=202)
     def retry_ingestion_job(
         job_id: str,
-        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(
+            limited("ingestion", admin_or_development)
+        ),  # noqa: B008
     ) -> dict[str, object]:
         from uuid import UUID
 
@@ -707,7 +783,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/documents/{document_id}/reindex", status_code=202)
     def reindex_document(
         document_id: str,
-        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(
+            limited("ingestion", admin_or_development)
+        ),  # noqa: B008
     ) -> dict[str, str]:
         from uuid import UUID
 
@@ -745,7 +823,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/query", response_model=QueryApiResponse)
     def query(
         request: QueryApiRequest,
-        trusted: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        trusted: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> QueryApiResponse:
         authenticated = resolve_authenticated_identity(settings, trusted, request)
         state = workflow.run(
@@ -784,14 +862,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/documents/ingest")
     def ingest(
-        _identity: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("ingestion")),  # noqa: B008
     ) -> dict[str, int | str]:
         workflow.repository._chunks = None  # noqa: SLF001 - explicit local demo refresh
         return {"status": "ingested", "chunks": len(workflow.repository.chunks())}
 
     @app.get("/v1/documents")
     def documents(
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> list[dict[str, str]]:
         seen: dict[str, dict[str, str]] = {}
         for chunk in workflow.repository.chunks():
@@ -809,7 +887,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/documents/{document_id}")
     def document(
         document_id: str,
-        identity_context: AuthenticatedUserContext = Depends(identity),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> dict[str, str]:
         for chunk in workflow.repository.chunks():
             if chunk.document_id == document_id and chunk.tenant_id == identity_context.tenant_id:
@@ -824,7 +902,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.delete("/v1/documents/{document_id}")
     def delete_document(
         document_id: str,
-        _identity: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("knowledge", admin_or_development)),  # noqa: B008
     ) -> dict[str, str]:
         raise HTTPException(
             status_code=501, detail=f"delete disabled in portfolio demo: {document_id}"
@@ -832,7 +910,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/evaluations/run")
     def run_evaluation_endpoint(
-        _identity: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("evaluation", admin_or_development)),  # noqa: B008
     ) -> dict[str, str]:
         from ragops.evaluation.runner import run_evaluation
 
@@ -844,7 +922,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/evaluations")
     def evaluations(
-        _identity: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("evaluation", admin_or_development)),  # noqa: B008
     ) -> dict[str, object]:
         path = settings.evidence_dir / "rag-evaluation.json"
         if not path.exists():
@@ -854,7 +932,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/audit-events")
     def audit_events(
-        identity_context: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        identity_context: AuthenticatedUserContext = Depends(
+            limited("administration", admin_or_development)
+        ),  # noqa: B008
     ) -> list[dict[str, Any]]:
         path = settings.evidence_dir / "audit-events.jsonl"
         if not path.exists():
@@ -869,7 +949,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/costs/summary")
     def costs(
-        _identity: AuthenticatedUserContext = Depends(admin_or_development),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(
+            limited("administration", admin_or_development)
+        ),  # noqa: B008
     ) -> dict[str, float | int]:
         values = workflow.metrics.to_dict()
         return {

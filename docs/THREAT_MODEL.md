@@ -10,7 +10,7 @@ STRIDE-oriented assessment for local portfolio runtime.
 | Tampering | Uploaded file paths | Path traversal and extension checks | Binary parser adapters are local fallback | `tests/unit/test_security_controls.py` |
 | Repudiation | Query handling | Correlation ID and audit events | Local logs are file-backed | Integration workflow tests |
 | Information disclosure | Cross-tenant retrieval | Tenant filter before scoring | Admin role needs production IAM | Security tests |
-| Denial of service | Large uploads and long inputs | Size and input limits, Docker limits | Full rate limiter is adapter interface | Docker config check |
+| Denial of service | Large uploads, long inputs and request floods | Size and input limits, Docker limits, per tenant/user/endpoint-class rate limits enforced atomically in Redis (fail closed) | Fixed window allows up to 2x the limit across a window edge | Docker config check, rate_limiting RC gate |
 | Elevation of privilege | Prompt injection in documents | Detection, penalty, evidence filtering | Pattern-based detection is incomplete | Prompt-injection tests |
 
 ## Required Defensive Test Cases

@@ -39,6 +39,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "tenant_isolation",
         "model_router",
         "finops",
+        "rate_limiting",
     }
 )
 
@@ -218,6 +219,12 @@ def main() -> int:
         gate_results["finops"] = {
             "status": status,
             "detail": detail or "See sanitized finops.json evidence",
+        }
+    if "rate_limiting" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/rate_limiting_gate.py"])
+        gate_results["rate_limiting"] = {
+            "status": status,
+            "detail": detail or "See sanitized rate-limiting.json evidence",
         }
     previous: dict[str, object] = {}
     try:
