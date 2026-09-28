@@ -44,4 +44,5 @@ an ephemeral PostgreSQL service with synthetic credentials for this purpose.
 This revision has not been executed in the current sandbox. Dependency install,
 Alembic consistency, PostgreSQL migration and restart gates must pass before the
 persistence phase is complete. Back up and rehearse future production migrations
-in staging before deployment; a backup implementation does not yet exist here.
+in staging before deployment; take and verify an encrypted backup with
+`scripts/operator_backup.py` first (see BACKUP_RESTORE.md).

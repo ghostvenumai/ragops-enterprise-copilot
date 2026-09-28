@@ -31,6 +31,8 @@ persistence = [
   "SQLAlchemy==2.0.52",
   "alembic==1.20.0",
   "psycopg[binary]==3.3.5",
+  # Authenticated encryption of backup sets (ragops.ops.data_backup).
+  "cryptography==50.0.1",
 ]
 identity = [
   "PyJWT[crypto]==2.10.1",
