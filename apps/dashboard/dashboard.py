@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
+import uuid
 from collections.abc import Mapping
 from html import escape
 from typing import Any
@@ -14,6 +17,9 @@ from urllib.request import Request, urlopen
 import streamlit as st
 
 API_BASE_URL = os.getenv("RAGOPS_API_URL", "http://localhost:8000").rstrip("/")
+# With OIDC the dashboard signs users in through the identity provider and forwards their
+# access token; tenant and roles then come only from the verified token.
+OIDC_MODE = os.getenv("RAGOPS_IDENTITY_PROVIDER", "development").lower() == "oidc"
 
 TENANTS = {
     "Atlas Industrial": "tenant-alpha",
@@ -26,6 +32,30 @@ ROLES = {
     "Betrieb": "operations",
     "Compliance": "compliance",
     "Administration": "admin",
+}
+ROLE_LABELS = {"Lesezugriff": "viewer", **ROLES}
+JOB_STATUS_LABELS = {
+    "queued": "In Warteschlange",
+    "running": "In Verarbeitung",
+    "retrying": "Wird wiederholt",
+    "completed": "Bereit",
+    "failed": "Fehlgeschlagen",
+    "cancelled": "Abgebrochen",
+}
+PENDING_JOB_STATES = frozenset({"queued", "running", "retrying"})
+UPLOAD_TYPES = ("pdf", "docx", "md", "txt", "csv")
+# Known API rejection details mapped to actionable text; anything else stays generic.
+UPLOAD_REJECTIONS = {
+    "unsupported file type or MIME type": (
+        "Dieser Dateityp wird nicht unterstützt. Erlaubt sind PDF, DOCX, Markdown, Text und CSV."
+    ),
+    "empty files are not allowed": "Die Datei ist leer und wurde nicht übernommen.",
+    "file exceeds size limit": "Die Datei ist zu groß (maximal 2 MB).",
+    "file content does not match its type": (
+        "Die Datei ist beschädigt oder passt nicht zu ihrem Dateityp."
+    ),
+    "unsafe file name": "Der Dateiname ist nicht zulässig. Bitte die Datei umbenennen.",
+    "duplicate content in collection": "Dieses Dokument ist in der Collection bereits vorhanden.",
 }
 SUGGESTED_QUESTIONS = (
     (
@@ -64,7 +94,43 @@ DEMO_SCENE_QUESTIONS = {
 
 
 class DashboardApiError(RuntimeError):
-    """A safe error raised when the dashboard cannot use the API."""
+    """A safe error raised when the dashboard cannot use the API.
+
+    The message is always user-facing German text; ``detail`` keeps the API's short reason
+    only for mapping to such text and is never rendered.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        detail: str = "",
+        retry_after: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status, self.detail, self.retry_after = status, detail, retry_after
+
+
+def http_error_message(status: int, retry_after: int | None = None) -> str:
+    """Actionable, non-technical text for an API status code."""
+    if status == 401:
+        return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+    if status == 403:
+        return "Für diese Funktion fehlt Ihrer Rolle die Berechtigung."
+    if status == 404:
+        return "Der angeforderte Eintrag wurde nicht gefunden."
+    if status == 429:
+        wait = f"in {retry_after} Sekunden" if retry_after else "in Kürze"
+        return f"Zu viele Anfragen. Bitte {wait} erneut versuchen."
+    if status == 503:
+        return (
+            "Ein benötigter Dienst ist vorübergehend nicht verfügbar. "
+            "Bitte in Kürze erneut versuchen."
+        )
+    if 400 <= status < 500:
+        return "Die Anfrage konnte nicht verarbeitet werden. Bitte die Eingaben prüfen."
+    return "Der Dienst hat einen Fehler gemeldet. Bitte später erneut versuchen."
 
 
 def validated_internal_url(url: str) -> str:
@@ -79,6 +145,51 @@ def validated_internal_url(url: str) -> str:
     return url
 
 
+def access_token() -> str | None:
+    """The signed-in user's access token; only ever sent to the internal API."""
+    if not OIDC_MODE or not st.user.is_logged_in:
+        return None
+    return st.user.tokens.get("access")
+
+
+def _headers(extra: Mapping[str, str] | None = None) -> dict[str, str]:
+    headers = {"Accept": "application/json", **(extra or {})}
+    token = access_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _raise_http_error(exc: HTTPError) -> None:
+    try:
+        detail = str(json.loads(exc.read().decode("utf-8")).get("detail", ""))
+    except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+        detail = ""
+    raw_retry = exc.headers.get("Retry-After") if exc.headers else None
+    retry_after = int(raw_retry) if raw_retry and raw_retry.isdigit() else None
+    if exc.code == 401 and OIDC_MODE:
+        st.session_state["session_expired"] = True
+    raise DashboardApiError(
+        http_error_message(exc.code, retry_after),
+        status=exc.code,
+        detail=detail,
+        retry_after=retry_after,
+    ) from exc
+
+
+def _open(request: Request, timeout: float) -> Any:
+    try:
+        with urlopen(request, timeout=timeout) as response:  # noqa: S310  # nosec B310
+            content = response.read().decode("utf-8")
+            return json.loads(content) if content else None
+    except HTTPError as exc:
+        _raise_http_error(exc)
+    except (TimeoutError, URLError) as exc:
+        raise DashboardApiError(
+            "Die API ist derzeit nicht erreichbar. Bitte den Dienststatus prüfen."
+        ) from exc
+
+
 def api_request(
     method: str,
     path: str,
@@ -91,23 +202,43 @@ def api_request(
     request = Request(  # noqa: S310  # nosec B310
         validated_internal_url(f"{API_BASE_URL}{path}"),
         data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=_headers({"Content-Type": "application/json"}),
         method=method,
     )
-    try:
-        with urlopen(request, timeout=timeout) as response:  # noqa: S310  # nosec B310
-            content = response.read().decode("utf-8")
-            return json.loads(content) if content else None
-    except HTTPError as exc:
-        try:
-            detail = json.loads(exc.read().decode("utf-8")).get("detail", "Anfrage fehlgeschlagen")
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            detail = "Anfrage fehlgeschlagen"
-        raise DashboardApiError(f"API-Anfrage fehlgeschlagen ({exc.code}): {detail}") from exc
-    except (TimeoutError, URLError) as exc:
-        raise DashboardApiError(
-            "Die API ist derzeit nicht erreichbar. Bitte den Dienststatus prüfen."
-        ) from exc
+    return _open(request, timeout)
+
+
+def api_upload(
+    path: str,
+    fields: Mapping[str, str],
+    filename: str,
+    content: bytes,
+    mime_type: str,
+    *,
+    timeout: float = 30.0,
+) -> Any:
+    """POST one file as multipart/form-data to the internal API."""
+    boundary = uuid.uuid4().hex
+    parts: list[bytes] = []
+    for name, value in fields.items():
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
+            f"{value}\r\n".encode()
+        )
+    quoted = filename.replace("\\", "_").replace('"', "_").replace("\r", "").replace("\n", "")
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{quoted}"\r\n'
+        f"Content-Type: {mime_type}\r\n\r\n".encode()
+        + content
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
+    request = Request(  # noqa: S310  # nosec B310
+        validated_internal_url(f"{API_BASE_URL}{path}"),
+        data=b"".join(parts),
+        headers=_headers({"Content-Type": f"multipart/form-data; boundary={boundary}"}),
+        method="POST",
+    )
+    return _open(request, timeout)
 
 
 def api_text(path: str, *, timeout: float = 10.0) -> str:
@@ -161,6 +292,42 @@ def option_label(options: Mapping[str, str], value: str) -> str:
     return next((label for label, option in options.items() if option == value), value)
 
 
+def plain_text(value: object) -> str:
+    """Escape Markdown and HTML so user- or document-controlled text renders literally."""
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~$&])", r"\\\1", str(value))
+
+
+def logical_key(title: str, filename: str) -> str:
+    """Stable, safe logical document key derived from the title (or the file name)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", (title or filename).lower()).strip("-")
+    return slug[:80] or "dokument"
+
+
+def roles_label(roles: tuple[str, ...]) -> str:
+    return ", ".join(option_label(ROLE_LABELS, role) for role in roles)
+
+
+def job_rows(jobs: object) -> list[dict[str, object]]:
+    """Presentation rows for ingestion jobs; status is text, never color alone."""
+    rows: list[dict[str, object]] = []
+    for job in jobs if isinstance(jobs, list) else []:
+        if not isinstance(job, dict):
+            continue
+        status = str(job.get("status", ""))
+        rows.append(
+            {
+                "Dokument": str(job.get("title") or "–"),
+                "Datei": str(job.get("filename") or "–"),
+                "Status": JOB_STATUS_LABELS.get(status, status or "–"),
+                "Schritt": str(job.get("stage") or "–"),
+                "Fortschritt": f"{int(job.get('progress') or 0)} %",
+                "Hinweis": "Erneut versuchen möglich" if status == "failed" else "",
+                "Auftrag": str(job.get("job_id", ""))[:8],
+            }
+        )
+    return rows
+
+
 def chat_role(message: Mapping[str, object]) -> str:
     """Constrain chat roles to the two presentation roles supported by Streamlit."""
     return "user" if message.get("role") == "user" else "assistant"
@@ -193,7 +360,7 @@ def inject_styles() -> None:
         """
         <style>
         :root {
-            --ink: #172033; --muted: #687386; --line: #e4e8ef;
+            --ink: #172033; --muted: #525d6e; --line: #e4e8ef;
             --surface: #ffffff; --canvas: #f4f6f9;
             --brand: #176b5b; --brand-soft: #e5f4ef;
         }
@@ -246,9 +413,9 @@ def inject_styles() -> None:
             color: var(--brand); font-size: .74rem; font-weight: 750;
             text-transform: uppercase;
         }
-        .page-title {
+        .page-title, h1.page-title {
             color: var(--ink); font-size: 1.75rem; font-weight: 760;
-            margin: .15rem 0 .25rem;
+            margin: .15rem 0 .25rem; padding: 0; line-height: 1.25;
         }
         .page-subtitle { color: var(--muted); font-size: .93rem; margin-bottom: 1.25rem; }
         .status-row { display: flex; align-items: center; gap: .55rem; }
@@ -279,8 +446,18 @@ def inject_styles() -> None:
         [data-testid="stButton"] button {
             min-height: 2.45rem; border-radius: 6px; border-color: #cfd6df; font-weight: 620;
         }
-        [data-testid="stButton"] button[kind="primary"] {
+        [data-testid="stButton"] button[kind="primary"],
+        [data-testid="stFormSubmitButton"] button {
             background: var(--brand); border-color: var(--brand); color: #fff;
+        }
+        [data-testid="stButton"] button[kind="primary"]:hover,
+        [data-testid="stButton"] button[kind="primary"]:active,
+        [data-testid="stButton"] button[kind="primary"]:focus,
+        [data-testid="stFormSubmitButton"] button:hover,
+        [data-testid="stFormSubmitButton"] button:active,
+        [data-testid="stFormSubmitButton"] button:focus {
+            background: #12574a !important; border-color: #12574a !important;
+            color: #fff !important;
         }
         [data-testid="stExpander"] {
             background: var(--surface); border: 1px solid var(--line); border-radius: 7px;
@@ -300,6 +477,14 @@ def inject_styles() -> None:
         .guard-title { color: var(--ink); font-weight: 700; font-size: .84rem; }
         .guard-state { color: var(--brand); font-size: .75rem; margin-top: .3rem; }
         hr { border-color: var(--line) !important; }
+        [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"],
+        [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] p {
+            color: var(--muted) !important;
+        }
+        *:focus-visible { outline: 2px solid #36a085 !important; outline-offset: 2px; }
+        [data-testid="stChatInput"]:focus-within {
+            outline: 2px solid #36a085; outline-offset: 2px;
+        }
         @media (max-width: 760px) {
             [data-testid="stMain"] .block-container { padding: 1rem .8rem 4.5rem; }
             .page-title { font-size: 1.45rem; }
@@ -311,31 +496,167 @@ def inject_styles() -> None:
     )
 
 
+# Streamlit 1.60 renders two accessibility defects in its own markup: an aria-expanded
+# attribute on the sidebar <section> (not allowed there) and a file <input> without an
+# accessible name. This installs once per page and repairs both; it touches nothing else.
+A11Y_REPAIR_SCRIPT = """
+<script>
+(() => {
+  if (window.__ragopsA11yRepair) return;
+  window.__ragopsA11yRepair = true;
+  const repair = () => {
+    document.querySelectorAll('[data-testid="stSidebar"][aria-expanded]')
+      .forEach((el) => el.removeAttribute("aria-expanded"));
+    document.querySelectorAll('[data-testid="stFileUploader"]').forEach((uploader) => {
+      const input = uploader.querySelector('input[type="file"]');
+      const label = uploader.querySelector('[data-testid="stWidgetLabel"]');
+      if (input && !input.getAttribute("aria-label")) {
+        input.setAttribute("aria-label", (label && label.innerText.trim()) || "Datei");
+      }
+    });
+  };
+  repair();
+  new MutationObserver(repair).observe(document.body, {
+    subtree: true, childList: true, attributes: true, attributeFilter: ["aria-expanded"],
+  });
+})();
+</script>
+"""
+
+
+def install_accessibility_repairs() -> None:
+    st.html(A11Y_REPAIR_SCRIPT, unsafe_allow_javascript=True)
+
+
 def render_page_header(kicker: str, title: str, subtitle: str) -> None:
     st.markdown(
         f"""
         <div class="page-kicker">{kicker}</div>
-        <div class="page-title">{title}</div>
+        <h1 class="page-title">{title}</h1>
         <div class="page-subtitle">{subtitle}</div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_sidebar(default_navigation: str = "Copilot") -> tuple[str, str, int, str]:
+@st.cache_resource
+def _identity_verifier() -> Any:
+    from ragops.auth.identity import OIDCIdentityProvider
+    from ragops.config.settings import Settings
+
+    settings = Settings.from_env()
+    return OIDCIdentityProvider(
+        settings.oidc_issuer or "",
+        settings.oidc_audience or "",
+        settings.oidc_public_key or "",
+        settings.oidc_algorithms,
+        settings.oidc_tenant_claim,
+        settings.oidc_roles_claim,
+    )
+
+
+def signed_in_identity() -> Any | None:
+    """Verified identity of the signed-in user, or None when the token is missing/expired."""
+    from ragops.auth.identity import AuthenticationError
+
+    try:
+        return _identity_verifier().authenticate(access_token())
+    except AuthenticationError:
+        return None
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def identity_provider_available() -> bool:
+    """Bounded check that the sign-in provider answers before sending users there."""
+    try:
+        metadata_url = str(st.secrets["auth"]["server_metadata_url"])
+        request = Request(  # noqa: S310  # nosec B310
+            validated_internal_url(metadata_url), method="GET"
+        )
+        with urlopen(request, timeout=2.0) as response:  # noqa: S310  # nosec B310
+            return bool(response.status == 200)
+    except Exception:  # noqa: BLE001 - any failure means sign-in is unavailable
+        return False
+
+
+def render_brand() -> None:
+    st.markdown(
+        """
+        <div class="brand-lockup">
+          <div class="brand-mark">R</div>
+          <div>
+            <div class="brand-name">RAGOps</div>
+            <div class="brand-sub">Enterprise Copilot</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_login() -> None:
     with st.sidebar:
+        render_brand()
+    render_page_header(
+        "Sicherer KI-Arbeitsbereich",
+        "Anmeldung erforderlich",
+        "Melden Sie sich mit Ihrem Unternehmenskonto an, um den Copilot zu nutzen.",
+    )
+    if not identity_provider_available():
+        st.warning(
+            "Die Anmeldung ist vorübergehend nicht verfügbar. "
+            "Bitte versuchen Sie es in wenigen Minuten erneut.",
+            icon=":material/cloud_off:",
+        )
+        if st.button("Erneut prüfen"):
+            identity_provider_available.clear()
+            st.rerun()
+        return
+    if st.button("Anmelden", type="primary", icon=":material/login:"):
+        st.login()
+
+
+def render_session_expired() -> None:
+    with st.sidebar:
+        render_brand()
+    render_page_header(
+        "Sicherer KI-Arbeitsbereich",
+        "Sitzung abgelaufen",
+        "Aus Sicherheitsgründen werden keine Daten angezeigt.",
+    )
+    st.warning(http_error_message(401), icon=":material/lock_clock:")
+    login, logout = st.columns(2)
+    if login.button("Erneut anmelden", type="primary", use_container_width=True):
+        st.login()
+    if logout.button("Abmelden", use_container_width=True):
+        st.logout()
+
+
+def render_readiness_status() -> None:
+    try:
+        ready = api_request("GET", "/ready", timeout=2.0)
+        count = ready.get("documents", 0) if isinstance(ready, dict) else 0
         st.markdown(
-            """
-            <div class="brand-lockup">
-              <div class="brand-mark">R</div>
-              <div>
-                <div class="brand-name">RAGOps</div>
-                <div class="brand-sub">Enterprise Copilot</div>
-              </div>
-            </div>
-            """,
+            f'<div class="status-row"><span class="status-dot"></span>'
+            f'<span class="status-label">API betriebsbereit · {count} '
+            "Textabschnitte verfügbar</span></div>",
             unsafe_allow_html=True,
         )
+    except DashboardApiError as exc:
+        if exc.status == 503:
+            st.warning(
+                "Dienst eingeschränkt · einige Funktionen sind vorübergehend nicht verfügbar.",
+                icon=":material/warning:",
+            )
+        else:
+            st.error("API nicht erreichbar · bitte später erneut versuchen.")
+
+
+def render_sidebar(
+    default_navigation: str = "Copilot", identity: Any | None = None
+) -> tuple[str, str, int, str]:
+    with st.sidebar:
+        render_brand()
         navigation = st.radio(
             "Arbeitsbereich",
             NAVIGATION_ITEMS,
@@ -346,30 +667,24 @@ def render_sidebar(default_navigation: str = "Copilot") -> tuple[str, str, int, 
             st.session_state.pop("messages", None)
             st.rerun()
         st.divider()
-        production = os.getenv("RAGOPS_ENV", "local").lower() == "production"
-        if production:
-            tenant_id = os.getenv("RAGOPS_DEV_TENANT_ID", "authenticated-tenant")
-            role = os.getenv("RAGOPS_DEV_ROLES", "viewer").split(",")[0]
-            st.caption(f"Authentifizierter Kontext · {tenant_id} · {role}")
-            tenant_label, role_label = None, None
+        if identity is not None:
+            st.caption(f"Angemeldet als {plain_text(identity.display_name or identity.user_id)}")
+            st.caption(
+                f"Mandant {plain_text(option_label(TENANTS, identity.tenant_id))} · "
+                f"Rolle {plain_text(roles_label(identity.roles))}"
+            )
+            if st.button("Abmelden", icon=":material/logout:", use_container_width=True):
+                st.logout()
+            tenant_id, role = identity.tenant_id, identity.roles[0]
+            tenant_label = role_label = None
         else:
             tenant_label = st.selectbox("Mandant", tuple(TENANTS))
             role_label = st.selectbox("Rolle", tuple(ROLES))
         with st.expander("Retrieval-Einstellungen"):
             top_k = st.slider("Maximale Quellen", min_value=2, max_value=10, value=5)
         st.write("")
-        try:
-            ready = api_request("GET", "/ready", timeout=2.0)
-            count = ready.get("documents", 0) if isinstance(ready, dict) else 0
-            st.markdown(
-                f'<div class="status-row"><span class="status-dot"></span>'
-                f'<span class="status-label">API betriebsbereit · {count} '
-                "Textabschnitte verfügbar</span></div>",
-                unsafe_allow_html=True,
-            )
-        except DashboardApiError:
-            st.error("API nicht erreichbar")
-    if production:
+        render_readiness_status()
+    if identity is not None:
         return tenant_id, role, top_k, navigation
     assert tenant_label is not None and role_label is not None
     return TENANTS[tenant_label], ROLES[role_label], top_k, navigation
@@ -416,7 +731,7 @@ def render_chat_message(message: dict[str, object]) -> None:
     role = chat_role(message)
     with st.chat_message(role):
         if role == "user":
-            st.markdown(str(message.get("content", "")))
+            st.markdown(plain_text(message.get("content", "")))
             return
         if message.get("abstained"):
             st.warning(str(message.get("answer", "")), icon=":material/gpp_bad:")
@@ -443,18 +758,20 @@ def submit_question(question: str, tenant_id: str, role: str, top_k: int) -> Non
     if not question:
         return
     st.session_state.messages.append({"role": "user", "content": question})
+    # With OIDC the API derives tenant and role from the verified token alone.
+    payload: dict[str, object] = (
+        {"question": question, "top_k": top_k}
+        if OIDC_MODE
+        else {
+            "question": question,
+            "tenant_id": tenant_id,
+            "user_id": "portfolio-user",
+            "role": role,
+            "top_k": top_k,
+        }
+    )
     try:
-        response = api_request(
-            "POST",
-            "/v1/query",
-            {
-                "question": question,
-                "tenant_id": tenant_id,
-                "user_id": "portfolio-user",
-                "role": role,
-                "top_k": top_k,
-            },
-        )
+        response = api_request("POST", "/v1/query", payload)
         if not isinstance(response, dict):
             raise DashboardApiError("Die API hat eine ungültige Antwort geliefert.")
         st.session_state.messages.append({"role": "assistant", **response})
@@ -488,7 +805,7 @@ def render_copilot(tenant_id: str, role: str, top_k: int, demo_scene: str = "") 
         "Belegte Antworten aus kontrolliertem Wissen und synthetischen CRM-Daten.",
     )
     tenant_label = escape(option_label(TENANTS, tenant_id))
-    role_label = escape(option_label(ROLES, role))
+    role_label = escape(option_label(ROLE_LABELS, role))
     demo_badge = (
         '<span class="context-pill">Deterministischer Demo-Modus</span>' if demo_scene else ""
     )
@@ -528,6 +845,87 @@ def render_copilot(tenant_id: str, role: str, top_k: int, demo_scene: str = "") 
         st.rerun()
 
 
+def submit_upload(
+    workspace_id: str, collection_id: str, title: str, upload: Any
+) -> tuple[str, str]:
+    """Send one validated upload; returns (level, message) for the page to render."""
+    content = upload.getvalue()
+    fingerprint = hashlib.sha256(content + collection_id.encode()).hexdigest()
+    if st.session_state.get("last_upload_fingerprint") == fingerprint:
+        return "info", "Diese Datei wurde bereits übertragen. Der Auftrag ist unten sichtbar."
+    title = title.strip() or upload.name
+    try:
+        accepted = api_upload(
+            "/v1/documents/upload",
+            {
+                "workspace_id": workspace_id,
+                "collection_id": collection_id,
+                "title": title,
+                "logical_document_key": logical_key(title, upload.name),
+            },
+            upload.name,
+            content,
+            upload.type or "application/octet-stream",
+        )
+    except DashboardApiError as exc:
+        if exc.status == 400:
+            return "error", UPLOAD_REJECTIONS.get(exc.detail, str(exc))
+        return "error", str(exc)
+    st.session_state["last_upload_fingerprint"] = fingerprint
+    accepted = accepted if isinstance(accepted, dict) else {}
+    job = str(accepted.get("job_id", ""))[:8]
+    status = str(accepted.get("status", ""))
+    return "success", f"Upload angenommen · Auftrag {job} · {JOB_STATUS_LABELS.get(status, status)}"
+
+
+def _render_jobs() -> None:
+    try:
+        jobs = api_request("GET", "/v1/ingestion/jobs")
+    except DashboardApiError as exc:
+        st.error(str(exc))
+        return
+    jobs = [job for job in jobs if isinstance(job, dict)] if isinstance(jobs, list) else []
+    head, refresh = st.columns([4, 1])
+    head.subheader("Verarbeitungsaufträge")
+    if refresh.button("Aktualisieren", icon=":material/refresh:", use_container_width=True):
+        st.rerun(scope="fragment")
+    if not jobs:
+        st.markdown(
+            '<div class="empty-state">Noch keine hochgeladenen Dokumente.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.table(job_rows(jobs))
+    failed = {
+        str(job["job_id"]): str(job.get("title") or job.get("filename") or job["job_id"])
+        for job in jobs
+        if job.get("status") == "failed" and job.get("job_id")
+    }
+    if failed:
+        choice = st.selectbox(
+            "Fehlgeschlagener Auftrag", list(failed), format_func=lambda job_id: failed[job_id]
+        )
+        if st.button("Erneut versuchen", icon=":material/replay:"):
+            try:
+                api_request("POST", f"/v1/ingestion/jobs/{choice}/retry")
+                st.session_state["jobs_notice"] = ("success", "Auftrag erneut eingereiht.")
+            except DashboardApiError as exc:
+                st.session_state["jobs_notice"] = ("error", str(exc))
+            st.rerun(scope="fragment")
+    notice = st.session_state.pop("jobs_notice", None)
+    if notice:
+        getattr(st, notice[0])(notice[1])
+    pending = any(job.get("status") in PENDING_JOB_STATES for job in jobs)
+    if pending != st.session_state.get("jobs_polling", False):
+        st.session_state["jobs_polling"] = pending
+        st.rerun()  # switch between the polling and the static view
+
+
+# Poll only while jobs are still moving; a manual refresh is always available.
+_jobs_polling = st.fragment(run_every=3)(_render_jobs)
+_jobs_static = st.fragment(_render_jobs)
+
+
 def render_knowledge_base(tenant_id: str) -> None:
     render_page_header(
         "Wissensbetrieb",
@@ -550,11 +948,14 @@ def render_knowledge_base(tenant_id: str) -> None:
             "/v1/collections"
             + (f"?workspace_id={selected_workspace_id}" if selected_workspace_id else ""),
         )
-        documents = api_request("GET", "/v1/documents")
-        jobs = api_request("GET", "/v1/ingestion/jobs")
     except DashboardApiError as exc:
         st.error(str(exc))
         return
+    collection_options = {
+        str(item.get("name", item.get("id"))): str(item.get("id"))
+        for item in collections
+        if isinstance(item, dict)
+    }
     st.caption("Collections")
     st.dataframe(
         [item for item in collections if isinstance(item, dict)],
@@ -562,27 +963,46 @@ def render_knowledge_base(tenant_id: str) -> None:
         hide_index=True,
         use_container_width=True,
     )
-    with st.expander("Dokument hochladen"):
-        upload = st.file_uploader("Datei", type=["pdf", "docx", "md", "txt", "csv"])
-        st.caption("Upload und Reindexing werden durch die tenant-gebundene API validiert.")
-        if upload is not None:
-            st.info(f"{upload.name} · {upload.size} Bytes · Bereit zur validierten Übertragung")
+    with st.expander("Dokument hochladen", expanded=True):
+        with st.form("document-upload", clear_on_submit=True):
+            selected_collection = st.selectbox(
+                "Collection", list(collection_options) or ["Keine Collections"]
+            )
+            title = st.text_input("Titel", max_chars=200)
+            upload = st.file_uploader("Datei", type=list(UPLOAD_TYPES))
+            submitted = st.form_submit_button("Hochladen", type="primary")
+        st.caption("Upload und Verarbeitung werden durch die mandantengebundene API validiert.")
+        if submitted:
+            collection_id = collection_options.get(selected_collection)
+            if upload is None or not selected_workspace_id or not collection_id:
+                st.warning("Bitte Workspace, Collection und Datei auswählen.")
+            else:
+                level, message = submit_upload(selected_workspace_id, collection_id, title, upload)
+                getattr(st, level)(message)
+    if st.session_state.get("jobs_polling", False):
+        _jobs_polling()
+    else:
+        _jobs_static()
+    render_query_corpus(tenant_id)
+
+
+def render_query_corpus(tenant_id: str) -> None:
+    """The local demo corpus that /v1/query answers from; uploads do not change it."""
+    try:
+        documents = api_request("GET", "/v1/documents")
+    except DashboardApiError as exc:
+        st.error(str(exc))
+        return
     tenant_documents = [
         document
         for document in documents
         if isinstance(document, dict) and document.get("tenant_id") == tenant_id
     ]
-    job_by_document = {
-        str(item.get("document_id")): item
-        for item in jobs
-        if isinstance(item, dict) and item.get("document_id")
-    }
-    for document in tenant_documents:
-        job = job_by_document.get(str(document.get("document_id")))
-        if job:
-            document["processing_status"] = job.get("status")
-            document["stage"] = job.get("stage")
-            document["progress"] = job.get("progress")
+    st.subheader("Abfragebasis (Demo-Korpus)")
+    st.caption(
+        "Der Copilot beantwortet Fragen aus diesem kontrollierten Demo-Korpus. "
+        "Hochgeladene Dokumente werden indexiert, fließen aber nicht in Antworten ein."
+    )
     cols = st.columns(3)
     cols[0].metric("Verfügbare Dokumente", len(tenant_documents))
     cols[1].metric("Aktiver Mandant", option_label(TENANTS, tenant_id))
@@ -591,21 +1011,16 @@ def render_knowledge_base(tenant_id: str) -> None:
     st.write("")
     action, _ = st.columns([1, 4])
     if action.button("Index aktualisieren", type="primary", use_container_width=True):
-        with st.spinner("Kontrollierter Index wird aktualisiert..."):
-            result = api_request("POST", "/v1/documents/ingest")
-        st.success(f"Index bereit · {result.get('chunks', 0)} Textabschnitte")
+        try:
+            with st.spinner("Kontrollierter Index wird aktualisiert..."):
+                result = api_request("POST", "/v1/documents/ingest")
+            st.success(f"Index bereit · {result.get('chunks', 0)} Textabschnitte")
+        except DashboardApiError as exc:
+            st.error(str(exc))
     if tenant_documents:
         st.dataframe(
             tenant_documents,
-            column_order=(
-                "title",
-                "version",
-                "processing_status",
-                "stage",
-                "progress",
-                "access_level",
-                "document_id",
-            ),
+            column_order=("title", "version", "access_level", "document_id"),
             column_config={
                 "title": "Dokument",
                 "version": "Version",
@@ -712,8 +1127,8 @@ def render_governance() -> None:
             hide_index=True,
             use_container_width=True,
         )
-    except DashboardApiError:
-        st.caption("Model-Katalog ist nur für authentifizierte Administratoren verfügbar.")
+    except DashboardApiError as exc:
+        st.caption(f"Model-Katalog: {exc}")
     st.subheader("AI FinOps")
     try:
         summary = api_request("GET", "/v1/admin/finops/summary")
@@ -722,8 +1137,8 @@ def render_governance() -> None:
         cols[0].metric("Spend", f"EUR {summary.get('spend', 0)}")
         cols[1].metric("Anfragen", int(summary.get("requests", 0)))
         cols[2].metric("Forecast (Schätzung)", f"EUR {forecast.get('projected_spend', 0)}")
-    except DashboardApiError:
-        st.caption("FinOps ist nur für authentifizierte Administratoren verfügbar.")
+    except DashboardApiError as exc:
+        st.caption(f"FinOps: {exc}")
 
 
 def render_finops() -> None:
@@ -748,8 +1163,12 @@ def render_system() -> None:
     try:
         ready = api_request("GET", "/ready")
         st.success(f"Readiness: {ready.get('status', 'unknown')}")
-    except DashboardApiError:
-        st.error("DEPENDENCY_UNAVAILABLE · Readiness nicht verfügbar")
+    except DashboardApiError as exc:
+        st.error(
+            "Readiness: eingeschränkt · ein benötigter Dienst ist vorübergehend nicht verfügbar."
+            if exc.status == 503
+            else str(exc)
+        )
     try:
         live = parse_prometheus(api_text("/metrics"))
         events = api_request("GET", "/v1/audit-events")
@@ -829,11 +1248,26 @@ def main() -> None:
         page_title="RAGOps Enterprise Copilot",
         page_icon=":material/shield_person:",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="auto",
     )
     inject_styles()
+    install_accessibility_repairs()
+    identity = None
+    if OIDC_MODE:
+        if not st.user.is_logged_in:
+            render_login()
+            return
+        identity = signed_in_identity()
+        if identity is None or st.session_state.get("session_expired"):
+            render_session_expired()
+            return
+    elif os.getenv("RAGOPS_ENV", "local").lower() == "production":
+        st.error("Die Anmeldung ist nicht konfiguriert. Bitte den Betrieb informieren.")
+        return
     demo_scene = normalize_demo_scene(st.query_params.get("demo_scene", ""))
-    tenant_id, role, top_k, navigation = render_sidebar(navigation_for_demo_scene(demo_scene))
+    tenant_id, role, top_k, navigation = render_sidebar(
+        navigation_for_demo_scene(demo_scene), identity
+    )
     if navigation == "Copilot":
         render_copilot(tenant_id, role, top_k, demo_scene)
     elif navigation == "Wissensbasis":

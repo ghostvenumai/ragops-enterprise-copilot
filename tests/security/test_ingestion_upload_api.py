@@ -111,3 +111,39 @@ def test_queue_failure_leaves_a_visible_retryable_job(setup, monkeypatch) -> Non
     monkeypatch.undo()
     retried = client.post(f"/v1/ingestion/jobs/{job.id}/retry", headers=headers)
     assert retried.status_code == 202 and retried.json()["status"] == "queued"
+
+
+def test_job_list_names_the_tenants_own_documents(setup) -> None:
+    client, workspace, collection, headers = setup
+    response = client.post(
+        "/v1/documents/upload",
+        data={
+            "workspace_id": workspace,
+            "collection_id": collection,
+            "title": "<b>Quartal</b>",
+            "logical_document_key": "quartal",
+        },
+        files={"file": ("quartal.pdf", b"%PDF-1.4 synthetic", "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 202
+    jobs = client.get("/v1/ingestion/jobs", headers=headers).json()
+    assert [(job["title"], job["filename"]) for job in jobs] == [("<b>Quartal</b>", "quartal.pdf")]
+
+
+def test_renamed_file_is_rejected_before_a_job_exists(setup) -> None:
+    client, workspace, collection, headers = setup
+    response = client.post(
+        "/v1/documents/upload",
+        data={
+            "workspace_id": workspace,
+            "collection_id": collection,
+            "title": "Defekt",
+            "logical_document_key": "defekt",
+        },
+        files={"file": ("defekt.pdf", b"MZ renamed executable", "application/pdf")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert response.json() == {"detail": "file content does not match its type"}
+    assert client.get("/v1/ingestion/jobs", headers=headers).json() == []

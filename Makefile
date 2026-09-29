@@ -112,6 +112,10 @@ rc-gate:
 rc-live-gate:
 	$(PYTHON) scripts/rc_live_gate.py
 
+e2e-setup:
+	.venv/bin/python -m pip install -e ".[e2e]" -c constraints.txt
+	.venv/bin/python -m playwright install chromium
+
 oidc-integration-up:
 	docker compose -f docker-compose.integration.yml up -d
 

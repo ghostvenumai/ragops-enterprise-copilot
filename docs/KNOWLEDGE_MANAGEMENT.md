@@ -20,3 +20,10 @@ The service requires an authenticated tenant and actor. API request tenant
 fields are never used to select a repository tenant in OIDC mode. Collection and
 document access must be checked before retrieval, with the existing RBAC access
 levels retained.
+
+Uploads are validated at intake: allowed extension and MIME type, non-empty, at most
+2 MB, and binary formats must carry their signature (`%PDF-` for PDF, a ZIP header
+for DOCX), so a renamed or corrupted file is rejected with
+`file content does not match its type` before any job exists.
+`GET /v1/ingestion/jobs` returns each job with its document title and file name for
+the caller's tenant only.

@@ -42,6 +42,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "rate_limiting",
         "backup_restore",
         "readiness_failure_recovery",
+        "browser_e2e",
     }
 )
 
@@ -241,6 +242,12 @@ def main() -> int:
         gate_results["readiness_failure_recovery"] = {
             "status": status,
             "detail": detail or "See sanitized readiness-failure-recovery.json evidence",
+        }
+    if "browser_e2e" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])
+        gate_results["browser_e2e"] = {
+            "status": status,
+            "detail": detail or "See sanitized browser-e2e.json evidence",
         }
     previous: dict[str, object] = {}
     try:

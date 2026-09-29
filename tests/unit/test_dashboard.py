@@ -127,5 +127,104 @@ def test_api_request_returns_safe_http_error(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(dashboard, "urlopen", reject)
 
-    with pytest.raises(dashboard.DashboardApiError, match=r"API-Anfrage fehlgeschlagen \(422\)"):
+    with pytest.raises(dashboard.DashboardApiError, match="Eingaben prüfen") as raised:
         dashboard.api_request("POST", "/v1/query")
+    # The API detail is kept for mapping only and never becomes the visible message.
+    assert raised.value.status == 422 and raised.value.detail == "question is required"
+    assert "question is required" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after", "expected"),
+    [
+        (401, None, "Sitzung ist abgelaufen"),
+        (403, None, "fehlt Ihrer Rolle die Berechtigung"),
+        (404, None, "nicht gefunden"),
+        (429, 55, "Bitte in 55 Sekunden erneut versuchen"),
+        (429, None, "Bitte in Kürze erneut versuchen"),
+        (503, None, "vorübergehend nicht verfügbar"),
+        (500, None, "Fehler gemeldet"),
+    ],
+)
+def test_http_errors_become_actionable_text(status, retry_after, expected) -> None:
+    message = dashboard.http_error_message(status, retry_after)
+    assert expected in message and str(status) not in message
+
+
+def test_rate_limit_error_keeps_retry_after(monkeypatch: pytest.MonkeyPatch) -> None:
+    def limited(_request: Request, *, timeout: float) -> FakeResponse:
+        raise HTTPError(
+            "http://api/v1/query",
+            429,
+            "limited",
+            {"Retry-After": "42"},  # type: ignore[arg-type]
+            BytesIO(b'{"detail":"rate limit exceeded"}'),
+        )
+
+    monkeypatch.setattr(dashboard, "urlopen", limited)
+    with pytest.raises(dashboard.DashboardApiError, match="42 Sekunden") as raised:
+        dashboard.api_request("POST", "/v1/query")
+    assert raised.value.status == 429 and raised.value.retry_after == 42
+
+
+def test_development_mode_never_sends_a_bearer_token() -> None:
+    assert dashboard.OIDC_MODE is False
+    assert dashboard.access_token() is None
+    assert "Authorization" not in dashboard._headers()
+
+
+def test_upload_is_sent_as_multipart(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
+        captured["type"] = request.headers["Content-type"]
+        captured["body"] = request.data
+        return FakeResponse({"job_id": "1234567890", "status": "queued"})
+
+    monkeypatch.setattr(dashboard, "urlopen", fake_urlopen)
+    result = dashboard.api_upload(
+        "/v1/documents/upload", {"title": "T"}, 'a"b.pdf', b"%PDF-1.4", "application/pdf"
+    )
+    body = captured["body"]
+    assert result == {"job_id": "1234567890", "status": "queued"}
+    assert str(captured["type"]).startswith("multipart/form-data; boundary=")
+    assert isinstance(body, bytes) and b'filename="a_b.pdf"' in body and b"%PDF-1.4" in body
+
+
+def test_user_text_renders_literally() -> None:
+    escaped = dashboard.plain_text('<img src=x onerror="alert(1)"> **fett** [link](http://x)')
+    # Every Markdown/HTML control character is backslash-escaped, so it renders as text.
+    assert "\\<img" in escaped and "\\*\\*fett\\*\\*" in escaped
+    assert "\\]\\(" in escaped and " <img" not in escaped
+
+
+def test_logical_key_is_safe_and_stable() -> None:
+    assert dashboard.logical_key("Quartal <b>2026</b>", "x.pdf") == "quartal-b-2026-b"
+    assert dashboard.logical_key("", "Bericht.PDF") == "bericht-pdf"
+    assert dashboard.logical_key("!!!", "") == "dokument"
+
+
+def test_job_rows_show_status_as_text_and_keep_titles_verbatim() -> None:
+    rows = dashboard.job_rows(
+        [
+            {"job_id": "abcdef1234", "status": "failed", "title": "<b>x</b>", "progress": 14},
+            {"job_id": "0000000000", "status": "completed", "filename": "a.pdf"},
+            "not-a-job",
+        ]
+    )
+    assert rows[0]["Status"] == "Fehlgeschlagen" and rows[0]["Dokument"] == "<b>x</b>"
+    assert rows[0]["Hinweis"] == "Erneut versuchen möglich" and rows[0]["Auftrag"] == "abcdef12"
+    assert rows[1]["Status"] == "Bereit" and rows[1]["Datei"] == "a.pdf" and len(rows) == 2
+
+
+def test_known_upload_rejections_have_german_text() -> None:
+    for detail in (
+        "unsupported file type or MIME type",
+        "empty files are not allowed",
+        "file content does not match its type",
+        "duplicate content in collection",
+    ):
+        assert (
+            dashboard.UPLOAD_REJECTIONS[detail]
+            and detail not in dashboard.UPLOAD_REJECTIONS[detail]
+        )

@@ -6,12 +6,13 @@
 Die erste Ansicht ist der Copilot-Chat. Monitoring und Governance unterstützen den
 Betrieb, stehen aber nicht vor der eigentlichen Arbeitsoberfläche.
 
-Der Arbeitsbereich enthält vier Ansichten:
+Der Arbeitsbereich enthält sechs Ansichten (Copilot, Wissensbasis, Monitoring,
+FinOps, Governance & Audit, System / Operations); die wichtigsten:
 
 | Ansicht | Zweck | Primäre API-Daten |
 | --- | --- | --- |
 | Copilot | Kontrollierte Fragen stellen und belegte Antworten prüfen | POST /v1/query |
-| Wissensbasis | Für den Mandanten sichtbare Dokumentversionen prüfen und den Index aktualisieren | /v1/documents |
+| Wissensbasis | Dokumente hochladen, Verarbeitungsaufträge verfolgen und wiederholen, Demo-Korpus prüfen | /v1/documents/upload, /v1/ingestion/jobs, /v1/documents |
 | Monitoring | Live-Telemetrie und gemessene Evaluationsergebnisse prüfen | /metrics, /v1/evaluations, /v1/costs/summary |
 | Governance & Audit | Aktive Kontrollen und revisionsfähige Ereignisse prüfen | /metrics, /v1/audit-events |
 
@@ -38,9 +39,10 @@ Zusammenfassungen und ihre Regressionstests gemeinsam aktualisiert werden.
 
 ## Chat-Ablauf
 
-1. Der Benutzer wählt einen synthetischen Mandanten und eine Rolle.
-2. Das Dashboard sendet Frage, Mandant, Rolle, Benutzer-ID und Top-K an
-   `POST /v1/query`.
+1. Mit OIDC ergeben sich Mandant und Rolle aus dem Token; im Entwicklungsmodus
+   wählt der Benutzer einen synthetischen Mandanten und eine Rolle.
+2. Das Dashboard sendet Frage und Top-K (im Entwicklungsmodus zusätzlich Mandant,
+   Rolle und Benutzer-ID) an `POST /v1/query`, mit OIDC samt Bearer-Token.
 3. Die API führt Mandantenschutz, Routing, Retrieval, CRM-Abfrage,
    Compliance-Prüfungen, Antwortkomposition, Zitatvalidierung, Metrikerfassung
    und Audit-Protokollierung aus.
@@ -54,16 +56,67 @@ Der Chatverlauf gilt nur für die aktuelle Sitzung und kann mit **Neue
 Unterhaltung** gelöscht werden. Anwendungscode persistiert ihn weder
 serverseitig noch im Browser-Speicher.
 
-## Identitätsgrenze
+## Anmeldung und Identität
 
-Die Auswahl von Mandant und Rolle macht das Autorisierungsverhalten ohne
-externen Identity Provider demonstrierbar. Sie ersetzt keine produktive
-Authentifizierung. Produktive Bereitstellungen müssen:
+Mit `RAGOPS_IDENTITY_PROVIDER=oidc` meldet das Dashboard Benutzer über den
+OIDC-Anbieter an (Streamlit `st.login`, Authorization Code mit PKCE). Vor der
+Anmeldung zeigt es nur die Seite **Anmeldung erforderlich**; ist der Anbieter nicht
+erreichbar, erscheint ein verständlicher Hinweis statt einer Weiterleitung.
 
-- Mandanten- und Rollen-Claims von einem vertrauenswürdigen OIDC/OAuth2-Anbieter beziehen;
-- Aussteller, Zielgruppe, Signatur, Ablaufzeit und Autorisierungsrichtlinie validieren;
-- vom Client übermittelte Änderungen an Mandant oder Rolle ignorieren;
-- den bestehenden Mandantenfilter im Retrieval als zusätzliche Schutzschicht beibehalten.
+- Das Access-Token bleibt serverseitig im signierten, HttpOnly-Sitzungscookie und
+  wird nur als Bearer-Token an die interne `RAGOPS_API_URL` gesendet.
+- Mandant und Rollen stammen ausschließlich aus dem lokal verifizierten Token
+  (dieselben `RAGOPS_OIDC_*`-Einstellungen wie die API); die Auswahlfelder für
+  Mandant und Rolle existieren nur im Entwicklungsmodus.
+- Ein abgelaufenes oder abgelehntes Token führt zur Seite **Sitzung abgelaufen**
+  ohne Daten; **Erneut anmelden** führt über den Anbieter zurück. Ein stiller
+  Refresh-Token-Ablauf ist nicht implementiert.
+- **Abmelden** löscht die Sitzungscookies und beendet die Anbietersitzung über den
+  `end_session_endpoint`.
+
+Die OIDC-Konfiguration liegt außerhalb des Repositorys in einer Streamlit-Secrets-Datei
+(`--secrets.files=<pfad>`):
+
+~~~toml
+[auth]
+redirect_uri = "https://copilot.example/oauth2callback"
+cookie_secret = "<zufälliger geheimer Wert>"
+client_id = "<vertraulicher Dashboard-Client>"
+client_secret = "<Client-Secret>"
+server_metadata_url = "https://idp.example/realms/<realm>/.well-known/openid-configuration"
+expose_tokens = ["access"]
+~~~
+
+Der Dashboard-Client braucht einen Audience-Mapper auf `ragops-api` und einen
+`tenant_id`-Claim; Rollen kommen aus `resource_access.ragops-api.roles`.
+
+Im Entwicklungsmodus bleibt die Auswahl von Mandant und Rolle für Demos erhalten;
+sie ersetzt keine Authentifizierung und die API ignoriert sie außerhalb von
+Entwicklungsumgebungen.
+
+## Wissensbasis: Upload und Verarbeitung
+
+Die Ansicht **Wissensbasis** lädt Dateien (PDF, DOCX, Markdown, Text, CSV, maximal
+2 MB) über `POST /v1/documents/upload` hoch und zeigt die Verarbeitungsaufträge des
+eigenen Mandanten mit Titel, Datei und Status als Text (**In Warteschlange**,
+**In Verarbeitung**, **Bereit**, **Fehlgeschlagen**). Solange Aufträge laufen,
+aktualisiert sich die Liste alle drei Sekunden; **Erneut versuchen** startet einen
+fehlgeschlagenen Auftrag neu, sofern die Rolle es erlaubt. Doppelte Übertragungen
+derselben Datei erzeugen keinen zweiten Auftrag. Abgelehnte Dateien (Typ, leer,
+beschädigt, Duplikat) werden mit einer konkreten Meldung erklärt.
+
+Der Copilot beantwortet Fragen weiterhin aus dem kontrollierten Demo-Korpus
+(**Abfragebasis (Demo-Korpus)**). Hochgeladene Dokumente werden vom Worker
+indexiert, fließen aber nicht in Antworten ein.
+
+## Fehlerdarstellung und Barrierefreiheit
+
+API-Fehler werden in handlungsleitende Meldungen ohne technische Details übersetzt:
+fehlende Berechtigung (403), zu viele Anfragen mit Wartezeit aus `Retry-After`
+(429), vorübergehend nicht verfügbarer Dienst (503) und eingeschränkte Readiness in
+der Seitenleiste. Seitentitel sind Überschriften, der Tastaturfokus ist sichtbar
+markiert, und ein kleines Skript behebt zwei Markup-Mängel von Streamlit 1.60
+(`aria-expanded` an der Seitenleiste, unbenanntes Datei-Eingabefeld).
 
 ## Sicherheitseigenschaften
 
@@ -78,7 +131,7 @@ Authentifizierung. Produktive Bereitstellungen müssen:
 
 ## Konfiguration
 
-Dashboard direkt auf dem Host starten:
+Dashboard direkt auf dem Host starten (Entwicklungsmodus):
 
 ~~~bash
 RAGOPS_API_URL=http://localhost:8000 streamlit run apps/dashboard/dashboard.py
@@ -95,6 +148,9 @@ Automatisierte Abdeckung:
   begrenzte Chatrollen.
 - **tests/integration/test_api.py** prüft Query-, OpenAPI-, Evaluations-, Audit-,
   Kosten- und Dokumentverträge.
+- **scripts/browser_e2e_gate.py** (`RAGOPS_RC_GATES=browser_e2e make rc-live-gate`)
+  steuert ein echtes Headless-Chromium durch Keycloak-Anmeldung, Rollen, Mandanten,
+  Upload, Ausfall und Wiederherstellung, Tastatur, Mobilansicht und axe-Prüfung.
 - **make verify** führt Linting, Tests, Security-, Dependency-, Evaluations- und
   Container-Konfigurationsprüfungen aus.
 

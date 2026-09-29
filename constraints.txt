@@ -112,3 +112,10 @@ cffi==2.1.1
 pycparser==3.0
 redis==6.4.0
 qdrant-client==1.15.1
+
+# Dashboard OIDC sign-in and the browser end-to-end gate (e2e extra)
+Authlib==1.8.0
+joserfc==1.7.5
+playwright==1.63.0
+pyee==13.0.1
+axe-playwright-python==0.1.8

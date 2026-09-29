@@ -24,6 +24,8 @@ dependencies = [
   "pypdf==6.16.2",
   "python-docx==1.2.0",
   "redis==6.4.0",
+  # Dashboard sign-in through the OIDC provider (Streamlit st.login).
+  "Authlib==1.8.0",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +45,12 @@ async = [
 ]
 vector = [
   "qdrant-client==1.15.1",
+]
+e2e = [
+  # Browser end-to-end RC gate; the Chromium build is installed with
+  # `python -m playwright install chromium`.
+  "playwright==1.63.0",
+  "axe-playwright-python==0.1.8",
 ]
 dev = [
   "pytest==9.1.1",

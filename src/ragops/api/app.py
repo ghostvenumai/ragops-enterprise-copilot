@@ -818,13 +818,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> list[dict[str, object]]:
         from sqlalchemy import select
 
-        from ragops.persistence.models import IngestionJob
+        from ragops.persistence.models import Document, DocumentVersion, IngestionJob
 
         _service, session = km_service(identity_context)
         try:
-            jobs = session.scalars(
-                select(IngestionJob)
-                .where(IngestionJob.tenant_id == identity_context.tenant_id)
+            tenant = identity_context.tenant_id
+            rows = session.execute(
+                select(IngestionJob, Document.title, DocumentVersion.filename)
+                .outerjoin(
+                    Document,
+                    (Document.tenant_id == IngestionJob.tenant_id)
+                    & (Document.id == IngestionJob.document_id),
+                )
+                .outerjoin(
+                    DocumentVersion,
+                    (DocumentVersion.tenant_id == IngestionJob.tenant_id)
+                    & (DocumentVersion.id == IngestionJob.document_version_id),
+                )
+                .where(IngestionJob.tenant_id == tenant)
                 .order_by(IngestionJob.created_at.desc())
                 .limit(200)
             )
@@ -837,8 +848,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "document_id": str(job.document_id),
                     "version_id": str(job.document_version_id),
                     "error_code": job.error_code,
+                    "title": title,
+                    "filename": filename,
                 }
-                for job in jobs
+                for job, title, filename in rows
             ]
         finally:
             session.close()

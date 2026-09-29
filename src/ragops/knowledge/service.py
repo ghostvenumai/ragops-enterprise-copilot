@@ -51,6 +51,7 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     "superseded": frozenset({"deleted"}),
     "deleted": frozenset(),
 }
+CONTENT_SIGNATURES: dict[str, bytes] = {".pdf": b"%PDF-", ".docx": b"PK\x03\x04"}
 ALLOWED_MIME: dict[str, str] = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -127,6 +128,11 @@ def validate_upload(
         raise UnsafeUploadError("empty files are not allowed")
     if len(content) > max_size:
         raise UnsafeUploadError("file exceeds size limit")
+    # Binary formats must carry their signature; a renamed or corrupted file is rejected
+    # at intake instead of being reported as successfully ingested.
+    signature = CONTENT_SIGNATURES.get(suffix)
+    if signature is not None and not content.startswith(signature):
+        raise UnsafeUploadError("file content does not match its type")
     return normalized
 
 
