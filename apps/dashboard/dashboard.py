@@ -54,6 +54,10 @@ UPLOAD_REJECTIONS = {
     "file content does not match its type": (
         "Die Datei ist beschädigt oder passt nicht zu ihrem Dateityp."
     ),
+    "file is encrypted or contains active content": (
+        "Die Datei ist verschlüsselt oder enthält aktive Inhalte (z. B. Skripte, Makros)."
+    ),
+    "archive exceeds safety limits": "Die Datei überschreitet die zulässigen Archivgrenzen.",
     "unsafe file name": "Der Dateiname ist nicht zulässig. Bitte die Datei umbenennen.",
     "duplicate content in collection": "Dieses Dokument ist in der Collection bereits vorhanden.",
 }
@@ -552,6 +556,7 @@ def _identity_verifier() -> Any:
         settings.oidc_algorithms,
         settings.oidc_tenant_claim,
         settings.oidc_roles_claim,
+        settings.oidc_allowed_clients,
     )
 
 

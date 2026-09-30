@@ -7,12 +7,14 @@ as `not_executed`. It does not fabricate results.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
@@ -26,6 +28,94 @@ SECRET_PATTERNS = [
     re.compile(r"(?i)(api[_-]?key|secret|token)[ \t]*=[ \t]*['\"][A-Za-z0-9_./+-]{12,}"),
     re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"),
 ]
+
+
+@dataclass(frozen=True)
+class SyntheticLiteral:
+    """One documented synthetic test literal the secret scan may explain."""
+
+    path: str
+    pattern: int  # index into SECRET_PATTERNS
+    sha256: str  # of the exact matched text, so the literal is not repeated here
+    rationale: str
+
+
+# The narrowest suppression the scanner supports: exact file, exact pattern and exact
+# matched text. There is no directory, file-wide or pattern-wide exclusion; any other
+# match in the same file, and any change to a listed literal, is a finding again. An
+# entry that no longer matches anything fails the scan, so the list cannot go stale.
+SECRET_SCAN_ALLOWLIST: tuple[SyntheticLiteral, ...] = (
+    SyntheticLiteral(
+        "tests/unit/test_tts_cache.py",
+        1,
+        "4e80de5f7b7b317ee414970c3bf1a88b21e76001043838716d426e79cddf64de",
+        "f-string template around a generated fake key; proves redact_secrets removes it",
+    ),
+    SyntheticLiteral(
+        "tests/product/test_browser_e2e_gate.py",
+        1,
+        "179c3c808b4ad9b6819d56f3bb36bb7f9c05233d3f6d6561c7e0482e7d36fa84",
+        "alphabet-sequence bearer value in a synthetic trace; proves scan_artifacts finds it",
+    ),
+    SyntheticLiteral(
+        "tests/product/test_browser_e2e_gate.py",
+        2,
+        "e23bf7b1bb77bb0f19aa5b371fce44428fda53399462e13c397e2a1b0d9017aa",
+        "unsigned token-shaped literal; proves evidence with a token becomes a FAIL record",
+    ),
+    SyntheticLiteral(
+        "tests/product/test_provider_diagnostics.py",
+        1,
+        "ce56167cde06c6905ab67ce64ed6ee9a963a111680ed1076f15e146a10adbf14",
+        "f-string template around a fake bearer value; proves diagnostics are redacted",
+    ),
+    SyntheticLiteral(
+        "tests/product/test_provider_diagnostics.py",
+        2,
+        "bbb230aff2016b76461d3d1aacfa9647f2f071226e36576deabbc086bc20e937",
+        "self-describing key for an httpx MockTransport client on provider.invalid",
+    ),
+)
+# Environment templates that may exist and be tracked: exact repository-root names only.
+ENV_TEMPLATES = frozenset({".env.example", ".env.integration.example"})
+# Templates whose content is checked line by line; every credential stays a placeholder.
+CHECKED_ENV_TEMPLATES = frozenset({".env.integration.example"})
+CREDENTIAL_NAME = re.compile(r"PASSWORD|SECRET|TOKEN|API_KEY|PUBLIC_KEY|PRIVATE_KEY")
+URL_USERINFO = re.compile(r"://([^/@\s]+)@")
+URL_USERINFO_PLACEHOLDER = "USER:PASSWORD"
+
+
+def env_template_issues(text: str) -> list[str]:
+    """Variable names of a template whose values are not unmistakable placeholders."""
+    issues = []
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        name, separator, value = line.partition("=")
+        if not separator:
+            issues.append(line.split()[0])
+            continue
+        userinfo = URL_USERINFO.findall(value)
+        if (
+            (CREDENTIAL_NAME.search(name) and value.strip())
+            or any(item != URL_USERINFO_PLACEHOLDER for item in userinfo)
+            or any(pattern.search(line) for pattern in SECRET_PATTERNS)
+        ):
+            issues.append(name.strip())
+    return issues
+
+
+def env_template_is_secret_free(relative_path: str) -> bool:
+    """True only for a known root-level template whose content passes the check."""
+    if relative_path not in ENV_TEMPLATES:
+        return False
+    if relative_path not in CHECKED_ENV_TEMPLATES:
+        return True
+    try:
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return not env_template_issues(text)
 
 
 def write_json(name: str, payload: Mapping[str, object]) -> None:
@@ -94,7 +184,8 @@ def check_no_env_files() -> dict[str, object]:
     env_files = [
         str(path.relative_to(REPO_ROOT))
         for path in REPO_ROOT.rglob(".env*")
-        if path.name != ".env.example" and ".git" not in path.parts
+        if ".git" not in path.parts
+        and not env_template_is_secret_free(str(path.relative_to(REPO_ROOT)))
     ]
     return {
         "name": "env-file-check",
@@ -128,8 +219,10 @@ def check_no_tracked_secret_files() -> dict[str, object]:
     prohibited = [
         path
         for path in tracked
-        if Path(path).name in {".env", ".env.local"}
-        or (Path(path).name.startswith(".env.") and Path(path).name != ".env.example")
+        if (
+            (Path(path).name == ".env" or Path(path).name.startswith(".env."))
+            and not env_template_is_secret_free(path)
+        )
         or Path(path).suffix == ".secret"
     ]
     return {
@@ -141,6 +234,9 @@ def check_no_tracked_secret_files() -> dict[str, object]:
 
 def secret_scan() -> dict[str, object]:
     findings: list[dict[str, str]] = []
+    explained: list[dict[str, str]] = []
+    allowlist = {(item.path, item.pattern, item.sha256): item for item in SECRET_SCAN_ALLOWLIST}
+    used: set[tuple[str, int, str]] = set()
     for path in iter_repo_files():
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".ico"}:
             continue
@@ -148,18 +244,30 @@ def secret_scan() -> dict[str, object]:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for pattern in SECRET_PATTERNS:
-            for _ in pattern.finditer(text):
-                findings.append(
-                    {
-                        "path": str(path.relative_to(REPO_ROOT)),
-                        "pattern": pattern.pattern,
-                        "preview": "[REDACTED]",
-                    }
+        relative = str(path.relative_to(REPO_ROOT))
+        for index, pattern in enumerate(SECRET_PATTERNS):
+            for match in pattern.finditer(text):
+                key = (relative, index, hashlib.sha256(match.group(0).encode()).hexdigest())
+                entry = allowlist.get(key)
+                if entry is None:
+                    findings.append(
+                        {"path": relative, "pattern": pattern.pattern, "preview": "[REDACTED]"}
+                    )
+                    continue
+                used.add(key)
+                explained.append(
+                    {"path": relative, "pattern": pattern.pattern, "rationale": entry.rationale}
                 )
+    unused = [
+        {"path": item.path, "rationale": item.rationale}
+        for key, item in allowlist.items()
+        if key not in used
+    ]
     report: dict[str, object] = {
-        "status": "passed" if not findings else "failed",
+        "status": "passed" if not findings and not unused else "failed",
         "findings": findings,
+        "explained_synthetic_literals": explained,
+        "unused_allowlist_entries": unused,
     }
     write_json("secret-scan.json", report)
     return {"name": "secret-scan", **report}
@@ -349,6 +457,11 @@ def build_loop_summary() -> None:
     )
 
 
+def summary_file(mode: str | None) -> str:
+    """verify-summary.json is the full run; a --only run never replaces it."""
+    return "verify-summary.json" if mode is None else f"verify-summary-{mode}.json"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", choices=["lint", "typecheck", "security"], default=None)
@@ -438,25 +551,28 @@ def main(argv: list[str] | None = None) -> int:
             "bandit",
         }
     ]
-    write_json(
-        "security-report.json",
-        {
-            "status": "passed"
-            if all(result.get("status") == "passed" for result in security_results)
-            else "failed",
-            "security_pass_rate": round(
-                sum(int(result.get("status") == "passed") for result in security_results)
-                / len(security_results),
-                4,
-            )
-            if security_results
-            else 0.0,
-            "results": security_results,
-        },
-    )
-    write_json("verify-summary.json", summary)
+    # A lint or typecheck run has no security results and must not rewrite the report.
+    if security_results:
+        write_json(
+            "security-report.json",
+            {
+                "status": "passed"
+                if all(result.get("status") == "passed" for result in security_results)
+                else "failed",
+                "security_pass_rate": round(
+                    sum(int(result.get("status") == "passed") for result in security_results)
+                    / len(security_results),
+                    4,
+                )
+                if security_results
+                else 0.0,
+                "results": security_results,
+            },
+        )
+    write_json(summary_file(args.only), {**summary, "mode": args.only or "full"})
     build_loop_summary()
-    if summary["status"] == "passed":
+    # The release bundle reports on full verification only.
+    if summary["status"] == "passed" and args.only is None:
         from scripts.build_evidence_bundle import main as build_bundle
 
         build_bundle()

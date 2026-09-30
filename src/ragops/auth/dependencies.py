@@ -37,6 +37,7 @@ def identity_provider_for(settings: Settings) -> IdentityProvider:
         algorithms=settings.oidc_algorithms,
         tenant_claim=settings.oidc_tenant_claim,
         roles_claim=settings.oidc_roles_claim,
+        allowed_clients=settings.oidc_allowed_clients,
     )
 
 

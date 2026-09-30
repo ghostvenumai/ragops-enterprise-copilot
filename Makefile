@@ -125,6 +125,12 @@ oidc-integration-bootstrap:
 oidc-integration-check:
 	$(PYTHON) scripts/oidc_integration_check.py
 
+oidc-integration-cleanup:
+	$(PYTHON) scripts/configure_local_oidc_integration.py --cleanup
+
+security-gate:
+	$(PYTHON) scripts/security_gate.py
+
 test-dr-integration:
 	@echo "NOT_EXECUTED: requires authorized PostgreSQL/Qdrant deployment"
 

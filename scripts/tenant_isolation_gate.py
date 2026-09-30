@@ -909,14 +909,15 @@ def _disposable_qdrant(evidence: dict[str, Any]) -> Iterator[str | None]:
             endpoint = endpoint if ready else None
         yield endpoint
     finally:
-        stopped = subprocess.run(
-            [*base, "rm", "-sf", qdrant_gate.COMPOSE_SERVICE],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        evidence["qdrant_service_cleanup_status"] = "PASS" if stopped.returncode == 0 else "FAIL"
+        # "rm" leaves the project network behind; "down" on this run's own project removes
+        # it too, so repeated gate runs cannot exhaust Docker's address pools.
+        removed = [
+            subprocess.run(
+                [*base, *arguments], cwd=ROOT, capture_output=True, text=True, check=False
+            ).returncode
+            for arguments in (("rm", "-sf", qdrant_gate.COMPOSE_SERVICE), ("down",))
+        ]
+        evidence["qdrant_service_cleanup_status"] = "PASS" if not any(removed) else "FAIL"
 
 
 def main() -> int:

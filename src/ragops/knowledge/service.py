@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,6 +21,7 @@ from ragops.persistence.models import (
     TenantOwned,
     Workspace,
 )
+from ragops.security.documents import inspect_document
 from ragops.security.upload import (
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE_BYTES,
@@ -81,7 +83,7 @@ class LocalDocumentBlobStore:
 
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def put(self, tenant_id: str, content_hash: str, filename: str, content: bytes) -> str:
         suffix = Path(filename).suffix.lower()
@@ -89,7 +91,11 @@ class LocalDocumentBlobStore:
         target = (self.root / key).resolve()
         if self.root not in target.parents:
             raise UnsafeUploadError("storage path escaped configured root")
-        target.write_bytes(content)
+        # Untrusted bytes are stored owner-only and never executable.
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+        os.chmod(target, 0o600)
         return key
 
     def get(self, storage_reference: str) -> bytes:
@@ -133,6 +139,7 @@ def validate_upload(
     signature = CONTENT_SIGNATURES.get(suffix)
     if signature is not None and not content.startswith(signature):
         raise UnsafeUploadError("file content does not match its type")
+    inspect_document(suffix, content)
     return normalized
 
 

@@ -11,8 +11,11 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def test_real_pdf_and_docx_signatures_are_accepted() -> None:
-    assert validate_upload("a.pdf", "application/pdf", b"%PDF-1.7\n...") == "a.pdf"
-    assert validate_upload("a.docx", DOCX, b"PK\x03\x04rest") == "a.docx"
+    from scripts.browser_e2e_gate import synthetic_pdf
+    from tests.unit.test_document_inspection import docx
+
+    assert validate_upload("a.pdf", "application/pdf", synthetic_pdf("x")) == "a.pdf"
+    assert validate_upload("a.docx", DOCX, docx()) == "a.docx"
     assert validate_upload("a.txt", "text/plain", b"plain text") == "a.txt"
 
 

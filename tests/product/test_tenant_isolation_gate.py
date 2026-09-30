@@ -199,3 +199,24 @@ def test_rc_runner_merges_detailed_tenant_evidence_and_keeps_prior_pass() -> Non
         "tenant_isolation",
     )
     assert (evidence["status"], evidence["tenant_leakage"]) == ("PASS", 0)
+
+
+@pytest.mark.parametrize(("down_exit", "expected"), [(0, "PASS"), (1, "FAIL")])
+def test_disposable_qdrant_removes_its_project_network(monkeypatch, down_exit, expected) -> None:
+    commands: list[list[str]] = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        failed = "up" in command or (command[-1] == "down" and down_exit)
+        return gate.subprocess.CompletedProcess(command, 1 if failed else 0, "", "")
+
+    monkeypatch.setattr(gate.subprocess, "run", run)
+    evidence: dict[str, object] = {}
+    with gate._disposable_qdrant(evidence) as endpoint:
+        assert endpoint is None
+    project = commands[0][commands[0].index("-p") + 1]
+    assert project.startswith("ragops-enterprise-copilot-rc-qdrant-ti-")
+    assert [command[-1] for command in commands[-2:]] == ["rc-qdrant", "down"]
+    assert all(command[command.index("-p") + 1] == project for command in commands)
+    assert not any("-v" in command or "--volumes" in command for command in commands)
+    assert evidence["qdrant_service_cleanup_status"] == expected

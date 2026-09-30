@@ -36,7 +36,7 @@ services:
   dashboard:
     image: ragops-enterprise-copilot:local
     profiles: ["development", "demo"]
-    command: ["streamlit", "run", "apps/dashboard/dashboard.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.maxUploadSize=2", "--client.toolbarMode=viewer"]
+    command: ["streamlit", "run", "apps/dashboard/dashboard.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.maxUploadSize=2", "--client.toolbarMode=viewer", "--client.showErrorDetails=none"]
     environment:
       RAGOPS_API_URL: http://api:8000
     ports:

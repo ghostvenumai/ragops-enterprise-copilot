@@ -111,7 +111,7 @@ def _job(engine: Engine, tmp_path: Path, max_attempts: int = 3) -> IngestionMess
         workspace = service.create_workspace(f"W{uuid4().hex[:6]}")
         collection = service.create_collection(workspace.id, "C")
         upload = service.upload(
-            workspace.id, collection.id, "T", "k", "d.txt", "text/plain", uuid4().bytes
+            workspace.id, collection.id, "T", "k", "d.txt", "text/plain", uuid4().hex.encode()
         )
         job = IngestionWorker(session, max_attempts=max_attempts).create_job(
             "tenant-a", upload.document.id, upload.version.id

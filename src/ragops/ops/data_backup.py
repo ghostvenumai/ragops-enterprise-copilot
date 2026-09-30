@@ -70,9 +70,13 @@ def load_backup_key(path: Path) -> bytes:
     """Read a 256-bit key from a file that is not readable by group or others."""
     if not path.is_file() or path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
         raise BackupError("backup key file must exist and be private (0600)")
-    raw = path.read_bytes().strip()
+    raw = path.read_bytes()
+    if len(raw) == 32:
+        # A raw key is binary data: any byte, including whitespace, is key material.
+        return raw
+    # Only the textual base64 format is normalized, by its own parser.
     try:
-        key = raw if len(raw) == 32 else base64.b64decode(raw, validate=True)
+        key = base64.b64decode(raw.strip(), validate=True)
     except ValueError:  # binascii.Error is a ValueError subclass
         raise BackupError("backup key must be 32 raw or base64-encoded bytes") from None
     if len(key) != 32:

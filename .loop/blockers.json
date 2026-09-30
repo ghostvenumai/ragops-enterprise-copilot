@@ -54,5 +54,20 @@
     "status": "open",
     "reason": "Existing external LLM live evidence is FAIL; the diagnostics briefing prohibits a paid request in Codex.",
     "safe_alternative": "Validate sanitized SDK diagnostics with MockTransport; preserve all rc-live evidence and let the operator rerun the selected gate once on the authorized host."
+  },
+  {
+    "id": "ent-10-9-docker-address-pools-exhausted",
+    "first_seen": "2026-09-30",
+    "status": "resolved",
+    "reason": "Docker cannot create a network for the disposable RC Qdrant service: all predefined address pools have been fully subnetted. Unused *-rc-qdrant-ti-*_default networks of earlier gate runs remain on the host. The qdrant, tenant_isolation, backup_restore, readiness_failure_recovery and browser_e2e gates cannot start on this host until networks are freed.",
+    "safe_alternative": "No Docker network was removed. Live evidence of earlier commits was preserved; the security gate treats it as stale and stays BLOCKED. The operator frees unused networks and reruns the gates on the committed HEAD.",
+    "resolution": "2026-09-30: 22 empty networks of old rc-qdrant-ti gate projects were removed individually by exact ID after checking name pattern, Compose labels and an empty container map twice; the 10 other networks are unchanged. The gates now run compose down on their own project so the network is removed with the service."
+  },
+  {
+    "id": "ent-10-9-oidc-test-user-password-unavailable",
+    "first_seen": "2026-09-30",
+    "status": "open",
+    "reason": "KEYCLOAK_TEST_USER_PASSWORD is not set in the agent session and not in the sourced local integration environment, so the oidc gate cannot be rerun there. KEYCLOAK_ADMIN_PASSWORD and RAGOPS_TEST_DATABASE_URL are also absent from that file.",
+    "safe_alternative": "The integration user's password was not reset and no live gate was selected without its prerequisites. The operator exports the missing variables and runs the ENT-10.9A gate set on the committed HEAD."
   }
 ]

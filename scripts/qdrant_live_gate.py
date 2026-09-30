@@ -286,8 +286,11 @@ def main() -> int:
             client.close()
         else:
             evidence["cleanup_status"] = "NOT_REQUIRED"
-        stopped = _run([*base, "rm", "-sf", COMPOSE_SERVICE])
-        evidence["service_cleanup_status"] = "PASS" if stopped.returncode == 0 else "FAIL"
+        # "rm" leaves the project network behind; "down" on this run's own project removes it.
+        stopped = [_run([*base, "rm", "-sf", COMPOSE_SERVICE]), _run([*base, "down"])]
+        evidence["service_cleanup_status"] = (
+            "PASS" if all(item.returncode == 0 for item in stopped) else "FAIL"
+        )
 
     if evidence["cleanup_status"] == "FAIL" or evidence.get("service_cleanup_status") == "FAIL":
         integration_ok = False

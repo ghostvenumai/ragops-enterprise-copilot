@@ -1,11 +1,1 @@
-src/ragops/persistence/database.py:10: error: Cannot find implementation or library stub for module named "sqlalchemy"  [import-not-found]
-src/ragops/persistence/database.py:11: error: Cannot find implementation or library stub for module named "sqlalchemy.engine"  [import-not-found]
-src/ragops/persistence/database.py:11: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
-src/ragops/persistence/database.py:12: error: Cannot find implementation or library stub for module named "sqlalchemy.orm"  [import-not-found]
-src/ragops/persistence/models.py:14: error: Cannot find implementation or library stub for module named "sqlalchemy"  [import-not-found]
-src/ragops/persistence/models.py:27: error: Cannot find implementation or library stub for module named "sqlalchemy.orm"  [import-not-found]
-src/ragops/persistence/models.py:30: error: Class cannot subclass "DeclarativeBase" (has type "Any")  [misc]
-src/ragops/persistence/repository.py:8: error: Cannot find implementation or library stub for module named "sqlalchemy"  [import-not-found]
-src/ragops/persistence/repository.py:9: error: Cannot find implementation or library stub for module named "sqlalchemy.orm"  [import-not-found]
-src/ragops/persistence/repository.py:32: error: Returning Any from function declared to return "Record | None"  [no-any-return]
-Found 9 errors in 3 files (checked 76 source files)
+Success: no issues found in 129 source files

@@ -52,6 +52,7 @@ API_CLIENT = "ragops-api"
 ROLES_CLAIM = f"resource_access.{API_CLIENT}.roles"
 DEFAULT_REDIS_URL = "redis://redis:6379/0"
 TENANT_A, TENANT_B = "tenant-alpha", "tenant-beta"
+PLATFORM_TENANT = "rc-platform-ops"
 RATE_LIMIT = 40
 DESKTOP = {"width": 1440, "height": 900}
 MOBILE = {"width": 390, "height": 844}
@@ -486,6 +487,7 @@ def start_dashboard(
         "--browser.gatherUsageStats=false",
         "--server.maxUploadSize=2",
         "--client.toolbarMode=viewer",
+        "--client.showErrorDetails=none",
         f"--secrets.files={secrets_file}",
     ]
     return Service(name, command, env, logs / f"{name}.log")
@@ -512,6 +514,9 @@ class Environment:
     admin: KeycloakAdmin
     ledger: Path
     work: Path
+    # For gates that add their own processes; everything listed here is stopped on cleanup.
+    service_env: dict[str, str] = field(default_factory=dict)
+    services: list[Service] = field(default_factory=list)
 
     def token(self, label: str) -> str:
         return password_token(self.client_id, self.client_secret, self.users[label])
@@ -718,6 +723,7 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             "RAGOPS_OIDC_PUBLIC_KEY": realm_public_key(),
             "RAGOPS_OIDC_ROLES_CLAIM": ROLES_CLAIM,
             "RAGOPS_OIDC_TENANT_CLAIM": "tenant_id",
+            "RAGOPS_OIDC_ALLOWED_CLIENTS": client_id,
         }
         product = {
             **base_env(),
@@ -741,6 +747,7 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             "RAGOPS_DEPENDENCY_TIMEOUT_SECONDS": "1",
             "RAGOPS_WORKER_BACKOFF_MAX_SECONDS": "1",
             "RAGOPS_E2E_PROVIDER_LEDGER": str(ledger),
+            "RAGOPS_PLATFORM_ADMIN_TENANT_ID": PLATFORM_TENANT,
         }
         launcher = str(ROOT / "scripts" / "browser_e2e_services.py")
         logs = work / "logs"
@@ -802,6 +809,8 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             admin=admin,
             ledger=ledger,
             work=work,
+            service_env=product,
+            services=services,
         )
     finally:
         stopped = [service.stop() for service in services]

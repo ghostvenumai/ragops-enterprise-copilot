@@ -116,6 +116,8 @@ class OIDCIdentityProvider:
     algorithms: tuple[str, ...] = ("RS256",)
     tenant_claim: str = "tenant_id"
     roles_claim: str = "roles"
+    # When set, the authorized party (azp, or client_id) must be one of these clients.
+    allowed_clients: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.issuer or not self.audience or not self.public_key:
@@ -141,6 +143,7 @@ class OIDCIdentityProvider:
             )
         except (jwt.InvalidTokenError, TypeError, ValueError) as exc:
             raise AuthenticationError("token validation failed") from exc
+        self._require_access_token(token, claims)
         subject = claims.get("sub")
         tenant = _claim_value(claims, self.tenant_claim)
         if not isinstance(subject, str) or not subject:
@@ -157,6 +160,23 @@ class OIDCIdentityProvider:
             issuer=self.issuer,
             subject=subject,
         )
+
+    def _require_access_token(self, token: str, claims: dict[str, Any]) -> None:
+        """Reject ID, refresh and logout tokens and unapproved clients (token confusion)."""
+        header_type = jwt.get_unverified_header(token).get("typ")
+        if header_type is not None and str(header_type).lower() not in _ACCESS_HEADER_TYPES:
+            raise AuthenticationError("token type is not an access token")
+        claim_type = claims.get("typ")
+        if claim_type is not None and str(claim_type).lower() not in _ACCESS_CLAIM_TYPES:
+            raise AuthenticationError("token type is not an access token")
+        if self.allowed_clients:
+            party = claims.get("azp") or claims.get("client_id")
+            if party not in self.allowed_clients:
+                raise AuthenticationError("token was issued to an unapproved client")
+
+
+_ACCESS_HEADER_TYPES = frozenset({"jwt", "at+jwt", "application/at+jwt"})
+_ACCESS_CLAIM_TYPES = frozenset({"bearer", "at+jwt"})
 
 
 def _optional_string(value: Any) -> str | None:

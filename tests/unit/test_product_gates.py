@@ -102,3 +102,29 @@ def test_unavailable_dependency_scan_writes_error_not_empty_or_stale_json(
     report = json.loads((tmp_path / "dependency-audit.json").read_text())
     assert report["status"] == "failed"
     assert report["stderr_tail"] == "resolver unavailable"
+
+
+def test_partial_runs_never_replace_the_full_verification_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verify, "EVIDENCE_DIR", tmp_path)
+    monkeypatch.setattr(verify, "REPO_ROOT", tmp_path)
+    full = tmp_path / "verify-summary.json"
+    full.write_text('{"status": "failed", "mode": "full"}')
+    report = tmp_path / "security-report.json"
+    report.write_text('{"status": "failed"}')
+    monkeypatch.setattr(
+        verify, "run_command", lambda name, *args, **kwargs: {"name": name, "status": "passed"}
+    )
+    bundles: list[str] = []
+    monkeypatch.setattr("scripts.build_evidence_bundle.main", lambda: bundles.append("built"))
+
+    assert verify.main(["--only", "lint"]) == 0
+    assert json.loads(full.read_text()) == {"status": "failed", "mode": "full"}
+    assert json.loads(report.read_text()) == {"status": "failed"}
+    partial = json.loads((tmp_path / "verify-summary-lint.json").read_text())
+    assert (partial["status"], partial["mode"]) == ("passed", "lint")
+    assert bundles == []
+    assert verify.summary_file(None) == "verify-summary.json"
+    assert verify.summary_file("security") == "verify-summary-security.json"

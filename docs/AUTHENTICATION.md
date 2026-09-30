@@ -46,3 +46,20 @@ stolen. The API therefore validates every request, never trusts client identity
 fields, and relies on short token lifetimes and upstream key rotation for
 revocation. Compromised issuer keys or an already authorized administrator are
 outside this component's boundary and require provider-side response.
+
+## Hardening settings (ENT-10.9)
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `RAGOPS_OIDC_ALLOWED_CLIENTS` | empty | Comma-separated client IDs. When set, the token's authorized party (`azp`, else `client_id`) must be one of them. |
+| `RAGOPS_PLATFORM_ADMIN_TENANT_ID` | unset | Only admins of this tenant may change the shared model catalog; unset disables catalog changes. |
+| `RAGOPS_MAX_REQUEST_BYTES` | `3000000` | Request bodies above this size are rejected with 413 before parsing. |
+
+Independently of these settings, only access tokens are accepted: ID, refresh and
+logout tokens are rejected by their `typ` header or claim. In production the
+interactive API documentation and the OpenAPI schema are not served.
+
+The local Keycloak product client `ragops-api` has no resource-owner password grant.
+The local `oidc` gate uses the separate, gate-only client `ragops-integration-check`;
+see [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md) and the control matrix in
+[THREAT_MODEL.md](THREAT_MODEL.md).

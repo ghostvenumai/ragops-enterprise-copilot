@@ -513,6 +513,8 @@ def check_api(result: GateResult, workdir: Path) -> None:
         oidc_public_key=public_key,
         data_dir=workdir / "data",
         evidence_dir=workdir / "evidence",
+        # Tenant A operates the shared catalog; tenant admins elsewhere must not change it.
+        platform_admin_tenant_id=TENANT_A,
     )
     with deterministic_app_environment():
         client = TestClient(create_app(settings), raise_server_exceptions=False)
@@ -563,22 +565,29 @@ def check_api(result: GateResult, workdir: Path) -> None:
         and route_of(simulate(b)) == before_b,
     )
 
-    # Governance probe: explicit catalog changes by tenant A's admin, observed from tenant B's
-    # complete decision (selection and fallback chain), then restored.
+    # Governance probe: catalog changes attempted by tenant B's (non-platform) admin must not
+    # change tenant A's complete decision (selection and fallback chain).
     def decision_of(auth: dict[str, str]) -> tuple[int, str]:
         response = simulate(auth)
         return response.status_code, response.text
 
-    baseline_b = decision_of(b)
+    baseline_a = decision_of(a)
     default_model = "/v1/admin/models/deterministic/deterministic-ragops-v1"
     unapproved = "/v1/admin/models/rc-unapproved/default"
-    influence = []
+    influence, denied = [], []
     for path, value in ((unapproved, True), (default_model, False)):
-        changed = client.patch(path, json={"enabled": value}, headers=a).status_code == 200
-        influence.append(changed and decision_of(b) != baseline_b)
-        client.patch(path, json={"enabled": not value}, headers=a)
+        status = client.patch(path, json={"enabled": value}, headers=b).status_code
+        denied.append(status == 403)
+        influence.append(decision_of(a) != baseline_a)
+        if status == 200:
+            client.patch(path, json={"enabled": not value}, headers=b)
+    denied.append(
+        client.post("/v1/admin/providers", json={"provider_id": "rc-b"}, headers=b).status_code
+        == 403
+    )
     result.cross_tenant_catalog_influence = any(influence)
-    result.check("api_catalog_restored", decision_of(b) == baseline_b)
+    result.check("api_tenant_admin_cannot_change_catalog", all(denied))
+    result.check("api_catalog_restored", decision_of(a) == baseline_a)
     result.check(
         "api_admin_role_required",
         simulate(viewer).status_code == 403
@@ -637,10 +646,10 @@ def build_evidence(result: GateResult, paid_provider_calls: int) -> dict[str, An
         ),
         "max_fallback_depth_observed": result.max_fallback_depth_observed,
         "paid_provider_calls": paid_provider_calls,
-        "catalog_mutation_scope": "global",
+        "catalog_mutation_scope": "platform_admin_tenant_only",
         "cross_tenant_catalog_influence": result.cross_tenant_catalog_influence,
-        "governance_risk": "any tenant admin can enable or disable shared catalog entries and "
-        "thereby change routing for all tenants; recommend a platform-operator role",
+        "governance_risk": "the shared catalog changes only through admins of the configured "
+        "platform tenant (RAGOPS_PLATFORM_ADMIN_TENANT_ID); unset disables catalog changes",
         "cleanup_status": "PASS",
         "checks": dict(sorted(result.checks.items())),
         "errors": result.errors,

@@ -8,6 +8,7 @@ import os
 import platform
 import shutil
 import subprocess
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -43,8 +44,12 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "backup_restore",
         "readiness_failure_recovery",
         "browser_e2e",
+        "security",
     }
 )
+# The security gate reads the evidence of the other gates, so it always runs last.
+ORCHESTRATOR_GATES = frozenset({"security"})
+OIDC_BOOTSTRAP = [".venv/bin/python", "scripts/configure_local_oidc_integration.py"]
 
 
 def aggregate_statuses(statuses: dict[str, str]) -> tuple[str, str]:
@@ -103,6 +108,34 @@ def run_gate(command: list[str]) -> tuple[str, str]:
     return (status, (result.stderr or result.stdout)[-500:])
 
 
+def run_oidc_gate(
+    run: Callable[[list[str]], tuple[str, str]], manage_gate_client: bool
+) -> tuple[str, str]:
+    """Run the OIDC check; with admin access, create and always remove its gate-only client."""
+    if not manage_gate_client:
+        return run([".venv/bin/python", "scripts/oidc_integration_check.py"])
+    status, detail = run(OIDC_BOOTSTRAP)
+    try:
+        if status == "PASS":
+            status, detail = run([".venv/bin/python", "scripts/oidc_integration_check.py"])
+    finally:
+        cleanup_status, cleanup_detail = run([*OIDC_BOOTSTRAP, "--cleanup"])
+    if cleanup_status != "PASS":
+        return "FAIL", f"OIDC gate cleanup failed: {cleanup_detail}"
+    return status, detail
+
+
+def blocked_placeholder(gate: str, commit: str) -> dict[str, str]:
+    """Written before a detailed gate runs, so a crash can never leave older evidence."""
+    return {
+        "gate": gate,
+        "status": "BLOCKED",
+        "reason": f"{gate} gate did not produce a result",
+        "tested_commit": commit,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(
@@ -142,7 +175,7 @@ def main() -> int:
             "detail": detail or "Compose config validated",
         }
     if "oidc" in selected and os.getenv("RAGOPS_IDENTITY_PROVIDER") == "oidc":
-        status, detail = run_gate([".venv/bin/python", "scripts/oidc_integration_check.py"])
+        status, detail = run_oidc_gate(run_gate, bool(os.getenv("KEYCLOAK_ADMIN_PASSWORD")))
         gate_results["oidc"] = {
             "status": status,
             "detail": detail or "OIDC integration check passed",
@@ -261,7 +294,19 @@ def main() -> int:
         else {}
     )
     gate_status_results: dict[str, dict[str, str]] = {}
-    for gate in selected.intersection(GATES):
+    ordered = [gate for gate in GATES if gate in selected and gate not in ORCHESTRATOR_GATES]
+    ordered += [gate for gate in GATES if gate in selected and gate in ORCHESTRATOR_GATES]
+    for gate in ordered:
+        if gate == "security":
+            # All other evidence of this run is on disk by now.
+            (OUT / "security.json").write_text(
+                json.dumps(blocked_placeholder("security", commit), indent=2), encoding="utf-8"
+            )
+            status, detail = run_gate([".venv/bin/python", "scripts/security_gate.py"])
+            gate_results["security"] = {
+                "status": status,
+                "detail": detail or "See sanitized security.json evidence",
+            }
         gate_result = gate_results.get(gate, {"status": "BLOCKED", "reason": reason})
         evidence_path = OUT / f"{gate.replace('_', '-')}.json"
         if gate in DETAILED_EVIDENCE_GATES:

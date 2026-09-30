@@ -23,6 +23,8 @@ def client(keys: tuple[str, str], tmp_path: Path) -> TestClient:
         oidc_public_key=keys[1],
         data_dir=tmp_path / "data",
         evidence_dir=tmp_path / "evidence",
+        # tenant-alpha operates the shared catalog in these contracts.
+        platform_admin_tenant_id="tenant-alpha",
     )
     return TestClient(create_app(settings), raise_server_exceptions=False)
 

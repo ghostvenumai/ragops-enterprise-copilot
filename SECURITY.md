@@ -46,3 +46,16 @@ bypass the selected tenant in RBAC/retrieval. This fixes the backend bypass but
 does not authenticate demo clients. See docs/PRODUCTIZATION_AUDIT.md for unresolved
 release-blocking findings. Static analysis and synthetic evaluation are not a
 security certification. The schema/migrations are not locally execution-verified.
+
+## Secret scan suppressions
+
+The project secret scan (`scripts/verify.py`, `make security`) has no directory,
+file or pattern exclusions. `SECRET_SCAN_ALLOWLIST` explains individual synthetic
+test literals by exact file, exact pattern and the SHA-256 of the exact matched
+text, each with a written rationale; the scan report lists them as
+`explained_synthetic_literals`. Any other match in the same file, any change to a
+listed literal and any entry that no longer matches fail the scan.
+`.env.integration.example` is the only additional environment template that may be
+tracked, and only while every credential variable in it is empty and every URL uses
+the `USER:PASSWORD` placeholder. `tests/unit/test_secret_scan_allowlist.py` proves
+that nearby unapproved values are still reported.

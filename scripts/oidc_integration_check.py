@@ -28,7 +28,8 @@ def main() -> int:
     body = urllib.parse.urlencode(
         {
             "grant_type": "password",
-            "client_id": "ragops-api",
+            # Local-only gate client; the product client ragops-api has no password grant.
+            "client_id": "ragops-integration-check",
             "username": "integration-user",
             "password": password,
         }

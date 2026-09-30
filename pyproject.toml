@@ -37,7 +37,7 @@ persistence = [
   "cryptography==50.0.1",
 ]
 identity = [
-  "PyJWT[crypto]==2.10.1",
+  "PyJWT[crypto]==2.14.0",
 ]
 async = [
   # Compatibility extra; Redis is also a core runtime dependency for workers.
@@ -93,6 +93,11 @@ warn_return_any = true
 warn_unused_configs = true
 exclude = ["build/", "dist/"]
 explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# defusedxml ships no type information; its stub package is not a project dependency.
+module = ["defusedxml", "defusedxml.*"]
+ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "evidence"]

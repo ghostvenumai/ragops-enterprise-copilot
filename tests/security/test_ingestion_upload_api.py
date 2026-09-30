@@ -12,6 +12,7 @@ pytest.importorskip("alembic", reason="Install declared persistence extra; produ
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from scripts.browser_e2e_gate import synthetic_pdf
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from tests.security.oidc_helpers import AUDIENCE, ISSUER, bearer
@@ -123,7 +124,7 @@ def test_job_list_names_the_tenants_own_documents(setup) -> None:
             "title": "<b>Quartal</b>",
             "logical_document_key": "quartal",
         },
-        files={"file": ("quartal.pdf", b"%PDF-1.4 synthetic", "application/pdf")},
+        files={"file": ("quartal.pdf", synthetic_pdf("Quartal"), "application/pdf")},
         headers=headers,
     )
     assert response.status_code == 202
@@ -147,3 +148,10 @@ def test_renamed_file_is_rejected_before_a_job_exists(setup) -> None:
     assert response.status_code == 400
     assert response.json() == {"detail": "file content does not match its type"}
     assert client.get("/v1/ingestion/jobs", headers=headers).json() == []
+
+
+def test_malformed_identifiers_are_not_found_not_server_errors(setup) -> None:
+    client, _workspace, _collection, headers = setup
+    assert client.post("/v1/documents/not-a-uuid/reindex", headers=headers).status_code == 404
+    assert client.get("/v1/ingestion/jobs/not-a-uuid", headers=headers).status_code == 404
+    assert client.get("/v1/documents/not-a-uuid/versions", headers=headers).status_code == 404

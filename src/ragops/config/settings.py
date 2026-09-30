@@ -26,6 +26,7 @@ class Settings:
     oidc_algorithms: tuple[str, ...] = ("RS256",)
     oidc_tenant_claim: str = "tenant_id"
     oidc_roles_claim: str = "roles"
+    oidc_allowed_clients: tuple[str, ...] = ()
     development_user_id: str = "demo-user"
     development_tenant_id: str = "tenant-alpha"
     development_roles: tuple[str, ...] = ("sales",)
@@ -50,6 +51,10 @@ class Settings:
     rate_limit_timeout_seconds: float = 0.25
     dependency_timeout_seconds: float = 2.0
     worker_backoff_max_seconds: float = 5.0
+    # Admins of this tenant operate the shared model catalog; unset disables catalog changes.
+    platform_admin_tenant_id: str | None = None
+    # Upper bound for any request body; rejected before parsing (uploads are at most 2 MB).
+    max_request_bytes: int = 3_000_000
 
     def __post_init__(self) -> None:
         if self.environment not in {"local", "development", "test", "demo", "production"}:
@@ -77,6 +82,8 @@ class Settings:
             raise ValueError("RAGOPS_RATE_LIMIT timeout or namespace is invalid")
         if not 0 < self.dependency_timeout_seconds <= 10:
             raise ValueError("RAGOPS_DEPENDENCY_TIMEOUT_SECONDS must be in (0, 10]")
+        if not 1024 <= self.max_request_bytes <= 50_000_000:
+            raise ValueError("RAGOPS_MAX_REQUEST_BYTES must be between 1 KiB and 50 MB")
         if not 0 < self.worker_backoff_max_seconds <= 60:
             raise ValueError("RAGOPS_WORKER_BACKOFF_MAX_SECONDS must be in (0, 60]")
 
@@ -177,6 +184,9 @@ class Settings:
             ),
             oidc_tenant_claim=os.getenv("RAGOPS_OIDC_TENANT_CLAIM", "tenant_id"),
             oidc_roles_claim=os.getenv("RAGOPS_OIDC_ROLES_CLAIM", "roles"),
+            oidc_allowed_clients=tuple(
+                filter(None, os.getenv("RAGOPS_OIDC_ALLOWED_CLIENTS", "").split(","))
+            ),
             development_user_id=os.getenv("RAGOPS_DEV_USER_ID", "demo-user"),
             development_tenant_id=os.getenv("RAGOPS_DEV_TENANT_ID", "tenant-alpha"),
             development_roles=tuple(
@@ -203,6 +213,8 @@ class Settings:
             rate_limit_namespace=os.getenv("RAGOPS_RATE_LIMIT_NAMESPACE", "ragops:rate-limit"),
             dependency_timeout_seconds=float(os.getenv("RAGOPS_DEPENDENCY_TIMEOUT_SECONDS", "2")),
             worker_backoff_max_seconds=float(os.getenv("RAGOPS_WORKER_BACKOFF_MAX_SECONDS", "5")),
+            platform_admin_tenant_id=os.getenv("RAGOPS_PLATFORM_ADMIN_TENANT_ID") or None,
+            max_request_bytes=int(os.getenv("RAGOPS_MAX_REQUEST_BYTES", "3000000")),
             rate_limit_timeout_seconds=float(
                 os.getenv("RAGOPS_RATE_LIMIT_TIMEOUT_SECONDS", "0.25")
             ),

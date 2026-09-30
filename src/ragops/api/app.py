@@ -25,6 +25,7 @@ from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 
 from ragops import __version__
+from ragops.api.hardening import RequestHardening
 from ragops.api.schemas import (
     CitationApi,
     QueryApiRequest,
@@ -239,13 +240,29 @@ def _money_payload(value: object) -> Decimal:
     return amount
 
 
+ENFORCEMENT_MODES = frozenset({"monitor", "optimize", "hard_limit"})
+
+
+def _budget_amount(value: object) -> float:
+    amount = _money_payload(value)
+    if amount <= 0:
+        raise HTTPException(status_code=422, detail="budget_amount must be positive")
+    return float(amount)
+
+
+def _enforcement_mode(value: object) -> str:
+    if value not in ENFORCEMENT_MODES:
+        raise HTTPException(status_code=422, detail="unsupported enforcement_mode")
+    return str(value)
+
+
 def _int_payload(value: object, default: int = 0) -> int:
     if isinstance(value, bool):
         return int(value)
     if isinstance(value, int | float | str):
         try:
             return int(value)
-        except ValueError:
+        except (ValueError, OverflowError):
             return default
     return default
 
@@ -271,7 +288,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             client.close()
         readiness.close()
 
-    app = FastAPI(title="RAGOps Enterprise Copilot", version=__version__, lifespan=lifespan)
+    # Interactive API docs are a development aid; production serves no schema or docs.
+    docs_enabled = settings.environment != "production"
+    app = FastAPI(
+        title="RAGOps Enterprise Copilot",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+    app.add_middleware(RequestHardening, max_body_bytes=settings.max_request_bytes)
     app.state.resources = resources
     workflow = _workflow(settings)
     ingestion_queue: IngestionQueue = (
@@ -296,6 +323,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     budget_records: dict[str, dict[str, object]] = {}
     identity = identity_dependency(settings)
     admin = admin_dependency(settings)
+
+    def platform_admin(
+        trusted: AuthenticatedUserContext = Depends(admin),  # noqa: B008
+    ) -> AuthenticatedUserContext:
+        """The model catalog is shared by all tenants; only platform operators change it."""
+        if not settings.platform_admin_tenant_id or (
+            trusted.tenant_id != settings.platform_admin_tenant_id
+        ):
+            raise HTTPException(status_code=403, detail="platform administration required")
+        return trusted
 
     def admin_or_development(
         trusted: AuthenticatedUserContext = Depends(identity),  # noqa: B008
@@ -402,7 +439,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/admin/providers", status_code=201)
     def create_admin_provider(
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", platform_admin)),  # noqa: B008
     ) -> dict[str, object]:
         provider_id = str(payload.get("provider_id", "")).strip()
         if not provider_id or any(model.provider_id == provider_id for model in model_catalog):
@@ -417,7 +454,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def update_admin_provider(
         provider_id: str,
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", platform_admin)),  # noqa: B008
     ) -> dict[str, object]:
         if not any(model.provider_id == provider_id for model in model_catalog):
             raise HTTPException(status_code=404, detail="provider not found")
@@ -442,7 +479,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/admin/models", status_code=201)
     def create_admin_model(
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", platform_admin)),  # noqa: B008
     ) -> dict[str, object]:
         provider_id = str(payload.get("provider_id", "")).strip()
         model_id = str(payload.get("model_id", "")).strip()
@@ -461,7 +498,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         provider_id: str,
         model_id: str,
         payload: dict[str, object],
-        _identity: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
+        _identity: AuthenticatedUserContext = Depends(limited("administration", platform_admin)),  # noqa: B008
     ) -> dict[str, object]:
         enabled = payload.get("enabled")
         if not isinstance(enabled, bool):
@@ -513,16 +550,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         payload: dict[str, object],
         identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),
     ) -> dict[str, object]:  # noqa: B008
-        amount = float(str(payload.get("budget_amount", 0)))
-        if amount <= 0 or str(payload.get("currency", "EUR")) != "EUR":
-            raise HTTPException(status_code=400, detail="invalid budget")
+        amount = _budget_amount(payload.get("budget_amount", 0))
+        if str(payload.get("currency", "EUR")) != "EUR":
+            raise HTTPException(status_code=422, detail="invalid budget")
         budget_id = str(len(budget_records) + 1)
         record = {
             "id": budget_id,
             "tenant_id": identity_context.tenant_id,
             "budget_amount": amount,
             "currency": "EUR",
-            "enforcement_mode": str(payload.get("enforcement_mode", "optimize")),
+            "enforcement_mode": _enforcement_mode(payload.get("enforcement_mode", "optimize")),
         }
         budget_records[budget_id] = record
         return record
@@ -536,11 +573,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         record = budget_records.get(budget_id)
         if record is None or record.get("tenant_id") != identity_context.tenant_id:
             raise HTTPException(status_code=404, detail="budget not found")
-        if "budget_amount" in payload and float(str(payload["budget_amount"])) <= 0:
-            raise HTTPException(status_code=400, detail="invalid budget")
-        record.update(
-            {key: payload[key] for key in ("budget_amount", "enforcement_mode") if key in payload}
-        )
+        changes: dict[str, object] = {}
+        if "budget_amount" in payload:
+            changes["budget_amount"] = _budget_amount(payload["budget_amount"])
+        if "enforcement_mode" in payload:
+            changes["enforcement_mode"] = _enforcement_mode(payload["enforcement_mode"])
+        record.update(changes)
         return record
 
     @app.patch("/v1/admin/quotas/{quota_id}")
@@ -951,7 +989,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             document.status = "processing"
             session.commit()
             return {"document_id": str(document.id), "status": document.status}
-        except KnowledgeAuthorizationError as exc:
+        except (KnowledgeAuthorizationError, ValueError) as exc:
             raise HTTPException(status_code=404, detail="document not found") from exc
         finally:
             session.close()
