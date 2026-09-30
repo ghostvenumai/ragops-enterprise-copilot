@@ -6,7 +6,11 @@ production adapter and is configured explicitly with a URL, collection,
 dimension and schema version. Production never falls back to in-memory vectors.
 
 Payloads carry tenant, workspace, collection, document and version IDs, access
-level, lifecycle status, content hash, chunk index and citation metadata. The
+level, lifecycle status, content hash, chunk index and citation metadata. Since
+ENT-11.1 they also carry `chunk_text` (the wording the chunk was embedded from)
+and `embedding_model`; both are additive and optional in the schema, but the
+productive retriever rejects chunks without them. `content_hash` is the SHA-256
+of the chunk text. A point without a tenant is rejected before it is written. The
 point ID is a canonical UUID built from the first 128 bits of the SHA-256 digest
 of tenant, version, chunk index and content hash. It is deterministic and uses
 a Qdrant-supported ID representation, so retries and partial batch failures

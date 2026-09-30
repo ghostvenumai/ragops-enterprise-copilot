@@ -34,6 +34,9 @@ class VectorPayload:
     valid_to: str | None = None
     title: str | None = None
     page_number: int | None = None
+    # Additive in ENT-11: the text the chunk was embedded from and the embedding model.
+    chunk_text: str | None = None
+    embedding_model: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
@@ -55,7 +58,8 @@ class VectorHit:
 
 
 class VectorIndex(Protocol):
-    def upsert(self, tenant_id: str, document_version_id: UUID, content_hash: str) -> None: ...
+    dimension: int
+
     def upsert_chunks(self, vectors: list[tuple[list[float], VectorPayload]]) -> int: ...
     def search(
         self, vector: list[float], scope: AuthorizedVectorScope, limit: int = 10
@@ -79,6 +83,14 @@ def deterministic_vector_id(payload: VectorPayload) -> str:
     # canonical UUID instead of sending an invalid 64-character point ID.
     digest = hashlib.sha256(stable.encode("utf-8")).digest()
     return str(UUID(bytes=digest[:16]))
+
+
+def require_tenant_payloads(vectors: list[tuple[list[float], VectorPayload]]) -> None:
+    """No point is ever written without the tenant it belongs to."""
+    if any(
+        not isinstance(payload.tenant_id, str) or not payload.tenant_id for _, payload in vectors
+    ):
+        raise ValueError("vector payload requires a tenant")
 
 
 def build_authorized_vector_filter(scope: AuthorizedVectorScope) -> dict[str, Any]:
@@ -144,30 +156,12 @@ class DeterministicVectorIndex:
         self._records: dict[str, tuple[list[float], VectorPayload]] = {}
 
     def upsert_chunks(self, vectors: list[tuple[list[float], VectorPayload]]) -> int:
+        require_tenant_payloads(vectors)
+        if any(len(vector) != self.dimension for vector, _ in vectors):
+            raise ValueError("embedding dimension mismatch")
         for vector, payload in vectors:
-            if len(vector) != self.dimension:
-                raise ValueError("embedding dimension mismatch")
             self._records[deterministic_vector_id(payload)] = (list(vector), payload)
         return len(vectors)
-
-    def upsert(self, tenant_id: str, document_version_id: UUID, content_hash: str) -> None:
-        payload = VectorPayload(
-            tenant_id,
-            "",
-            "",
-            "",
-            str(document_version_id),
-            f"{document_version_id}:0",
-            "internal",
-            "indexed",
-            "indexed",
-            content_hash,
-            0,
-            "",
-            datetime.now(UTC).isoformat(),
-            datetime.now(UTC).isoformat(),
-        )
-        self.upsert_chunks([([0.0] * self.dimension, payload)])
 
     def search(
         self, vector: list[float], scope: AuthorizedVectorScope, limit: int = 10
@@ -274,6 +268,7 @@ class QdrantVectorIndex:
     def upsert_chunks(self, vectors: list[tuple[list[float], VectorPayload]]) -> int:
         from qdrant_client.http import models
 
+        require_tenant_payloads(vectors)
         if any(len(vector) != self.dimension for vector, _ in vectors):
             raise ValueError("embedding dimension mismatch")
         points = [
@@ -284,25 +279,6 @@ class QdrantVectorIndex:
         ]
         self.client.upsert(self.collection, points=points, wait=True)
         return len(points)
-
-    def upsert(self, tenant_id: str, document_version_id: UUID, content_hash: str) -> None:
-        payload = VectorPayload(
-            tenant_id,
-            "",
-            "",
-            "",
-            str(document_version_id),
-            f"{document_version_id}:0",
-            "internal",
-            "indexed",
-            "indexed",
-            content_hash,
-            0,
-            "",
-            datetime.now(UTC).isoformat(),
-            datetime.now(UTC).isoformat(),
-        )
-        self.upsert_chunks([([0.0] * self.dimension, payload)])
 
     def search(
         self, vector: list[float], scope: AuthorizedVectorScope, limit: int = 10

@@ -79,10 +79,13 @@ class Index:
     def __init__(self, error: Exception | None = None) -> None:
         self.error, self.upserts, self.deleted = error, [], []
 
-    def upsert(self, tenant_id: str, version_id: UUID, content_hash: str) -> None:
-        self.upserts.append(version_id)
+    dimension = 64
+
+    def upsert_chunks(self, vectors) -> int:
+        self.upserts.append(UUID(vectors[0][1].document_version_id))
         if self.error:
             raise self.error
+        return len(vectors)
 
     def delete_version_vectors(self, tenant_id: str, version_id: str) -> int:
         self.deleted.append(version_id)
