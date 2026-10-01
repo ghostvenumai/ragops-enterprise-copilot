@@ -4,7 +4,7 @@ Runs against the isolated ragops_test_* PostgreSQL database (Alembic head) with 
 synthetic tenants and only the production services; direct SQL is limited to
 independent read-back in fresh sessions. Usage is booked through UsageService with a
 decision from the real router, so no provider is called; outbound HTTP is counted and
-blocked. The gate records that FinOps is not yet enforced in the /v1/query path.
+blocked. The query path (vector mode) uses the same services; this gate does not drive it.
 """
 
 from __future__ import annotations
@@ -634,8 +634,11 @@ def result_fields(result: FinOpsResult) -> dict[str, Any]:
         "concurrency_invariant": ok("concurrency_invariant"),
         "finops_route_cheaper_decision": ok("route_cheaper_verified"),
         "route_cheaper_enforced_in_query_path": False,
-        "finops_enforced_in_query_path": False,
-        "usage_recorded_by_query_path": False,
+        # Architecture facts, not checks of this gate: the vector query mode reserves the
+        # budget and books usage (tests/security/test_query_finops.py); demo mode does not.
+        "finops_enforced_in_query_path": "vector_mode_only",
+        "usage_recorded_by_query_path": "vector_mode_only",
+        "query_path_note": "not exercised by this gate; see the query accounting tests",
         "preflight_includes_active_reservations": False,
         "checks": dict(sorted(result.checks.items())),
         "errors": result.errors,

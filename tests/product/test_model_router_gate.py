@@ -36,7 +36,7 @@ def test_real_router_passes_all_invariants_without_provider_calls() -> None:
     assert all(item["passed"] for item in evidence["scenarios"])
     assert (evidence["paid_provider_calls"], evidence["router_tenant_leakage"]) == (0, 0)
     assert evidence["max_fallback_depth_observed"] == 2
-    assert evidence["query_path_uses_router"] is False
+    assert evidence["query_path_uses_router"] == "vector_mode_only"
     assert evidence["persistence_used"] is False
     assert evidence["cross_tenant_catalog_influence"] is False
     assert evidence["catalog_mutation_scope"] == "platform_admin_tenant_only"

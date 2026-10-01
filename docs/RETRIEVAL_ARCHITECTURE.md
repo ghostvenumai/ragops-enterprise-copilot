@@ -36,7 +36,8 @@ with `RAGOPS_VECTOR_PROVIDER=qdrant`, required in production) or `demo` (the def
 otherwise). There is no automatic switch between them.
 
 In `vector` mode `/v1/query` runs `VectorQueryService`: the verified identity, the
-`VectorRetriever`, `build_context` and the configured provider. The demo workflow and
+`VectorRetriever`, `build_context`, the model router and query accounting (see
+[FINOPS.md](FINOPS.md)). The demo workflow and
 its local JSON corpus are not even constructed; the demo corpus endpoints
 (`/v1/documents`, `/v1/documents/{id}`, `/v1/documents/ingest`) answer 404 and `/ready`
 reports no demo document count. Request fields never select the tenant; with the
@@ -60,6 +61,10 @@ Outcomes, audited as `query` events with `retrieval_outcome`:
 | Vector index unavailable | 503 `retrieval unavailable` | no |
 | Foreign or incomplete chunk | 503 `retrieval integrity violation` (+ `vector_tenant_boundary_violation`) | no |
 | Embedding model or dimension mismatch | 503 `retrieval misconfigured` | no |
+| No eligible model for the tenant policy | 409 `no eligible model` | no |
+| Budget hard limit | 429 `budget_limit_exceeded` | no |
+| Accounting records or database missing | 503 `accounting not configured` | no |
+| Accounting fails after the provider answered | 503 `accounting unavailable`, answer dropped | yes |
 | Provider error | 503 `generation unavailable` | yes |
 | Answer without source markers | 200, abstained, `ungrounded` | yes |
 

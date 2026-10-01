@@ -22,6 +22,15 @@ class LLMUsage:
     estimated_cost_eur: float
     latency_ms: float
     model: str
+    # False when the provider response carried no token counts; they are then not zero
+    # but unknown, and the productive query path refuses to book them.
+    reported: bool = True
+
+
+def _reported_tokens(usage: Any, *names: str) -> bool:
+    return usage is not None and all(
+        type(getattr(usage, name, None)) is int and getattr(usage, name) >= 0 for name in names
+    )
 
 
 @dataclass(frozen=True)
@@ -425,6 +434,7 @@ def _generate_chat_completion(
             estimated_cost_eur=0.0,
             latency_ms=round((time.perf_counter() - started) * 1000, 3),
             model=provider.model,
+            reported=_reported_tokens(usage, "prompt_tokens", "completion_tokens"),
         ),
         used_source_ids=used_source_ids,
     )
@@ -493,6 +503,7 @@ def _generate_responses_completion(
             estimated_cost_eur=0.0,
             latency_ms=round((time.perf_counter() - started) * 1000, 3),
             model=str(getattr(response, "model", None) or provider.model),
+            reported=_reported_tokens(usage, "input_tokens", "output_tokens"),
         ),
         used_source_ids=used_source_ids,
     )

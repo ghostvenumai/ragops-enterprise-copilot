@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.security.finops_helpers import migrated_sqlite, provision
 from tests.security.oidc_helpers import AUDIENCE, ISSUER, bearer
 
 from ragops.api import app as app_module
@@ -50,6 +51,18 @@ def payload(tenant: str, document: str, text: str, index: int = 0, **changes) ->
     }
     values.update(changes)
     return VectorPayload(**values)
+
+
+@pytest.fixture(autouse=True)
+def accounting_records(tmp_path, monkeypatch) -> None:
+    """Since ENT-11.3 an answer needs a provisioned user, model and budget per tenant."""
+    engine, url = migrated_sqlite(tmp_path / "accounting.db")
+    monkeypatch.setenv("RAGOPS_DATABASE_URL", url)
+    monkeypatch.setenv("RAGOPS_ENV", "test")
+    for tenant in ("tenant-a", "tenant-b"):
+        provision(engine, tenant, issuer=ISSUER, subject=f"user-{tenant}")
+    provision(engine, "tenant-a", issuer="development", subject="demo-user", models=(), budget=None)
+    engine.dispose()
 
 
 class CountingProvider(DeterministicTestProvider):

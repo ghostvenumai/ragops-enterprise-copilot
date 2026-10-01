@@ -189,7 +189,9 @@ def test_unreachable_qdrant_fails_closed() -> None:
     dead.client.close()
 
 
-def test_productive_query_endpoint_answers_from_live_qdrant(index, engine, tmp_path) -> None:
+def test_productive_query_endpoint_answers_from_live_qdrant(
+    index, engine, tmp_path, monkeypatch
+) -> None:
     """The real app in vector mode builds its own Qdrant index from settings."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -203,6 +205,13 @@ def test_productive_query_endpoint_answers_from_live_qdrant(index, engine, tmp_p
     documents = {
         tenant: ingest(engine, index, tmp_path, tenant) for tenant in ("tenant-a", "tenant-b")
     }
+    # Accounting records (ENT-11.3): user, model and budget per tenant in the same database.
+    from tests.security.finops_helpers import provision
+
+    monkeypatch.setenv("RAGOPS_DATABASE_URL", engine.url.render_as_string(hide_password=False))
+    monkeypatch.setenv("RAGOPS_ENV", "test")
+    for tenant in documents:
+        provision(engine, tenant, issuer=ISSUER, subject=f"user-{tenant}")
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
@@ -236,7 +245,13 @@ def test_productive_query_endpoint_answers_from_live_qdrant(index, engine, tmp_p
         for tenant, document in documents.items():
             response = client.post(
                 "/v1/query",
-                json={"question": "Was beschreibt das Orbit-Verfahren 7?", "tenant_id": "tenant-x"},
+                # top_k 3 keeps the query in the SIMPLE routing class: the default catalog's
+                # only model (deterministic, SIMPLE) is not eligible for STANDARD queries.
+                json={
+                    "question": "Was beschreibt das Orbit-Verfahren 7?",
+                    "tenant_id": "tenant-x",
+                    "top_k": 3,
+                },
                 headers=bearer(private_pem, tenant, ["viewer"]),
             )
             assert response.status_code == 200
@@ -252,4 +267,19 @@ def test_productive_query_endpoint_answers_from_live_qdrant(index, engine, tmp_p
         )
         assert empty.status_code == 200 and empty.json()["abstained"] is True
         assert empty.json()["citations"] == []
+        # Five chunks make it a STANDARD query: no eligible model, nothing reserved or run.
+        standard = client.post(
+            "/v1/query",
+            json={"question": "Was beschreibt das Orbit-Verfahren 7?", "top_k": 5},
+            headers=bearer(private_pem, "tenant-a", ["viewer"]),
+        )
+        assert standard.status_code == 409 and standard.json() == {"detail": "no eligible model"}
     assert len(calls) == 2 and all("Orbit-Verfahren" in context for context in calls)
+    from tests.security.finops_helpers import reservations, usage_rows
+
+    rows = usage_rows(engine)
+    assert sorted(row.tenant_id for row in rows) == ["tenant-a", "tenant-b"]
+    assert (
+        all(r.status == "committed" for r in reservations(engine))
+        and len(reservations(engine)) == 2
+    )

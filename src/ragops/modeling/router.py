@@ -208,6 +208,17 @@ class FallbackPolicyError(ValueError):
     pass
 
 
+# Failures after which the next model in the chain may be tried.
+FALLBACK_CATEGORIES = frozenset(
+    {
+        ProviderErrorCategory.TIMEOUT,
+        ProviderErrorCategory.RATE_LIMIT,
+        ProviderErrorCategory.MODEL_UNAVAILABLE,
+        ProviderErrorCategory.PROVIDER_ERROR,
+    }
+)
+
+
 class LLMModelRouter:
     def __init__(
         self,
@@ -349,8 +360,14 @@ class LLMModelRouter:
         self,
         decision: RoutingDecision,
         invoke: Callable[[str, str], T],
+        *,
+        fallback_categories: frozenset[ProviderErrorCategory] = FALLBACK_CATEGORIES,
     ) -> tuple[T, int]:
-        """Execute a bounded, policy-filtered fallback chain."""
+        """Execute a bounded, policy-filtered fallback chain.
+
+        A caller may narrow ``fallback_categories`` (never widen them beyond the policy
+        chain): the chain itself always comes from the routing decision.
+        """
         chain = ((decision.provider_id, decision.model_id),) + decision.fallback_chain
         visited: set[tuple[str, str]] = set()
         last_error: ProviderError | None = None
@@ -362,12 +379,7 @@ class LLMModelRouter:
                 return invoke(provider_id, model_id), len(visited) - 1
             except ProviderError as exc:
                 last_error = exc
-                if exc.category not in {
-                    ProviderErrorCategory.TIMEOUT,
-                    ProviderErrorCategory.RATE_LIMIT,
-                    ProviderErrorCategory.MODEL_UNAVAILABLE,
-                    ProviderErrorCategory.PROVIDER_ERROR,
-                }:
+                if exc.category not in fallback_categories & FALLBACK_CATEGORIES:
                     raise
         if last_error is not None:
             raise last_error

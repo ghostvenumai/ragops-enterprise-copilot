@@ -618,9 +618,10 @@ def build_evidence(result: GateResult, paid_provider_calls: int) -> dict[str, An
         "reason": reason,
         "router_real_implementation": "ragops.modeling.router.LLMModelRouter",
         "api_real_implementation": "POST /v1/admin/model-router/simulate, /v1/admin/model-policies",
-        "query_path_uses_router": False,
-        "query_path_note": "/v1/query generates through provider_from_env(); the router is "
-        "exercised by the admin simulation API only",
+        "query_path_uses_router": "vector_mode_only",
+        "query_path_note": "in RAGOPS_QUERY_MODE=vector /v1/query generates through this "
+        "router (tests/security/test_query_finops.py); this gate drives the admin "
+        "simulation API, and the demo mode still calls its provider directly",
         "persistence_used": False,
         "persistence_note": "tenant model policies and the catalog are in-process state; the "
         "model_configurations/tenant_model_policies tables are not read by the router",

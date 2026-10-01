@@ -57,7 +57,8 @@ def test_real_services_pass_every_required_invariant(engine) -> None:
     assert fields["committed_amount"] == "45.31600000"
     assert fields["active_reserved_amount"] == "0"
     assert fields["route_cheaper_enforced_in_query_path"] is False
-    assert fields["finops_enforced_in_query_path"] is False
+    assert fields["finops_enforced_in_query_path"] == "vector_mode_only"
+    assert fields["usage_recorded_by_query_path"] == "vector_mode_only"
 
 
 def test_exact_boundary_regression_is_reported(engine, monkeypatch) -> None:

@@ -14,8 +14,12 @@ from ragops.persistence.models import UsageRecord
 MONEY_QUANTUM = Decimal("0.00000001")  # UsageRecord.cost is Numeric(18, 8)
 
 
-def to_money(value: float) -> Decimal:
+def to_money(value: float | Decimal) -> Decimal:
     """Quantize like PostgreSQL numeric so stored cost is identical on every backend."""
+    if isinstance(value, Decimal):
+        if not value.is_finite() or value < 0:
+            raise ValueError("cost must be a finite, non-negative amount")
+        return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
     if not math.isfinite(value) or value < 0:
         raise ValueError("cost must be a finite, non-negative amount")
     return Decimal(str(value)).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
@@ -50,7 +54,7 @@ class UsageService:
         *,
         input_tokens: int,
         output_tokens: int,
-        actual_cost: float | None,
+        actual_cost: float | Decimal | None,
         latency_ms: float,
         correlation_id: UUID,
         fallback_count: int = 0,

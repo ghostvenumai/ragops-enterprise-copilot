@@ -13,7 +13,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -35,6 +35,11 @@ from ragops.api.schemas import (
 from ragops.auth.dependencies import admin_dependency, identity_dependency
 from ragops.auth.identity import AuthenticatedUserContext
 from ragops.config.settings import Settings
+from ragops.finops.query_accounting import (
+    AccountingError,
+    BudgetLimitExceeded,
+    QueryAccounting,
+)
 from ragops.finops.service import budget_decision, valid_amount
 from ragops.governance.audit import AuditLogger
 from ragops.knowledge.service import (
@@ -48,6 +53,8 @@ from ragops.modeling.router import (
     FallbackPolicyError,
     LLMModelRouter,
     ModelSpec,
+    ProviderAdapter,
+    ProviderRegistry,
     RoutingClass,
     TenantModelPolicy,
 )
@@ -81,7 +88,11 @@ from ragops.workers.queue import (
 )
 from ragops.workers.worker import IngestionWorker
 from ragops.workflows.state_machine import QueryRequest, RAGWorkflow
-from ragops.workflows.vector_query import GenerationUnavailable, VectorQueryService
+from ragops.workflows.vector_query import (
+    GenerationUnavailable,
+    NoEligibleModel,
+    VectorQueryService,
+)
 
 
 def rate_limiter_for(settings: Settings) -> RateLimiter:
@@ -344,12 +355,25 @@ def create_app(
     vector_query: VectorQueryService | None = None
     if vector_mode:
         assert vector_index is not None
+        # The configured provider is the only adapter: routing to any other catalog entry
+        # fails as unavailable instead of silently answering from another provider.
+        providers = ProviderRegistry()
+        providers.register(cast(ProviderAdapter, llm_provider or provider_from_env()))
+        try:
+            max_output_tokens = int(os.getenv("RAGOPS_LLM_MAX_OUTPUT_TOKENS", "600"))
+        except ValueError:
+            raise RuntimeError("RAGOPS_LLM_MAX_OUTPUT_TOKENS must be an integer") from None
         vector_query = VectorQueryService(
             VectorRetriever(vector_index, embedding_provider_for(settings)),
-            llm_provider or provider_from_env(),
+            # Built per query so admin catalog and policy changes apply immediately.
+            lambda: LLMModelRouter(model_catalog, model_policies, providers),
             ContextLimits(settings.context_max_chunks, settings.context_max_tokens),
             audit_logger,
             metrics_registry,
+            accounting=QueryAccounting(resources.engine)
+            if resources.database_configured()
+            else None,
+            max_output_tokens=max_output_tokens,
         )
     else:
         workflow = _workflow(settings, audit_logger, metrics_registry, llm_provider)
@@ -380,6 +404,8 @@ def create_app(
         ),
     ]
     model_policies: dict[str, TenantModelPolicy] = {}
+    app.state.model_policies = model_policies
+    app.state.vector_index = vector_index
     budget_records: dict[str, dict[str, object]] = {}
     identity = identity_dependency(settings)
     admin = admin_dependency(settings)
@@ -1138,6 +1164,14 @@ def create_app(
             detail = _RETRIEVAL_DETAILS.get(retrieval_outcome(exc), "retrieval unavailable")
             raise HTTPException(
                 status_code=503, detail=detail, headers={"Retry-After": "1"}
+            ) from None
+        except NoEligibleModel:
+            raise HTTPException(status_code=409, detail="no eligible model") from None
+        except BudgetLimitExceeded as exc:
+            raise HTTPException(status_code=429, detail=exc.detail) from None
+        except AccountingError as exc:
+            raise HTTPException(
+                status_code=503, detail=exc.detail, headers={"Retry-After": "1"}
             ) from None
         except GenerationUnavailable:
             raise HTTPException(
