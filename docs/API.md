@@ -52,6 +52,13 @@ A successful response contains answer, abstained, evidence_score, citations,
 per-request metrics, and correlation_id. A factual response without citations
 is converted into a refusal by the server-side validator.
 
+Each citation has `source_id`, `title`, `tenant_id` and `score`. In the vector query
+mode (`RAGOPS_QUERY_MODE=vector`) it also carries `document_id`,
+`document_version_id`, `chunk_id` and `page_number`; in the demo mode these fields are
+`null`. The vector mode answers `503` with `retrieval unavailable`, `retrieval
+integrity violation`, `retrieval misconfigured` or `generation unavailable` and never
+falls back to the demo corpus; see docs/RETRIEVAL_ARCHITECTURE.md.
+
 ## Evaluation Contract
 
 POST /v1/evaluations/run executes the synthetic gold set. GET /v1/evaluations

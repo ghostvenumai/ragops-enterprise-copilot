@@ -932,10 +932,10 @@ def build_evidence(result: DrillResult) -> dict[str, Any]:
             "postgres": "knowledge, ingestion jobs, FinOps; critical when a database URL is set",
             "redis": "rate limits and ingestion queue; critical with the redis rate-limit "
             "backend or required async ingestion",
-            "qdrant": "worker indexing; critical when RAGOPS_VECTOR_PROVIDER=qdrant "
-            "(the /v1/query demo path does not use it)",
-            "json_demo_repository": "local files for /v1/query and the /ready document count; "
-            "not a network dependency",
+            "qdrant": "worker indexing and the vector query path; critical when "
+            "RAGOPS_VECTOR_PROVIDER=qdrant",
+            "json_demo_repository": "not loaded: with Qdrant the API runs the vector query "
+            "mode, which never reads the local demo corpus",
         },
         "critical_dependencies": ["postgres", "redis", "qdrant"],
         "optional_dependencies": [],

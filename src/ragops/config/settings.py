@@ -55,6 +55,14 @@ class Settings:
     platform_admin_tenant_id: str | None = None
     # Upper bound for any request body; rejected before parsing (uploads are at most 2 MB).
     max_request_bytes: int = 3_000_000
+    # "vector" answers /v1/query from the vector index only; "demo" from the local corpus.
+    # Empty selects "vector" with the Qdrant provider and "demo" otherwise; never a fallback.
+    query_mode: str = ""
+    # Context bounds of the vector query path. 20 is the API's top_k ceiling; 6000 estimated
+    # tokens hold 20 chunks of 120 words and leave room for 600 output tokens in the
+    # router's default 8192-token context window.
+    context_max_chunks: int = 20
+    context_max_tokens: int = 6000
 
     def __post_init__(self) -> None:
         if self.environment not in {"local", "development", "test", "demo", "production"}:
@@ -86,6 +94,25 @@ class Settings:
             raise ValueError("RAGOPS_MAX_REQUEST_BYTES must be between 1 KiB and 50 MB")
         if not 0 < self.worker_backoff_max_seconds <= 60:
             raise ValueError("RAGOPS_WORKER_BACKOFF_MAX_SECONDS must be in (0, 60]")
+        if self.query_mode not in {"", "demo", "vector"}:
+            raise ValueError("Unsupported RAGOPS_QUERY_MODE")
+        if not 1 <= self.context_max_chunks <= 20:
+            raise ValueError("RAGOPS_CONTEXT_MAX_CHUNKS must be between 1 and 20")
+        if not 256 <= self.context_max_tokens <= 100_000:
+            raise ValueError("RAGOPS_CONTEXT_MAX_TOKENS must be between 256 and 100000")
+
+    @property
+    def effective_query_mode(self) -> str:
+        if self.query_mode:
+            return self.query_mode
+        return "vector" if self.vector_provider == "qdrant" else "demo"
+
+    def validate_query_configuration(self) -> None:
+        """The vector query path needs the vector index; production allows nothing else."""
+        if self.effective_query_mode == "vector" and self.vector_provider != "qdrant":
+            raise RuntimeError("RAGOPS_QUERY_MODE=vector requires RAGOPS_VECTOR_PROVIDER=qdrant")
+        if self.environment == "production" and self.effective_query_mode != "vector":
+            raise RuntimeError("Production requires RAGOPS_QUERY_MODE=vector")
 
     def require_supported_runtime(self) -> None:
         """Never expose the demo API by merely setting a production environment."""
@@ -215,6 +242,9 @@ class Settings:
             worker_backoff_max_seconds=float(os.getenv("RAGOPS_WORKER_BACKOFF_MAX_SECONDS", "5")),
             platform_admin_tenant_id=os.getenv("RAGOPS_PLATFORM_ADMIN_TENANT_ID") or None,
             max_request_bytes=int(os.getenv("RAGOPS_MAX_REQUEST_BYTES", "3000000")),
+            query_mode=os.getenv("RAGOPS_QUERY_MODE", "").lower(),
+            context_max_chunks=int(os.getenv("RAGOPS_CONTEXT_MAX_CHUNKS", "20")),
+            context_max_tokens=int(os.getenv("RAGOPS_CONTEXT_MAX_TOKENS", "6000")),
             rate_limit_timeout_seconds=float(
                 os.getenv("RAGOPS_RATE_LIMIT_TIMEOUT_SECONDS", "0.25")
             ),

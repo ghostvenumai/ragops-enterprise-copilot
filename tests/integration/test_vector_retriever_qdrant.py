@@ -187,3 +187,69 @@ def test_unreachable_qdrant_fails_closed() -> None:
     with pytest.raises(RetrievalUnavailable):
         retriever.retrieve(context("tenant-a"), "Orbit", 5)
     dead.client.close()
+
+
+def test_productive_query_endpoint_answers_from_live_qdrant(index, engine, tmp_path) -> None:
+    """The real app in vector mode builds its own Qdrant index from settings."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from fastapi.testclient import TestClient
+    from tests.security.oidc_helpers import AUDIENCE, ISSUER, bearer
+
+    from ragops.api.app import create_app
+    from ragops.config.settings import Settings
+    from ragops.llm.providers import DeterministicTestProvider
+
+    documents = {
+        tenant: ingest(engine, index, tmp_path, tenant) for tenant in ("tenant-a", "tenant-b")
+    }
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    ).decode()
+    public_pem = (
+        private.public_key()
+        .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
+    settings = Settings(
+        environment="test",
+        identity_provider="oidc",
+        oidc_issuer=ISSUER,
+        oidc_audience=AUDIENCE,
+        oidc_public_key=public_pem,
+        evidence_dir=tmp_path / "evidence",
+        data_dir=tmp_path / "no-demo-corpus",
+        vector_provider="qdrant",
+        qdrant_url=URL,
+        qdrant_collection=index.collection,
+        embedding_dimension=DIMENSION,
+    )
+    calls: list[str] = []
+
+    class Counting(DeterministicTestProvider):
+        def generate(self, question, citations, context):
+            calls.append(context)
+            return super().generate(question, citations, context)
+
+    with TestClient(create_app(settings, llm_provider=Counting())) as client:
+        for tenant, document in documents.items():
+            response = client.post(
+                "/v1/query",
+                json={"question": "Was beschreibt das Orbit-Verfahren 7?", "tenant_id": "tenant-x"},
+                headers=bearer(private_pem, tenant, ["viewer"]),
+            )
+            assert response.status_code == 200
+            body = response.json()
+            assert body["abstained"] is False and body["citations"]
+            assert {(c["tenant_id"], c["document_id"]) for c in body["citations"]} == {
+                (tenant, document)
+            }
+        empty = client.post(
+            "/v1/query",
+            json={"question": "Was beschreibt das Orbit-Verfahren 7?"},
+            headers=bearer(private_pem, "tenant-c", ["viewer"]),
+        )
+        assert empty.status_code == 200 and empty.json()["abstained"] is True
+        assert empty.json()["citations"] == []
+    assert len(calls) == 2 and all("Orbit-Verfahren" in context for context in calls)

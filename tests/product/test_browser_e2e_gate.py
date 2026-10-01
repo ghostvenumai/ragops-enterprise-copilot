@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from pathlib import Path
 
 import pytest
 from scripts import browser_e2e_gate as gate
@@ -20,6 +21,10 @@ def test_all_required_checks_pass_and_report_the_contract() -> None:
     assert gate.classify(passing())[0] == "PASS"
     evidence = gate.build_evidence(passing(), {"browser_version": "153"})
     assert evidence["browser_query_uses_qdrant"] is False
+    # The journeys use the demo corpus on purpose; the mode is explicit, never a fallback.
+    assert evidence["query_mode"] == "demo"
+    source = Path(gate.__file__).read_text(encoding="utf-8")
+    assert source.count('"RAGOPS_QUERY_MODE": "demo"') == 1
     assert evidence["headless"] is True and evidence["browser_engine"] == "chromium"
     for key in (
         "real_browser_login_verified",

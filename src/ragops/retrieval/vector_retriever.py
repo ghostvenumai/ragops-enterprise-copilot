@@ -45,6 +45,10 @@ class IncompleteChunkError(RetrievalError):
 class TenantBoundaryViolation(RetrievalError):
     """The index returned a chunk of another tenant despite the mandatory filter."""
 
+    def __init__(self, message: str, *, foreign_hits: int = 0, returned_hits: int = 0) -> None:
+        super().__init__(message)
+        self.foreign_hits, self.returned_hits = foreign_hits, returned_hits
+
 
 class InvalidTenantScope(RetrievalError):
     """The caller is not a verified identity with a usable tenant and role."""
@@ -66,6 +70,7 @@ class RetrievedChunk:
     source_name: str
     title: str | None
     page_number: int | None
+    content_hash: str = ""
 
 
 def authoritative_scope(context: AuthenticatedUserContext) -> AuthorizedVectorScope:
@@ -129,7 +134,11 @@ class VectorRetriever:
                     "returned_hits": len(hits),
                 },
             )
-            raise TenantBoundaryViolation("vector index returned a chunk outside the tenant")
+            raise TenantBoundaryViolation(
+                "vector index returned a chunk outside the tenant",
+                foreign_hits=len(foreign),
+                returned_hits=len(hits),
+            )
         chunks = [self._chunk(hit, scope) for hit in hits[:top_k]]
         return sorted(chunks, key=lambda item: (-item.score, item.document_id, item.chunk_index))
 
@@ -158,4 +167,5 @@ class VectorRetriever:
             source_name=payload.source_name,
             title=payload.title,
             page_number=payload.page_number,
+            content_hash=payload.content_hash,
         )

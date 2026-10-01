@@ -26,6 +26,11 @@ class CitationApi(BaseModel):
     title: str
     tenant_id: str
     score: float
+    # Optional chunk identity of the vector query path; absent in the demo mode.
+    document_id: str | None = None
+    document_version_id: str | None = None
+    chunk_id: str | None = None
+    page_number: int | None = None
 
 
 class QueryMetricsApi(BaseModel):

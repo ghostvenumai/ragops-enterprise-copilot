@@ -42,6 +42,7 @@ from ragops.knowledge.service import (
     KnowledgeManagementService,
     LocalDocumentBlobStore,
 )
+from ragops.llm.providers import LLMProvider, provider_from_env
 from ragops.modeling.router import (
     ComplexitySignals,
     FallbackPolicyError,
@@ -66,8 +67,12 @@ from ragops.ops.readiness import (
 )
 from ragops.persistence.database import open_engine
 from ragops.persistence.models import TenantBudget
+from ragops.retrieval.context import ContextLimits
+from ragops.retrieval.vector_retriever import InvalidTenantScope, RetrievalError, VectorRetriever
 from ragops.storage.json_store import JsonRepository
 from ragops.storage.models import QueryUser
+from ragops.vector.embedding import embedding_provider_for
+from ragops.vector.index import QdrantVectorIndex, VectorIndex
 from ragops.workers.queue import (
     IngestionMessage,
     IngestionQueue,
@@ -76,6 +81,7 @@ from ragops.workers.queue import (
 )
 from ragops.workers.worker import IngestionWorker
 from ragops.workflows.state_machine import QueryRequest, RAGWorkflow
+from ragops.workflows.vector_query import GenerationUnavailable, VectorQueryService
 
 
 def rate_limiter_for(settings: Settings) -> RateLimiter:
@@ -137,11 +143,30 @@ class AppResources:
                 self._qdrant = None
 
 
-def _workflow(settings: Settings) -> RAGWorkflow:
+def _workflow(
+    settings: Settings, audit: AuditLogger, metrics: MetricsRegistry, provider: LLMProvider | None
+) -> RAGWorkflow:
+    """The demo workflow over the local corpus; only built in the demo query mode."""
     repository = JsonRepository(settings.data_dir)
-    metrics = MetricsRegistry()
-    audit = AuditLogger(settings.evidence_dir / "audit-events.jsonl")
-    return RAGWorkflow(repository, audit_logger=audit, metrics=metrics)
+    return RAGWorkflow(repository, provider=provider, audit_logger=audit, metrics=metrics)
+
+
+def _vector_index(settings: Settings) -> QdrantVectorIndex:
+    assert settings.qdrant_url  # validate_vector_configuration guarantees a URL
+    return QdrantVectorIndex(
+        settings.qdrant_url,
+        settings.qdrant_collection,
+        settings.embedding_dimension,
+        api_key=settings.qdrant_api_key,
+        timeout_seconds=max(1, round(settings.dependency_timeout_seconds)),
+    )
+
+
+_RETRIEVAL_DETAILS = {
+    "tenant_violation": "retrieval integrity violation",
+    "embedding_contract": "retrieval misconfigured",
+    "incomplete_chunk": "retrieval integrity violation",
+}
 
 
 def resolve_authenticated_identity(
@@ -267,15 +292,26 @@ def _int_payload(value: object, default: int = 0) -> int:
     return default
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    vector_index: VectorIndex | None = None,
+    llm_provider: LLMProvider | None = None,
+) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.validate_identity_configuration()
     settings.validate_async_configuration()
     settings.validate_vector_configuration()
     settings.validate_model_configuration()
     settings.validate_rate_limit_configuration()
+    settings.validate_query_configuration()
     settings.require_supported_runtime()
     resources = AppResources(settings)
+    # Exactly one query path per process, chosen by configuration; there is no fallback.
+    vector_mode = settings.effective_query_mode == "vector"
+    owned_index: QdrantVectorIndex | None = None
+    if vector_mode and vector_index is None:
+        vector_index = owned_index = _vector_index(settings)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -284,6 +320,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         readiness.begin_shutdown()
         resources.close()
+        if owned_index is not None:
+            owned_index.client.close()
         for client in redis_clients:
             client.close()
         readiness.close()
@@ -300,7 +338,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(RequestHardening, max_body_bytes=settings.max_request_bytes)
     app.state.resources = resources
-    workflow = _workflow(settings)
+    metrics_registry = MetricsRegistry()
+    audit_logger = AuditLogger(settings.evidence_dir / "audit-events.jsonl")
+    workflow: RAGWorkflow | None = None
+    vector_query: VectorQueryService | None = None
+    if vector_mode:
+        assert vector_index is not None
+        vector_query = VectorQueryService(
+            VectorRetriever(vector_index, embedding_provider_for(settings)),
+            llm_provider or provider_from_env(),
+            ContextLimits(settings.context_max_chunks, settings.context_max_tokens),
+            audit_logger,
+            metrics_registry,
+        )
+    else:
+        workflow = _workflow(settings, audit_logger, metrics_registry, llm_provider)
+
+    def demo_workflow() -> RAGWorkflow:
+        if workflow is None:
+            raise HTTPException(
+                status_code=404, detail="demo corpus is not available in vector query mode"
+            )
+        return workflow
+
     ingestion_queue: IngestionQueue = (
         RedisIngestionQueue(
             settings.redis_url or "",
@@ -1002,12 +1062,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def ready() -> JSONResponse:
         status_code, payload = readiness.evaluate()
         # Aggregate demo-corpus size kept for the dashboard; no tenant data is exposed.
-        payload["documents"] = len(workflow.repository.chunks())
+        if workflow is not None:
+            payload["documents"] = len(workflow.repository.chunks())
         return JSONResponse(payload, status_code=status_code)
 
     @app.get("/metrics", response_class=PlainTextResponse)
     def metrics() -> str:
-        values = workflow.metrics.to_dict()
+        values = metrics_registry.to_dict()
         lines = [f"ragops_{key} {value}" for key, value in values.items()]
         lines.extend(
             [f"ragops_ingestion_{key} {value}" for key, value in ingestion_metrics.items()]
@@ -1025,8 +1086,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: QueryApiRequest,
         trusted: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> QueryApiResponse:
+        if vector_query is not None:
+            return vector_answer(trusted, request)
         authenticated = resolve_authenticated_identity(settings, trusted, request)
-        state = workflow.run(
+        state = demo_workflow().run(
             QueryRequest(
                 question=request.question,
                 user=QueryUser(
@@ -1060,19 +1123,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             correlation_id=state.request.correlation_id,
         )
 
+    def vector_answer(
+        trusted: AuthenticatedUserContext, request: QueryApiRequest
+    ) -> QueryApiResponse:
+        """The tenant is the verified identity's; request fields never select it."""
+        assert vector_query is not None
+        try:
+            result = vector_query.run(trusted, request.question, request.top_k)
+        except InvalidTenantScope:
+            raise HTTPException(status_code=403, detail="tenant scope rejected") from None
+        except RetrievalError as exc:
+            from ragops.workflows.vector_query import retrieval_outcome
+
+            detail = _RETRIEVAL_DETAILS.get(retrieval_outcome(exc), "retrieval unavailable")
+            raise HTTPException(
+                status_code=503, detail=detail, headers={"Retry-After": "1"}
+            ) from None
+        except GenerationUnavailable:
+            raise HTTPException(
+                status_code=503, detail="generation unavailable", headers={"Retry-After": "1"}
+            ) from None
+        if any(item.tenant_id != trusted.tenant_id for item in result.citations):
+            raise HTTPException(status_code=503, detail="retrieval integrity violation")
+        return QueryApiResponse(
+            answer=result.answer,
+            abstained=result.abstained,
+            evidence_score=result.evidence_score,
+            citations=[
+                CitationApi(
+                    source_id=item.source_id,
+                    title=item.title,
+                    tenant_id=item.tenant_id,
+                    score=item.score,
+                    document_id=item.document_id,
+                    document_version_id=item.document_version_id,
+                    chunk_id=item.chunk_id,
+                    page_number=item.page_number,
+                )
+                for item in result.citations
+            ],
+            metrics=QueryMetricsApi(
+                tokens=result.tokens,
+                estimated_cost_eur=result.estimated_cost_eur,
+                retrieval_latency_ms=result.retrieval_latency_ms,
+                llm_latency_ms=result.llm_latency_ms,
+                prompt_injection_detected=result.prompt_injection_detected,
+            ),
+            correlation_id=result.correlation_id,
+        )
+
     @app.post("/v1/documents/ingest")
     def ingest(
         _identity: AuthenticatedUserContext = Depends(limited("ingestion")),  # noqa: B008
     ) -> dict[str, int | str]:
-        workflow.repository._chunks = None  # noqa: SLF001 - explicit local demo refresh
-        return {"status": "ingested", "chunks": len(workflow.repository.chunks())}
+        demo = demo_workflow()
+        demo.repository._chunks = None  # noqa: SLF001 - explicit local demo refresh
+        return {"status": "ingested", "chunks": len(demo.repository.chunks())}
 
     @app.get("/v1/documents")
     def documents(
         identity_context: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> list[dict[str, str]]:
         seen: dict[str, dict[str, str]] = {}
-        for chunk in workflow.repository.chunks():
+        for chunk in demo_workflow().repository.chunks():
             if chunk.tenant_id != identity_context.tenant_id:
                 continue
             seen[chunk.document_id] = {
@@ -1089,7 +1202,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         document_id: str,
         identity_context: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
     ) -> dict[str, str]:
-        for chunk in workflow.repository.chunks():
+        for chunk in demo_workflow().repository.chunks():
             if chunk.document_id == document_id and chunk.tenant_id == identity_context.tenant_id:
                 return {
                     "document_id": chunk.document_id,
@@ -1153,7 +1266,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             limited("administration", admin_or_development)
         ),  # noqa: B008
     ) -> dict[str, float | int]:
-        values = workflow.metrics.to_dict()
+        values = metrics_registry.to_dict()
         return {
             "request_count": int(values["request_count"]),
             "total_tokens": int(values["total_tokens"]),

@@ -29,6 +29,41 @@ without text or citation metadata fail closed as well. Any index error becomes
 or the hybrid demo retriever, which a static test enforces; no result is an empty
 list, never a fallback. Results are ordered by score, document and chunk index.
 
-`/v1/query` still answers through the demo workflow. It is switched to this
-retriever together with the context builder (ENT-11.2), because the browser gate
-runs the API against Qdrant and its query checks move with that change.
+## Query modes and the context builder (ENT-11.2)
+
+`RAGOPS_QUERY_MODE` selects exactly one query path per process: `vector` (the default
+with `RAGOPS_VECTOR_PROVIDER=qdrant`, required in production) or `demo` (the default
+otherwise). There is no automatic switch between them.
+
+In `vector` mode `/v1/query` runs `VectorQueryService`: the verified identity, the
+`VectorRetriever`, `build_context` and the configured provider. The demo workflow and
+its local JSON corpus are not even constructed; the demo corpus endpoints
+(`/v1/documents`, `/v1/documents/{id}`, `/v1/documents/ingest`) answer 404 and `/ready`
+reports no demo document count. Request fields never select the tenant; with the
+development identity provider the legacy body identity applies only in `demo` mode.
+
+`build_context` orders hits by score, document and chunk index, drops chunks without text
+or citation metadata, chunks with instruction-like text and duplicates (same `chunk_id`
+or same `content_hash`), and then applies `top_k`, `RAGOPS_CONTEXT_MAX_CHUNKS` (default
+20, the API ceiling) and `RAGOPS_CONTEXT_MAX_TOKENS` (default 6000). Tokens are estimated
+as one per three UTF-8 bytes, which overestimates common tokenizers. A chunk that does
+not fit is cut to the longest word prefix that fits and closes the context. Sources sit
+in delimited blocks after a notice that they are untrusted reference data; text that
+could close a block is neutralized. A foreign chunk fails the request.
+
+Outcomes, audited as `query` events with `retrieval_outcome`:
+
+| Situation | Response | Provider called |
+| --- | --- | --- |
+| Instruction-like question | 200, abstained, `blocked` | no |
+| No chunk left after retrieval and context building | 200, abstained, `no_context` | no |
+| Vector index unavailable | 503 `retrieval unavailable` | no |
+| Foreign or incomplete chunk | 503 `retrieval integrity violation` (+ `vector_tenant_boundary_violation`) | no |
+| Embedding model or dimension mismatch | 503 `retrieval misconfigured` | no |
+| Provider error | 503 `generation unavailable` | yes |
+| Answer without source markers | 200, abstained, `ungrounded` | yes |
+
+Citations of the vector path carry `document_id`, `document_version_id`, `chunk_id`
+and `page_number` in addition to `source_id`, `title`, `tenant_id` and `score`; they
+refer only to chunks in the context. The browser gate runs its API explicitly with
+`RAGOPS_QUERY_MODE=demo` because its journeys ask questions of the demo corpus.

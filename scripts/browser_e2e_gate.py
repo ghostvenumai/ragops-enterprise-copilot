@@ -741,6 +741,9 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             "RAGOPS_RATE_LIMIT_REQUESTS": str(RATE_LIMIT),
             "RAGOPS_RATE_LIMIT_WINDOW_SECONDS": "60",
             "RAGOPS_VECTOR_PROVIDER": "qdrant",
+            # The browser journeys ask questions of the synthetic demo corpus; uploads still
+            # go through the worker into Qdrant. The vector query path has its own gate.
+            "RAGOPS_QUERY_MODE": "demo",
             "RAGOPS_QDRANT_URL": qdrant,
             "RAGOPS_QDRANT_COLLECTION": collection,
             "RAGOPS_LLM_PROVIDER": "deterministic",
@@ -2095,8 +2098,10 @@ def build_evidence(result: GateResult, evidence: dict[str, Any]) -> dict[str, An
         "query_ui_present": True,
         "query_verified": bool(ok("query_answer_rendered")),
         "browser_query_uses_qdrant": False,
-        "query_path_note": "the Copilot answers from the local JSON demo corpus; uploaded "
-        "documents are indexed into Qdrant by the worker but are not used by /v1/query",
+        "query_mode": "demo",
+        "query_path_note": "the API runs with RAGOPS_QUERY_MODE=demo, so the Copilot answers "
+        "from the local JSON demo corpus; uploaded documents are indexed into Qdrant by the "
+        "worker. The vector query path (RAGOPS_QUERY_MODE=vector) is not driven by this gate",
         "citations_or_sources_verified": bool(ok("citations_or_sources_verified")),
         "rate_limit_ui_verified": bool(ok("rate_limit_ui_verified")),
         "rate_limit_retry_after_seconds": m.get("rate_limit_retry_after_seconds"),
