@@ -81,6 +81,8 @@ class Control:
     config_check: str = ""
     evidence_file: str = ""
     required: tuple[tuple[str, object], ...] = ()
+    # Integer fields that must be present and at least this large (for example observed calls).
+    minimums: tuple[tuple[str, int], ...] = ()
     keycloak: bool = False
 
     def evidence_source(self) -> str:
@@ -90,7 +92,10 @@ class Control:
             return f"config check `{self.config_check}` (`scripts/security_gate.py`)"
         if self.keycloak:
             return "read-only Keycloak realm settings (`scripts/security_gate.py`)"
-        fields = ", ".join(f"`{key}={json.dumps(value)}`" for key, value in self.required)
+        fields = ", ".join(
+            [f"`{key}={json.dumps(value)}`" for key, value in self.required]
+            + [f"`{key}>={value}`" for key, value in self.minimums]
+        )
         return f"`evidence/product-v1/rc-live/{self.evidence_file}`: {fields}"
 
 
@@ -444,6 +449,29 @@ CONTROLS: tuple[Control, ...] = (
         evidence_file="docker-compose.json",
         required=(("status", "PASS"),),
     ),
+    Control(
+        "LIVE-10",
+        "Information disclosure",
+        "Uploaded documents are answered through Qdrant, the router and accounting without "
+        "tenant, citation, usage or budget leakage and without demo retrieval",
+        "live",
+        evidence_file="rag-query.json",
+        required=(
+            ("status", "PASS"),
+            ("tenant_leakage", 0),
+            ("vector_tenant_leakage", 0),
+            ("citation_tenant_leakage", 0),
+            ("usage_tenant_leakage", 0),
+            ("budget_tenant_leakage", 0),
+            ("demo_retrieval_used", False),
+            ("unique_nonce_verified", True),
+            ("citations_verified", True),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("qdrant_requests_observed", 1),),
+    ),
 )
 
 
@@ -687,7 +715,15 @@ def evaluate_live_evidence(
             if key == "status" and actual == "BLOCKED":
                 return ControlResult(control.id, MISSING, f"{control.evidence_file} is BLOCKED")
             return ControlResult(control.id, FAIL, f"{control.evidence_file}: {key} is not met")
-    return ControlResult(control.id, PASS, f"{len(control.required)} fields verified")
+    for key, minimum in control.minimums:
+        if key not in data:
+            return ControlResult(control.id, MISSING, f"{control.evidence_file} lacks {key}")
+        value = data[key]
+        if type(value) is not int or value < minimum:
+            return ControlResult(control.id, FAIL, f"{control.evidence_file}: {key} is not met")
+    return ControlResult(
+        control.id, PASS, f"{len(control.required) + len(control.minimums)} fields verified"
+    )
 
 
 def read_keycloak_state() -> tuple[dict[str, Any] | None, tuple[str, ...]]:

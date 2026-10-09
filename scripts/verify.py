@@ -126,7 +126,13 @@ def write_json(name: str, payload: Mapping[str, object]) -> None:
     )
 
 
-def run_command(name: str, command: list[str], output_file: str | None = None) -> dict[str, object]:
+# A hang guard, not a check: the coverage run of the full suite takes over two minutes.
+PYTEST_TIMEOUT_SECONDS = 600
+
+
+def run_command(
+    name: str, command: list[str], output_file: str | None = None, timeout: int = 120
+) -> dict[str, object]:
     if shutil.which(command[0]) is None:
         return {"name": name, "status": "not_executed", "reason": f"{command[0]} not available"}
     started = perf_counter()
@@ -137,13 +143,13 @@ def run_command(name: str, command: list[str], output_file: str | None = None) -
             text=True,
             capture_output=True,
             check=False,
-            timeout=120,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         timeout_result: dict[str, object] = {
             "name": name,
             "status": "failed",
-            "reason": "gate timed out after 120s",
+            "reason": f"gate timed out after {timeout}s",
         }
         if output_file:
             write_json(output_file, timeout_result)
@@ -335,6 +341,7 @@ def run_pytest() -> dict[str, object]:
             "--cov=loop",
             f"--cov-report=xml:{coverage_xml}",
         ],
+        timeout=PYTEST_TIMEOUT_SECONDS,
     )
     if result.get("status") == "failed" and "unrecognized arguments" in str(
         result.get("stderr_tail", "")
@@ -348,6 +355,7 @@ def run_pytest() -> dict[str, object]:
                 "--junitxml",
                 str(EVIDENCE_DIR / "test-results.xml"),
             ],
+            timeout=PYTEST_TIMEOUT_SECONDS,
         )
         coverage_xml.write_text(
             '<coverage status="not_executed" reason="pytest-cov plugin not available"/>\n',

@@ -5,6 +5,9 @@ refuse   closes the listener, so new connections are refused (ECONNREFUSED).
 blackhole accepts connections but never answers, so clients hit their timeouts.
 cut()    closes every active relayed connection, like a mid-operation disconnect.
 
+``upstream_bytes`` counts the bytes relayed from clients to the upstream service, so a gate
+can observe that real requests reached it.
+
 Only the client configured with this proxy's port is affected; the upstream service and
 its other clients are never stopped, paused or reconfigured. The listener keeps its port
 across refuse/forward, so a recovered client reconnects to the same address.
@@ -26,6 +29,7 @@ class FaultProxy:
         self._stopped = threading.Event()
         self._listener: socket.socket | None = None
         self.port = 0
+        self.upstream_bytes = 0
         self._open_listener()
         self._thread = threading.Thread(target=self._accept_loop, daemon=True)
         self._thread.start()
@@ -104,13 +108,23 @@ class FaultProxy:
                 continue
             with self._lock:
                 self._sockets.add(upstream)
-            for source, target in ((client, upstream), (upstream, client)):
-                threading.Thread(target=self._pump, args=(source, target), daemon=True).start()
+            for source, target, to_upstream in (
+                (client, upstream, True),
+                (upstream, client, False),
+            ):
+                threading.Thread(
+                    target=self._pump, args=(source, target, to_upstream), daemon=True
+                ).start()
 
-    def _pump(self, source: socket.socket, target: socket.socket) -> None:
+    def _pump(
+        self, source: socket.socket, target: socket.socket, to_upstream: bool = False
+    ) -> None:
         try:
             while data := source.recv(65536):
                 target.sendall(data)
+                if to_upstream:
+                    with self._lock:
+                        self.upstream_bytes += len(data)
         except OSError:
             pass
         finally:

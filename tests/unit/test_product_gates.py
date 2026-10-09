@@ -128,3 +128,21 @@ def test_partial_runs_never_replace_the_full_verification_summary(
     assert bundles == []
     assert verify.summary_file(None) == "verify-summary.json"
     assert verify.summary_file("security") == "verify-summary-security.json"
+
+
+def test_pytest_gets_its_own_hang_guard_and_other_gates_keep_120_seconds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verify, "EVIDENCE_DIR", tmp_path)
+    monkeypatch.setattr(verify.shutil, "which", lambda name: name)
+    seen: list[object] = []
+
+    def timeout(*args: object, **kwargs: object) -> None:
+        seen.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(["synthetic"], kwargs["timeout"])  # type: ignore[arg-type]
+
+    monkeypatch.setattr(verify.subprocess, "run", timeout)
+    assert verify.run_pytest()["reason"] == "gate timed out after 600s"
+    assert verify.run_command("ruff", ["synthetic"])["reason"] == "gate timed out after 120s"
+    assert seen == [verify.PYTEST_TIMEOUT_SECONDS, 120] and verify.PYTEST_TIMEOUT_SECONDS == 600

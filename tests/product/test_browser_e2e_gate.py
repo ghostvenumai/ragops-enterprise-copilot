@@ -23,8 +23,12 @@ def test_all_required_checks_pass_and_report_the_contract() -> None:
     assert evidence["browser_query_uses_qdrant"] is False
     # The journeys use the demo corpus on purpose; the mode is explicit, never a fallback.
     assert evidence["query_mode"] == "demo"
+    import inspect
+
+    assert inspect.signature(gate.environment).parameters["query_mode"].default == "demo"
+    assert "query_mode=" not in inspect.getsource(gate.main)
     source = Path(gate.__file__).read_text(encoding="utf-8")
-    assert source.count('"RAGOPS_QUERY_MODE": "demo"') == 1
+    assert source.count('"RAGOPS_QUERY_MODE": query_mode') == 1
     assert evidence["headless"] is True and evidence["browser_engine"] == "chromium"
     for key in (
         "real_browser_login_verified",

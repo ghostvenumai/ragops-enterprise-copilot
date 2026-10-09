@@ -517,6 +517,11 @@ class Environment:
     # For gates that add their own processes; everything listed here is stopped on cleanup.
     service_env: dict[str, str] = field(default_factory=dict)
     services: list[Service] = field(default_factory=list)
+    query_mode: str = "demo"
+    qdrant_url: str = ""
+    collection: str = ""
+    # Set with observe_qdrant: the API reaches Qdrant only through this counting proxy.
+    qdrant_proxy: FaultProxy | None = None
 
     def token(self, label: str) -> str:
         return password_token(self.client_id, self.client_secret, self.users[label])
@@ -627,8 +632,24 @@ def _redis_keys(url: str, pattern: str) -> set[str]:
 
 
 @contextmanager
-def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Environment]:
+def environment(
+    result: GateResult,
+    evidence: dict[str, Any],
+    *,
+    query_mode: str = "demo",
+    observe_qdrant: bool = False,
+    idp_down_dashboard: bool = True,
+) -> Iterator[Environment]:
+    """Gate-owned API, worker and dashboards on the local identity provider.
+
+    ``query_mode`` selects the API's /v1/query path; in ``vector`` mode the API gets an empty
+    data directory, so no demo corpus exists. ``observe_qdrant`` routes the API (not the
+    worker) through a counting proxy, so a gate can prove that queries reached Qdrant.
+    """
     import redis
+
+    if query_mode not in {"demo", "vector"}:
+        raise ValueError("query_mode must be demo or vector")
 
     from scripts.backup_restore_gate import resolve_test_database_url
     from scripts.postgres_concurrency_gate import (
@@ -683,6 +704,7 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
     stack = ExitStack()
     work = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="rc-e2e-")))
     queue_proxy: FaultProxy | None = None
+    qdrant_proxy: FaultProxy | None = None
     try:
         sentinel_client.set(sentinel_key, sentinel_value, ex=1800)
         qdrant = stack.enter_context(_disposable_qdrant(evidence))
@@ -698,7 +720,10 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
 
         collection = f"rc_e2e_{run_id}"
         QdrantVectorIndex(qdrant, collection, 64, timeout_seconds=5).ensure_schema()
-        shutil.copytree(ROOT / "data" / "synthetic", work / "data")
+        if query_mode == "demo":
+            shutil.copytree(ROOT / "data" / "synthetic", work / "data")
+        else:
+            (work / "data").mkdir()  # no demo corpus: the vector path cannot fall back to it
         (work / "evidence").mkdir()
         (work / "logs").mkdir()
         seeded = _seed_knowledge(database_url, work / "data", run_id)
@@ -743,7 +768,7 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             "RAGOPS_VECTOR_PROVIDER": "qdrant",
             # The browser journeys ask questions of the synthetic demo corpus; uploads still
             # go through the worker into Qdrant. The vector query path has its own gate.
-            "RAGOPS_QUERY_MODE": "demo",
+            "RAGOPS_QUERY_MODE": query_mode,
             "RAGOPS_QDRANT_URL": qdrant,
             "RAGOPS_QDRANT_COLLECTION": collection,
             "RAGOPS_LLM_PROVIDER": "deterministic",
@@ -752,11 +777,16 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             "RAGOPS_E2E_PROVIDER_LEDGER": str(ledger),
             "RAGOPS_PLATFORM_ADMIN_TENANT_ID": PLATFORM_TENANT,
         }
+        api_env = dict(product)
+        if observe_qdrant:
+            parts = urllib.parse.urlsplit(qdrant)
+            qdrant_proxy = FaultProxy(parts.hostname or "127.0.0.1", parts.port or 6333)
+            api_env["RAGOPS_QDRANT_URL"] = f"http://127.0.0.1:{qdrant_proxy.port}"
         launcher = str(ROOT / "scripts" / "browser_e2e_services.py")
         logs = work / "logs"
         services.append(
             Service(
-                "api", [sys.executable, launcher, "api", str(api_port)], product, logs / "api.log"
+                "api", [sys.executable, launcher, "api", str(api_port)], api_env, logs / "api.log"
             )
         )
         services.append(
@@ -782,10 +812,13 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             metadata=f"http://127.0.0.1:{free_port()}/realms/{REALM}/.well-known/openid-configuration",
         )
         services.append(start_dashboard("dashboard", ui_port, secrets_file, dashboard_env, logs))
-        services.append(
-            start_dashboard("dashboard-idp-down", idp_down_port, down_secrets, dashboard_env, logs)
-        )
-        for port in (ui_port, idp_down_port):
+        if idp_down_dashboard:
+            services.append(
+                start_dashboard(
+                    "dashboard-idp-down", idp_down_port, down_secrets, dashboard_env, logs
+                )
+            )
+        for port in (ui_port, idp_down_port) if idp_down_dashboard else (ui_port,):
             if not wait_http(f"http://127.0.0.1:{port}/_stcore/health", 60):
                 raise RuntimeError("gate dashboard did not start")
         evidence["ui_start_command_sanitized"] = (
@@ -814,12 +847,18 @@ def environment(result: GateResult, evidence: dict[str, Any]) -> Iterator[Enviro
             work=work,
             service_env=product,
             services=services,
+            query_mode=query_mode,
+            qdrant_url=qdrant,
+            collection=collection,
+            qdrant_proxy=qdrant_proxy,
         )
     finally:
         stopped = [service.stop() for service in services]
         result.check("processes_stopped", all(stopped))
         if queue_proxy is not None:
             queue_proxy.stop()
+        if qdrant_proxy is not None:
+            qdrant_proxy.stop()
         try:
             ledger_lines = (work / "provider-ledger.txt").read_text(encoding="utf-8").split()
         except OSError:

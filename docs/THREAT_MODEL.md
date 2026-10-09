@@ -44,7 +44,7 @@ All of these tests are evidence of control SEC-08 or SEC-04 below.
 | Browser to TLS edge | Any network client | Caddy reverse proxy | CFG-01, CFG-02, LIVE-08 |
 | Edge to API | HTTP request, headers, body, bearer token | FastAPI routes behind `RequestHardening` | SEC-01, SEC-02, SEC-10, SEC-11, LIVE-05 |
 | Identity provider to API | Token claims | `OIDCIdentityProvider` with configured key, issuer, audience | SEC-01, SEC-02, SEC-03, LIVE-01, LIVE-02 |
-| Tenant to tenant | Identifiers and filters chosen by a caller | Tenant-scoped repositories and `AuthorizedVectorScope` | SEC-04, SEC-05, SEC-06, LIVE-03, LIVE-04 |
+| Tenant to tenant | Identifiers and filters chosen by a caller | Tenant-scoped repositories and `AuthorizedVectorScope` | SEC-04, SEC-05, SEC-06, LIVE-03, LIVE-04, LIVE-10 |
 | Uploaded document to storage and index | File name, bytes, embedded text | Upload validation, structural inspection, injection flags | SEC-07, SEC-08 |
 | Application to audit and telemetry | Request content | Masked, correlated audit events | SEC-09 |
 | Backup artifact to restore target | Artifact bytes, key file | Authenticated decryption, fresh-target checks | SEC-12, LIVE-06 |
@@ -57,8 +57,8 @@ the audit trail. Only synthetic data is used in this repository.
 ## Control Matrix
 
 The security release gate (`scripts/security_gate.py`, gate `security` of
-`make rc-live-gate`) has 26 mandatory controls: 17 of type `regression`
-and 9 of type `live`. The table is generated with
+`make rc-live-gate`) has 27 mandatory controls: 17 of type `regression`
+and 10 of type `live`. The table is generated with
 `python scripts/security_gate.py --matrix`; a test keeps this document and the gate
 identical.
 
@@ -96,6 +96,7 @@ identical.
 | LIVE-07 | Denial of service | Dependency outages turn the instance unready with sanitized reasons and no leakage | live | `evidence/product-v1/rc-live/readiness-failure-recovery.json`: `status="PASS"`, `readiness_payload_sanitized=true`, `rate_limit_fail_closed=true`, `readiness_recovery_tenant_leakage=0`, `secret_scan_passed=true`, `cleanup_status="PASS"` |
 | LIVE-08 | Spoofing | Browser login, logout, session expiry, role denial and tenant isolation hold end to end | live | `evidence/product-v1/rc-live/browser-e2e.json`: `status="PASS"`, `real_browser_login_verified=true`, `logout_verified=true`, `session_expiry_verified=true`, `backend_rbac_denied=true`, `browser_e2e_tenant_leakage=0`, `sensitive_artifacts_detected=false`, `secret_scan_passed=true`, `cleanup_status="PASS"` |
 | LIVE-09 | Tampering | The production Compose configuration is valid on the host | live | `evidence/product-v1/rc-live/docker-compose.json`: `status="PASS"` |
+| LIVE-10 | Information disclosure | Uploaded documents are answered through Qdrant, the router and accounting without tenant, citation, usage or budget leakage and without demo retrieval | live | `evidence/product-v1/rc-live/rag-query.json`: `status="PASS"`, `tenant_leakage=0`, `vector_tenant_leakage=0`, `citation_tenant_leakage=0`, `usage_tenant_leakage=0`, `budget_tenant_leakage=0`, `demo_retrieval_used=false`, `unique_nonce_verified=true`, `citations_verified=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `qdrant_requests_observed>=1` |
 
 ## Evidence Admissibility
 
@@ -104,7 +105,7 @@ existing evidence counts.
 
 | Evidence state | Meaning | Effect |
 | --- | --- | --- |
-| `PASS` | Present, well-formed, for the tested commit, not older than 24 hours, every required field has exactly the required value and type | Control is evidenced |
+| `PASS` | Present, well-formed, for the tested commit, not older than 24 hours, every required field has exactly the required value and type, every minimum (`>=`) is met by an integer | Control is evidenced |
 | `MISSING` | File, field, test result or Keycloak access is absent; a named test was skipped; the source gate is `BLOCKED` | `security` stays `BLOCKED` |
 | `MALFORMED` | Unreadable report, invalid JSON, missing or untyped `tested_commit`/`timestamp` | `security` stays `BLOCKED` |
 | `STALE` | Evidence is for another commit, too old, or dated in the future | `security` stays `BLOCKED` |
@@ -118,7 +119,7 @@ Additional rules:
   Keycloak client `ragops-integration-check`) is a `FAIL`.
 - Evidence that contains a credential, token, private key or connection string is
   replaced by a minimal `FAIL` record.
-- `15/15` is reported only when all 26 controls are evidenced. Controls are
+- `16/16` is reported only when all 27 controls are evidenced. Controls are
   never removed, merged or weakened to reach that state.
 
 ## Identity Provider Clients

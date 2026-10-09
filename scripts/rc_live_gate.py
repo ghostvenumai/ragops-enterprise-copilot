@@ -29,6 +29,7 @@ GATES = (
     "backup_restore",
     "readiness_failure_recovery",
     "browser_e2e",
+    "rag_query",
     "security",
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
@@ -44,6 +45,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "backup_restore",
         "readiness_failure_recovery",
         "browser_e2e",
+        "rag_query",
         "security",
     }
 )
@@ -275,6 +277,12 @@ def main() -> int:
         gate_results["readiness_failure_recovery"] = {
             "status": status,
             "detail": detail or "See sanitized readiness-failure-recovery.json evidence",
+        }
+    if "rag_query" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/rag_query_gate.py"])
+        gate_results["rag_query"] = {
+            "status": status,
+            "detail": detail or "See sanitized rag-query.json evidence",
         }
     if "browser_e2e" in selected:
         status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])

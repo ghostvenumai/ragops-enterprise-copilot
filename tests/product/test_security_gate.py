@@ -39,6 +39,7 @@ def write_live(directory: Path, control: gate.Control, **changes: object) -> Non
         "tested_commit": COMMIT,
         "timestamp": (NOW - timedelta(minutes=5)).isoformat(),
         **dict(control.required),
+        **dict(control.minimums),
         **changes,
     }
     (directory / control.evidence_file).write_text(json.dumps(payload), encoding="utf-8")
@@ -485,3 +486,47 @@ def test_oidc_gate_always_removes_its_gate_only_client() -> None:
     calls.clear()
     assert rc_live_gate.run_oidc_gate(run({}), False) == ("PASS", "ok")
     assert calls == [[".venv/bin/python", "scripts/oidc_integration_check.py"]]
+
+
+# --------------------------------------------------------------------------- rag_query (LIVE-10)
+
+
+def test_rag_query_evidence_needs_observed_qdrant_requests(tmp_path) -> None:
+    control = CONTROLS["LIVE-10"]
+    write_live(tmp_path, control, qdrant_requests_observed=3)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.PASS
+    for value in (0, -1, "3", True, None):
+        write_live(tmp_path, control, qdrant_requests_observed=value)
+        assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.FAIL
+    payload = json.loads((tmp_path / control.evidence_file).read_text())
+    del payload["qdrant_requests_observed"]
+    (tmp_path / control.evidence_file).write_text(json.dumps(payload))
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.MISSING
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"tenant_leakage": 1},
+        {"citation_tenant_leakage": 1},
+        {"usage_tenant_leakage": 1},
+        {"budget_tenant_leakage": 1},
+        {"demo_retrieval_used": True},
+        {"unique_nonce_verified": False},
+        {"paid_provider_calls": 1},
+        {"secret_scan_passed": False},
+    ],
+)
+def test_false_rag_query_evidence_fails(tmp_path, changes) -> None:
+    control = CONTROLS["LIVE-10"]
+    write_live(tmp_path, control, qdrant_requests_observed=2, **changes)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.FAIL
+
+
+def test_stale_or_foreign_rag_query_evidence_is_not_admissible(tmp_path) -> None:
+    control = CONTROLS["LIVE-10"]
+    write_live(tmp_path, control, qdrant_requests_observed=2, tested_commit="b" * 40)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+    old = (NOW - gate.MAX_EVIDENCE_AGE - timedelta(minutes=1)).isoformat()
+    write_live(tmp_path, control, qdrant_requests_observed=2, timestamp=old)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE

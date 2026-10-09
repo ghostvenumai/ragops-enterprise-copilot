@@ -228,3 +228,34 @@ def test_known_upload_rejections_have_german_text() -> None:
             dashboard.UPLOAD_REJECTIONS[detail]
             and detail not in dashboard.UPLOAD_REJECTIONS[detail]
         )
+
+
+def test_vector_mode_shows_the_indexed_documents_hint_instead_of_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def unavailable(method: str, path: str, *args: object, **kwargs: object) -> object:
+        raise dashboard.DashboardApiError(
+            "Die angeforderte Ressource wurde nicht gefunden.",
+            status=404,
+            detail=dashboard.VECTOR_MODE_DETAIL,
+        )
+
+    monkeypatch.setattr(dashboard, "api_request", unavailable)
+    for name in ("subheader", "caption", "error"):
+        monkeypatch.setattr(
+            dashboard.st, name, lambda text, *a, _n=name, **k: calls.append((_n, str(text)))
+        )
+    dashboard.render_query_corpus("tenant-alpha")
+    assert [kind for kind, _ in calls] == ["subheader", "caption"]
+    assert "indexierten Dokumenten" in calls[1][1]
+
+    calls.clear()
+
+    def other_failure(method: str, path: str, *args: object, **kwargs: object) -> object:
+        raise dashboard.DashboardApiError("Fehler", status=404, detail="document not found")
+
+    monkeypatch.setattr(dashboard, "api_request", other_failure)
+    dashboard.render_query_corpus("tenant-alpha")
+    assert calls == [("error", "Fehler")]

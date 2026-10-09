@@ -991,11 +991,21 @@ def render_knowledge_base(tenant_id: str) -> None:
     render_query_corpus(tenant_id)
 
 
+VECTOR_MODE_DETAIL = "demo corpus is not available in vector query mode"
+
+
 def render_query_corpus(tenant_id: str) -> None:
-    """The local demo corpus that /v1/query answers from; uploads do not change it."""
+    """The local demo corpus that /v1/query answers from in demo mode; absent in vector mode."""
     try:
         documents = api_request("GET", "/v1/documents")
     except DashboardApiError as exc:
+        if exc.status == 404 and exc.detail == VECTOR_MODE_DETAIL:
+            st.subheader("Abfragebasis")
+            st.caption(
+                "Der Copilot beantwortet Fragen aus den indexierten Dokumenten dieses "
+                "Mandanten. Abgeschlossene Aufträge oben sind sofort abfragbar."
+            )
+            return
         st.error(str(exc))
         return
     tenant_documents = [
