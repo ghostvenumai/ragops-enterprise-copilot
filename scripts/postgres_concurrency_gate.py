@@ -12,7 +12,7 @@ from typing import Any
 
 from sqlalchemy.engine import make_url
 
-MIGRATION_HEAD = "0006_finops_reservations"
+MIGRATION_HEAD = "0007_query_idempotency"
 
 
 def validate_isolated_database(database_url: str) -> tuple[bool, str, str]:

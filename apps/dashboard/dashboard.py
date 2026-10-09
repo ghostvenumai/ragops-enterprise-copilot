@@ -850,6 +850,9 @@ def render_copilot(tenant_id: str, role: str, top_k: int, demo_scene: str = "") 
         st.rerun()
 
 
+UPLOAD_NOTICE = "upload_notice"
+
+
 def submit_upload(
     workspace_id: str, collection_id: str, title: str, upload: Any
 ) -> tuple[str, str]:
@@ -980,10 +983,16 @@ def render_knowledge_base(tenant_id: str) -> None:
         if submitted:
             collection_id = collection_options.get(selected_collection)
             if upload is None or not selected_workspace_id or not collection_id:
-                st.warning("Bitte Workspace, Collection und Datei auswählen.")
+                outcome = ("warning", "Bitte Workspace, Collection und Datei auswählen.")
             else:
-                level, message = submit_upload(selected_workspace_id, collection_id, title, upload)
-                getattr(st, level)(message)
+                outcome = submit_upload(selected_workspace_id, collection_id, title, upload)
+            st.session_state[UPLOAD_NOTICE] = (tenant_id, *outcome)
+        # A new job switches the job list into polling through a full rerun, which would drop
+        # anything rendered only in the submit run: the outcome stays until the next submit
+        # or until the user leaves this page.
+        notice = st.session_state.get(UPLOAD_NOTICE)
+        if notice and notice[0] == tenant_id:
+            getattr(st, notice[1])(notice[2])
     if st.session_state.get("jobs_polling", False):
         _jobs_polling()
     else:
@@ -1283,6 +1292,8 @@ def main() -> None:
     tenant_id, role, top_k, navigation = render_sidebar(
         navigation_for_demo_scene(demo_scene), identity
     )
+    if navigation != "Wissensbasis":
+        st.session_state.pop(UPLOAD_NOTICE, None)
     if navigation == "Copilot":
         render_copilot(tenant_id, role, top_k, demo_scene)
     elif navigation == "Wissensbasis":

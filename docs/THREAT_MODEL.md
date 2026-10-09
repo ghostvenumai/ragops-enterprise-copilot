@@ -47,6 +47,7 @@ All of these tests are evidence of control SEC-08 or SEC-04 below.
 | Tenant to tenant | Identifiers and filters chosen by a caller | Tenant-scoped repositories and `AuthorizedVectorScope` | SEC-04, SEC-05, SEC-06, LIVE-03, LIVE-04, LIVE-10 |
 | Uploaded document to storage and index | File name, bytes, embedded text | Upload validation, structural inspection, injection flags | SEC-07, SEC-08 |
 | Application to audit and telemetry | Request content | Masked, correlated audit events | SEC-09 |
+| Client retry to billing | Repeated requests with an `Idempotency-Key` | Durable, tenant- and principal-scoped idempotency records in PostgreSQL; keys only as HMAC-SHA256 under a server secret | LIVE-11 |
 | Backup artifact to restore target | Artifact bytes, key file | Authenticated decryption, fresh-target checks | SEC-12, LIVE-06 |
 | Configuration and supply chain | Environment, dependency set, repository files | Fail-closed settings, pinned dependencies | SEC-13, CFG-03, CFG-04, LIVE-07, LIVE-09 |
 
@@ -57,8 +58,8 @@ the audit trail. Only synthetic data is used in this repository.
 ## Control Matrix
 
 The security release gate (`scripts/security_gate.py`, gate `security` of
-`make rc-live-gate`) has 27 mandatory controls: 17 of type `regression`
-and 10 of type `live`. The table is generated with
+`make rc-live-gate`) has 28 mandatory controls: 17 of type `regression`
+and 11 of type `live`. The table is generated with
 `python scripts/security_gate.py --matrix`; a test keeps this document and the gate
 identical.
 
@@ -97,6 +98,7 @@ identical.
 | LIVE-08 | Spoofing | Browser login, logout, session expiry, role denial and tenant isolation hold end to end | live | `evidence/product-v1/rc-live/browser-e2e.json`: `status="PASS"`, `real_browser_login_verified=true`, `logout_verified=true`, `session_expiry_verified=true`, `backend_rbac_denied=true`, `browser_e2e_tenant_leakage=0`, `sensitive_artifacts_detected=false`, `secret_scan_passed=true`, `cleanup_status="PASS"` |
 | LIVE-09 | Tampering | The production Compose configuration is valid on the host | live | `evidence/product-v1/rc-live/docker-compose.json`: `status="PASS"` |
 | LIVE-10 | Information disclosure | Uploaded documents are answered through Qdrant, the router and accounting without tenant, citation, usage or budget leakage and without demo retrieval | live | `evidence/product-v1/rc-live/rag-query.json`: `status="PASS"`, `tenant_leakage=0`, `vector_tenant_leakage=0`, `citation_tenant_leakage=0`, `usage_tenant_leakage=0`, `budget_tenant_leakage=0`, `demo_retrieval_used=false`, `unique_nonce_verified=true`, `citations_verified=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `qdrant_requests_observed>=1` |
+| LIVE-11 | Repudiation | Same-key query retries are replayed or blocked from durable PostgreSQL state: at most one provider call, reservation and usage record, keys stored only as server-keyed HMAC digests, no cross-tenant or cross-user idempotency state | live | `evidence/product-v1/rc-live/query-idempotency.json`: `status="PASS"`, `durable_store_used=true`, `raw_keys_stored=false`, `keyed_digest_used=true`, `successful_replay_verified=true`, `replay_provider_calls=1`, `replay_usage_records=1`, `duplicate_idempotency_records=0`, `conflict_verified=true`, `idempotency_tenant_leakage=0`, `idempotency_user_leakage=0`, `response_tenant_leakage=0`, `accounting_failure_retry_blocked=true`, `ambiguous_provider_retry_blocked=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `concurrent_request_count>=10`, `concurrent_provider_calls<=1`, `concurrent_usage_records<=1`, `concurrent_reservations<=1` |
 
 ## Evidence Admissibility
 
@@ -105,7 +107,7 @@ existing evidence counts.
 
 | Evidence state | Meaning | Effect |
 | --- | --- | --- |
-| `PASS` | Present, well-formed, for the tested commit, not older than 24 hours, every required field has exactly the required value and type, every minimum (`>=`) is met by an integer | Control is evidenced |
+| `PASS` | Present, well-formed, for the tested commit, not older than 24 hours, every required field has exactly the required value and type, every minimum (`>=`) and maximum (`<=`) is met by a non-negative integer | Control is evidenced |
 | `MISSING` | File, field, test result or Keycloak access is absent; a named test was skipped; the source gate is `BLOCKED` | `security` stays `BLOCKED` |
 | `MALFORMED` | Unreadable report, invalid JSON, missing or untyped `tested_commit`/`timestamp` | `security` stays `BLOCKED` |
 | `STALE` | Evidence is for another commit, too old, or dated in the future | `security` stays `BLOCKED` |
@@ -119,7 +121,7 @@ Additional rules:
   Keycloak client `ragops-integration-check`) is a `FAIL`.
 - Evidence that contains a credential, token, private key or connection string is
   replaced by a minimal `FAIL` record.
-- `16/16` is reported only when all 27 controls are evidenced. Controls are
+- `17/17` is reported only when all 28 controls are evidenced. Controls are
   never removed, merged or weakened to reach that state.
 
 ## Identity Provider Clients

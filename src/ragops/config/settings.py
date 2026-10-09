@@ -3,10 +3,39 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ragops.ops.rate_limit import validate_policy
+
+IDEMPOTENCY_SECRET_MIN_BYTES = 32
+IDEMPOTENCY_SECRET_MIN_DISTINCT = 8
+
+
+def validate_idempotency_secret(secret: str) -> None:
+    """Reject secrets that would make keyed idempotency digests guessable; never echo them."""
+    if (
+        len(secret.encode()) < IDEMPOTENCY_SECRET_MIN_BYTES
+        or len(set(secret)) < IDEMPOTENCY_SECRET_MIN_DISTINCT
+    ):
+        raise ValueError(
+            "RAGOPS_IDEMPOTENCY_HMAC_KEY must have at least "
+            f"{IDEMPOTENCY_SECRET_MIN_BYTES} bytes and "
+            f"{IDEMPOTENCY_SECRET_MIN_DISTINCT} distinct characters"
+        )
+
+
+def _idempotency_secret() -> str | None:
+    direct = os.getenv("RAGOPS_IDEMPOTENCY_HMAC_KEY")
+    secret_file = os.getenv("RAGOPS_IDEMPOTENCY_HMAC_KEY_FILE")
+    if direct and secret_file:
+        raise ValueError(
+            "Configure exactly one of RAGOPS_IDEMPOTENCY_HMAC_KEY or "
+            "RAGOPS_IDEMPOTENCY_HMAC_KEY_FILE"
+        )
+    if secret_file:
+        return Path(secret_file).read_text(encoding="utf-8").strip()
+    return direct or None
 
 
 @dataclass(frozen=True)
@@ -63,6 +92,10 @@ class Settings:
     # router's default 8192-token context window.
     context_max_chunks: int = 20
     context_max_tokens: int = 6000
+    # Retention of idempotent query records: one day covers client and gateway retries.
+    query_idempotency_ttl_seconds: int = 86_400
+    # Server secret of the keyed idempotency-key digest; without it keyed requests fail closed.
+    query_idempotency_hmac_key: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.environment not in {"local", "development", "test", "demo", "production"}:
@@ -100,6 +133,10 @@ class Settings:
             raise ValueError("RAGOPS_CONTEXT_MAX_CHUNKS must be between 1 and 20")
         if not 256 <= self.context_max_tokens <= 100_000:
             raise ValueError("RAGOPS_CONTEXT_MAX_TOKENS must be between 256 and 100000")
+        if not 300 <= self.query_idempotency_ttl_seconds <= 604_800:
+            raise ValueError("RAGOPS_QUERY_IDEMPOTENCY_TTL_SECONDS must be between 300 and 604800")
+        if self.query_idempotency_hmac_key is not None:
+            validate_idempotency_secret(self.query_idempotency_hmac_key)
 
     @property
     def effective_query_mode(self) -> str:
@@ -245,6 +282,10 @@ class Settings:
             query_mode=os.getenv("RAGOPS_QUERY_MODE", "").lower(),
             context_max_chunks=int(os.getenv("RAGOPS_CONTEXT_MAX_CHUNKS", "20")),
             context_max_tokens=int(os.getenv("RAGOPS_CONTEXT_MAX_TOKENS", "6000")),
+            query_idempotency_ttl_seconds=int(
+                os.getenv("RAGOPS_QUERY_IDEMPOTENCY_TTL_SECONDS", "86400")
+            ),
+            query_idempotency_hmac_key=_idempotency_secret(),
             rate_limit_timeout_seconds=float(
                 os.getenv("RAGOPS_RATE_LIMIT_TIMEOUT_SECONDS", "0.25")
             ),

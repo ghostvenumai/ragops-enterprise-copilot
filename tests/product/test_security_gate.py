@@ -40,6 +40,7 @@ def write_live(directory: Path, control: gate.Control, **changes: object) -> Non
         "timestamp": (NOW - timedelta(minutes=5)).isoformat(),
         **dict(control.required),
         **dict(control.minimums),
+        **dict(control.maximums),
         **changes,
     }
     (directory / control.evidence_file).write_text(json.dumps(payload), encoding="utf-8")
@@ -530,3 +531,71 @@ def test_stale_or_foreign_rag_query_evidence_is_not_admissible(tmp_path) -> None
     old = (NOW - gate.MAX_EVIDENCE_AGE - timedelta(minutes=1)).isoformat()
     write_live(tmp_path, control, qdrant_requests_observed=2, timestamp=old)
     assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+
+
+# ---------------------------------------------------------------- query_idempotency (LIVE-11)
+
+
+def test_query_idempotency_evidence_passes_when_complete(tmp_path) -> None:
+    control = CONTROLS["LIVE-11"]
+    assert control.evidence_file == "query-idempotency.json"
+    write_live(tmp_path, control)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.PASS
+    write_live(tmp_path, control, concurrent_provider_calls=0, concurrent_usage_records=0)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.PASS
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"concurrent_provider_calls": 2},
+        {"concurrent_usage_records": 2},
+        {"concurrent_reservations": 2},
+        {"concurrent_provider_calls": "1"},
+        {"concurrent_request_count": 1},
+        {"replay_provider_calls": 2},
+        {"replay_usage_records": 2},
+        {"duplicate_idempotency_records": 1},
+        {"raw_keys_stored": True},
+        {"keyed_digest_used": False},
+        {"durable_store_used": False},
+        {"successful_replay_verified": False},
+        {"conflict_verified": False},
+        {"idempotency_tenant_leakage": 1},
+        {"idempotency_user_leakage": 1},
+        {"response_tenant_leakage": 1},
+        {"accounting_failure_retry_blocked": False},
+        {"ambiguous_provider_retry_blocked": False},
+        {"paid_provider_calls": 1},
+        {"cleanup_status": "FAIL"},
+        {"secret_scan_passed": False},
+    ],
+)
+def test_false_query_idempotency_evidence_fails(tmp_path, changes) -> None:
+    control = CONTROLS["LIVE-11"]
+    write_live(tmp_path, control, **changes)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.FAIL
+
+
+def test_missing_bounded_idempotency_fields_are_missing(tmp_path) -> None:
+    control = CONTROLS["LIVE-11"]
+    for key in ("concurrent_provider_calls", "concurrent_request_count", "raw_keys_stored"):
+        write_live(tmp_path, control)
+        payload = json.loads((tmp_path / control.evidence_file).read_text())
+        del payload[key]
+        (tmp_path / control.evidence_file).write_text(json.dumps(payload))
+        assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.MISSING
+
+
+def test_stale_or_foreign_query_idempotency_evidence_is_not_admissible(tmp_path) -> None:
+    control = CONTROLS["LIVE-11"]
+    write_live(tmp_path, control, tested_commit="b" * 40)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+    old = (NOW - gate.MAX_EVIDENCE_AGE - timedelta(minutes=1)).isoformat()
+    write_live(tmp_path, control, timestamp=old)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+
+
+def test_the_security_gate_never_runs_the_idempotency_workflow() -> None:
+    source = (ROOT / "scripts" / "security_gate.py").read_text(encoding="utf-8")
+    assert "query_idempotency_gate" not in source and "rag_query_gate" not in source

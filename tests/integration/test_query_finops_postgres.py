@@ -84,7 +84,7 @@ def database(monkeypatch) -> Iterator[Engine]:
         assert remaining == 0
 
 
-def client(keys, tmp_path, provider) -> TestClient:
+def client(keys, tmp_path, provider, hmac_key: str | None = None) -> TestClient:
     embedding = DeterministicEmbeddingProvider(DIMENSION)
     index = DeterministicVectorIndex(DIMENSION)
     index.upsert_chunks([(embedding.embed([TEXT["tenant-a"]])[0], payload("tenant-a"))])
@@ -98,6 +98,7 @@ def client(keys, tmp_path, provider) -> TestClient:
         vector_provider="qdrant",
         qdrant_url="http://127.0.0.1:9",
         embedding_dimension=DIMENSION,
+        query_idempotency_hmac_key=hmac_key,
     )
     app = create_app(settings, vector_index=index, llm_provider=provider)
     return TestClient(app, raise_server_exceptions=False)

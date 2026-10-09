@@ -522,6 +522,8 @@ class Environment:
     collection: str = ""
     # Set with observe_qdrant: the API reaches Qdrant only through this counting proxy.
     qdrant_proxy: FaultProxy | None = None
+    # Request metadata the gate API records (method, path, status, timing); no bodies.
+    request_log: Path | None = None
 
     def token(self, label: str) -> str:
         return password_token(self.client_id, self.client_secret, self.users[label])
@@ -725,7 +727,8 @@ def environment(
         else:
             (work / "data").mkdir()  # no demo corpus: the vector path cannot fall back to it
         (work / "evidence").mkdir()
-        (work / "logs").mkdir()
+        logs = work / "logs"
+        logs.mkdir()
         seeded = _seed_knowledge(database_url, work / "data", run_id)
         redirects = [
             f"http://localhost:{ui_port}/oauth2callback",
@@ -777,13 +780,12 @@ def environment(
             "RAGOPS_E2E_PROVIDER_LEDGER": str(ledger),
             "RAGOPS_PLATFORM_ADMIN_TENANT_ID": PLATFORM_TENANT,
         }
-        api_env = dict(product)
+        api_env = {**product, "RAGOPS_E2E_REQUEST_LOG": str(logs / "api-requests.jsonl")}
         if observe_qdrant:
             parts = urllib.parse.urlsplit(qdrant)
             qdrant_proxy = FaultProxy(parts.hostname or "127.0.0.1", parts.port or 6333)
             api_env["RAGOPS_QDRANT_URL"] = f"http://127.0.0.1:{qdrant_proxy.port}"
         launcher = str(ROOT / "scripts" / "browser_e2e_services.py")
-        logs = work / "logs"
         services.append(
             Service(
                 "api", [sys.executable, launcher, "api", str(api_port)], api_env, logs / "api.log"
@@ -851,6 +853,7 @@ def environment(
             qdrant_url=qdrant,
             collection=collection,
             qdrant_proxy=qdrant_proxy,
+            request_log=logs / "api-requests.jsonl",
         )
     finally:
         stopped = [service.stop() for service in services]
@@ -960,6 +963,9 @@ class BrowserSession:
         self.result, self.run_dir = result, run_dir
         self.allowances: list[tuple[re.Pattern[str], str]] = []
         self.version = str(self.browser.version)
+        # Per page: wall-clock time and size of Streamlit WebSocket frames while a probe is
+        # armed; payloads are never kept.
+        self.ws_frames: dict[int, list[tuple[float, str, int]]] = {}
 
     def allow(self, pattern: str, reason: str) -> None:
         self.allowances.append((re.compile(pattern), reason))
@@ -979,6 +985,7 @@ class BrowserSession:
         page = context.new_page()
         page.set_default_timeout(UI_TIMEOUT_MS)
         result = self.result
+        page.on("websocket", lambda socket: self._tap_websocket(page, socket))
         page.on(
             "pageerror", lambda error: self._classify("pageerror", str(error), result.page_errors)
         )
@@ -1011,6 +1018,15 @@ class BrowserSession:
             else None,
         )
         return context, page
+
+    def _tap_websocket(self, page: Any, socket: Any) -> None:
+        def frame(direction: str, payload: Any) -> None:
+            frames = self.ws_frames.get(id(page))
+            if frames is not None:
+                frames.append((time.time(), direction, len(payload or b"")))
+
+        socket.on("framesent", lambda payload: frame("sent", payload))
+        socket.on("framereceived", lambda payload: frame("received", payload))
 
     def screenshot(self, page: Any, name: str) -> None:
         path = self.run_dir / f"{len(self.result.screenshots) + 1:02d}-{name}.png"
@@ -1084,6 +1100,115 @@ def unobstructed(page: Any, locator: Any) -> bool:
     )
 
 
+# Mobile layout checks of the tenant-B journey; ``responsive_mobile`` is their conjunction.
+MOBILE_CHECKS = (
+    "responsive_mobile_knowledge_no_overflow",
+    "responsive_mobile_copilot_no_overflow",
+    "responsive_mobile_chat_input_unobscured",
+    "responsive_mobile_answer_no_overflow",
+)
+SIDEBAR_COLLAPSE_TIMEOUT_MS = 5_000
+LAYOUT_STABLE_FRAMES = 3
+# Streamlit collapses the sidebar through a 300 ms transform/width transition; on narrow
+# screens it overlays the content until it is done. Settled means: completely off-screen to
+# the left, no running animation, and the page geometry unchanged over consecutive animation
+# frames. aria-expanded is diagnostic only: in a live run it stayed "true" while the sidebar
+# was already off-screen.
+_SIDEBAR_SETTLED = """
+(frames) => {
+  const bar = document.querySelector('[data-testid="stSidebar"]');
+  const main = document.querySelector('[data-testid="stMainBlockContainer"]');
+  const state = window.__ragopsSidebarSettle ||= {last: null, stable: 0};
+  const reset = () => { state.last = null; state.stable = 0; return false; };
+  if (bar) {
+    if (bar.getBoundingClientRect().right > 0.5) return reset();
+    if (bar.getAnimations().some((a) => a.playState === 'running')) return reset();
+  }
+  const signature = JSON.stringify([
+    document.documentElement.scrollWidth,
+    window.innerWidth,
+    bar ? bar.getBoundingClientRect().right : null,
+    main ? main.getBoundingClientRect().width : null,
+  ]);
+  state.stable = signature === state.last ? state.stable + 1 : 0;
+  state.last = signature;
+  return state.stable >= frames;
+}
+"""
+_SIDEBAR_STATE = """
+() => {
+  const bar = document.querySelector('[data-testid="stSidebar"]');
+  return {
+    viewport_width: window.innerWidth,
+    viewport_height: window.innerHeight,
+    document_width: document.documentElement.scrollWidth,
+    sidebar_present: !!bar,
+    sidebar_expanded: bar ? bar.getAttribute('aria-expanded') !== 'false' : false,
+    sidebar_right: bar ? Math.round(bar.getBoundingClientRect().right * 10) / 10 : null,
+    sidebar_animations: bar
+      ? bar.getAnimations().filter((a) => a.playState === 'running').length : 0,
+    stable_frames: window.__ragopsSidebarSettle ? window.__ragopsSidebarSettle.stable : 0,
+  };
+}
+"""
+
+
+class SidebarNotCollapsed(TimeoutError):
+    """The mobile sidebar did not reach a settled, collapsed state in time."""
+
+
+def wait_for_collapsed_sidebar(page: Any, timeout_ms: int = SIDEBAR_COLLAPSE_TIMEOUT_MS) -> None:
+    """Bounded wait for the collapse transition and the following reflow; no fixed sleep."""
+    page.evaluate("() => { delete window.__ragopsSidebarSettle; }")
+    try:
+        page.wait_for_function(
+            _SIDEBAR_SETTLED, arg=LAYOUT_STABLE_FRAMES, polling="raf", timeout=timeout_ms
+        )
+    except Exception as exc:  # noqa: BLE001 - Playwright raises its own timeout type
+        state = page.evaluate(_SIDEBAR_STATE)
+        raise SidebarNotCollapsed(
+            "mobile sidebar did not settle collapsed within "
+            f"{timeout_ms} ms: aria-expanded={str(state['sidebar_expanded']).lower()}, "
+            f"sidebar_right={state['sidebar_right']}, "
+            f"running_animations={state['sidebar_animations']}, "
+            f"stable_frames={state['stable_frames']}/{LAYOUT_STABLE_FRAMES}, "
+            f"viewport={state['viewport_width']}x{state['viewport_height']}, "
+            f"document_width={state['document_width']}"
+        ) from exc
+    finally:
+        page.evaluate("() => { delete window.__ragopsSidebarSettle; }")
+
+
+def mobile_layout(page: Any, chat_input: Any = None) -> dict[str, Any]:
+    """Geometry of one mobile measurement: numbers and states only, never page content."""
+    state = dict(page.evaluate(_SIDEBAR_STATE))
+    state["no_horizontal_overflow"] = state["document_width"] <= state["viewport_width"] + 1
+    if chat_input is not None:
+        box = chat_input.bounding_box()
+        state["chat_input_box"] = (
+            {key: round(box[key], 1) for key in ("x", "y", "width", "height")} if box else None
+        )
+        state["chat_input_unobscured"] = unobstructed(page, chat_input)
+    return state
+
+
+def record_mobile_layout(result: GateResult, name: str, layout: dict[str, Any]) -> None:
+    key = (
+        "chat_input_unobscured"
+        if name.endswith("chat_input_unobscured")
+        else ("no_horizontal_overflow")
+    )
+    result.check(name, layout.get(key) is True)
+    result.metrics.setdefault("mobile_layout", {})[name] = dict(layout)
+
+
+def derive_responsive_mobile(result: GateResult) -> None:
+    """The aggregate passes only when every mobile sub-check ran and passed."""
+    result.check(
+        "responsive_mobile", all(result.checks.get(name) is True for name in MOBILE_CHECKS)
+    )
+
+
 def xss_absent(page: Any) -> bool:
     return bool(
         page.evaluate(
@@ -1111,6 +1236,7 @@ def upload_via_ui(
     mime: str,
     double: bool = False,
     expect_listed: bool = True,
+    before_submit: Callable[[], None] | None = None,
 ) -> None:
     main = main_area(page)
     main.get_by_label("Titel").fill(title)
@@ -1120,10 +1246,316 @@ def upload_via_ui(
     if expect_listed:
         main.get_by_test_id("stFileChip").first.wait_for()
     button = main.get_by_role("button", name="Hochladen")
+    if before_submit is not None:
+        before_submit()
     if double:
         button.dblclick()
     else:
         button.click()
+
+
+# --------------------------------------------------------------------------- upload diagnostics
+
+UPLOAD_ACK_TEXT = "Upload angenommen"
+UPLOAD_PATH = "/v1/documents/upload"
+UPLOAD_OK = "OK"
+UPLOAD_FAILURE_CLASSES = (
+    "SUBMIT_NOT_SENT",
+    "API_REQUEST_FAILED",
+    "API_TIMEOUT_OR_SLOW_RESPONSE",
+    "API_ACCEPTED_UI_NOT_UPDATED",
+    "SUCCESS_MESSAGE_TRANSIENT",
+    "UPLOAD_STATE_MISSING",
+    "UNDETERMINED",
+)
+# Records, without any text, when the upload acknowledgement and other alerts appear and
+# disappear in the main area, when they turn stale during a Streamlit rerun, and when the
+# app reports a running script. An acknowledgement added and removed inside one mutation
+# batch is still recorded.
+_UPLOAD_RECORDER = """
+(ackText) => {
+  if (window.__ragopsUploadObserver) window.__ragopsUploadObserver.disconnect();
+  const rec = window.__ragopsUpload = {events: [], ack: false, stale: false, running: false,
+                                        kinds: {}};
+  const ALERT = '[data-testid^="stAlertContent"]';
+  const isAck = (el) => (el.textContent || '').includes(ackText);
+  const kindOf = (el) => (el.dataset.testid || '').slice('stAlertContent'.length).toLowerCase();
+  const note = (kind) => rec.events.push({t: Date.now(), kind});
+  const containsAck = (node) => node.nodeType === 1 && (
+    (node.matches(ALERT) && isAck(node)) || [...node.querySelectorAll(ALERT)].some(isAck));
+  const scan = (mutations) => {
+    const main = document.querySelector('[data-testid="stMainBlockContainer"]');
+    const alerts = main ? [...main.querySelectorAll(ALERT)] : [];
+    const acks = alerts.filter(isAck);
+    const ack = acks.length > 0;
+    if (!ack && !rec.ack && mutations.some(
+        (m) => [...m.addedNodes].some(containsAck))) {
+      note('ack_shown'); note('ack_removed');
+    }
+    if (ack !== rec.ack) { note(ack ? 'ack_shown' : 'ack_removed'); rec.ack = ack; }
+    const stale = acks.some((el) => {
+      const holder = el.closest('[data-stale]');
+      return !!holder && holder.dataset.stale === 'true';
+    });
+    if (stale !== rec.stale) { note(stale ? 'ack_stale' : 'ack_fresh'); rec.stale = stale; }
+    const kinds = {};
+    for (const el of alerts) if (!isAck(el)) kinds[kindOf(el)] = (kinds[kindOf(el)] || 0) + 1;
+    for (const kind of new Set([...Object.keys(kinds), ...Object.keys(rec.kinds)])) {
+      const before = rec.kinds[kind] || 0, now = kinds[kind] || 0;
+      if (!before && now) note(kind + '_shown');
+      if (before && !now) note(kind + '_removed');
+    }
+    rec.kinds = kinds;
+    const running = !!document.querySelector('[data-testid="stStatusWidget"]');
+    if (running !== rec.running) {
+      note(running ? 'app_running' : 'app_idle');
+      rec.running = running;
+    }
+  };
+  const observer = new MutationObserver(scan);
+  observer.observe(document.body, {childList: true, subtree: true, characterData: true,
+                                   attributes: true, attributeFilter: ['data-stale']});
+  window.__ragopsUploadObserver = observer;
+  scan([]);
+  note('armed');
+}
+"""
+
+
+def _read_request_log(path: Path | None) -> list[dict[str, Any]] | None:
+    """Pair the API recorder's start/end lines; ``None`` when no log was recorded."""
+    if path is None or not path.exists():
+        return None
+    requests: dict[str, dict[str, Any]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        with suppress(ValueError):
+            entry = json.loads(line)
+            item = requests.setdefault(str(entry.get("id")), {"status": None, "end": None})
+            if entry.get("phase") == "start":
+                item.update(method=entry.get("method"), path=entry.get("path"), start=entry["t"])
+            else:
+                item.update(status=entry.get("status"), end=entry["t"])
+    return [item for item in requests.values() if "start" in item]
+
+
+def classify_upload(diagnostics: dict[str, Any], window_ms: int = UI_TIMEOUT_MS) -> str:
+    """Name the first broken link of browser submit -> API -> job -> acknowledgement.
+
+    Returns ``OK`` or one of ``UPLOAD_FAILURE_CLASSES``; never a generic timeout.
+    """
+    requests = diagnostics.get("api_upload_requests")
+    ack = diagnostics.get("acknowledgement") or {}
+    if requests is None:
+        return "UNDETERMINED"  # no request log: the API side cannot be judged
+    if not requests:
+        # The UI claiming acceptance without any API request contradicts the evidence.
+        return "UNDETERMINED" if ack.get("shown") else "SUBMIT_NOT_SENT"
+    request = requests[-1]
+    if request.get("end_ms") is None:
+        return "API_TIMEOUT_OR_SLOW_RESPONSE"
+    if (request.get("duration_ms") or 0) > window_ms:
+        return "API_TIMEOUT_OR_SLOW_RESPONSE"
+    status = request.get("status")
+    if not isinstance(status, int) or not 200 <= status < 300:
+        return "API_REQUEST_FAILED"
+    if not ack.get("shown"):
+        return "API_ACCEPTED_UI_NOT_UPDATED"
+    if not ack.get("visible_at_end"):
+        return "SUCCESS_MESSAGE_TRANSIENT"
+    database = diagnostics.get("database") or {}
+    if not database.get("jobs") or diagnostics.get("state_reached") is False:
+        return "UPLOAD_STATE_MISSING"
+    return UPLOAD_OK
+
+
+class UploadProbe:
+    """Failure diagnostics for one UI upload, correlated by wall-clock time.
+
+    It joins the browser (submit click, Streamlit file transfer, WebSocket frames, rendered
+    alerts), the API (request recorder of the gate API) and the database (version and job
+    rows of the uploaded content hash). Only ids, statuses, counts and millisecond offsets
+    from the submit click are kept: no cookies, tokens, headers, URLs with queries, titles,
+    file names or document content.
+    """
+
+    def __init__(self, session: BrowserSession, page: Any, env: Environment, content: bytes):
+        self.session, self.page, self.env = session, page, env
+        self.content_hash = hashlib.sha256(content).hexdigest()
+        self.transfers: list[dict[str, Any]] = []
+        self.armed_at = self.submitted_at = 0.0
+
+    def _on_finished(self, request: Any) -> None:
+        if "/_stcore/upload_file" not in request.url:
+            return
+        timing = request.timing or {}
+        with suppress(Exception):
+            response = request.response()
+            self.transfers.append(
+                {
+                    "method": request.method,
+                    "status": response.status if response else None,
+                    "start": (timing.get("startTime") or 0) / 1000,
+                    "duration_ms": round(timing.get("responseEnd") or -1, 1),
+                }
+            )
+
+    def arm(self) -> None:
+        self.armed_at = time.time()
+        self.session.ws_frames[id(self.page)] = []
+        self.page.on("requestfinished", self._on_finished)
+        self.page.evaluate(_UPLOAD_RECORDER, UPLOAD_ACK_TEXT)
+
+    def mark_submit(self) -> None:
+        self.submitted_at = time.time()
+
+    def _offset(self, moment: float | None) -> float | None:
+        return None if moment is None else round((moment - self.submitted_at) * 1000, 1)
+
+    def _database(self) -> dict[str, Any]:
+        from sqlalchemy import create_engine, text
+
+        engine = create_engine(self.env.database_url, hide_parameters=True)
+        try:
+            with engine.connect() as connection:
+                versions = connection.execute(
+                    text("SELECT count(*) FROM document_versions WHERE content_hash = :h"),
+                    {"h": self.content_hash},
+                ).scalar()
+                rows = connection.execute(
+                    text(
+                        "SELECT j.id, j.status, j.correlation_id, j.started_at, j.completed_at "
+                        "FROM ingestion_jobs j JOIN document_versions v "
+                        "ON v.tenant_id = j.tenant_id AND v.id = j.document_version_id "
+                        "WHERE v.content_hash = :h"
+                    ),
+                    {"h": self.content_hash},
+                ).all()
+        finally:
+            engine.dispose()
+        return {
+            "versions": int(versions or 0),
+            "jobs": [
+                {
+                    "job_id": str(row[0]),
+                    "status": row[1],
+                    "correlation_id": str(row[2]),
+                    "started_ms": self._offset(row[3].timestamp() if row[3] else None),
+                    "completed_ms": self._offset(row[4].timestamp() if row[4] else None),
+                }
+                for row in rows
+            ],
+        }
+
+    def collect(self, state_reached: bool | None) -> dict[str, Any]:
+        """Snapshot every source; each part degrades to ``None`` instead of raising."""
+        with suppress(Exception):
+            self.page.remove_listener("requestfinished", self._on_finished)
+        frames = self.session.ws_frames.pop(id(self.page), [])
+        recorder: dict[str, Any] | None = None
+        with suppress(Exception):
+            recorder = self.page.evaluate(
+                "() => { const r = window.__ragopsUpload;"
+                " if (window.__ragopsUploadObserver) window.__ragopsUploadObserver.disconnect();"
+                " return r ? {events: r.events, ack: r.ack} : null; }"
+            )
+        events = [
+            {"kind": str(event["kind"]), "ms": self._offset(float(event["t"]) / 1000)}
+            for event in (recorder or {}).get("events", [])
+        ]
+        shown = [event["ms"] for event in events if event["kind"] == "ack_shown"]
+        removed = [event["ms"] for event in events if event["kind"] == "ack_removed"]
+        requests = _read_request_log(self.env.request_log)
+        window = [item for item in requests or [] if item["start"] >= self.armed_at]
+        uploads = [
+            {
+                "status": item["status"],
+                "start_ms": self._offset(item["start"]),
+                "end_ms": self._offset(item["end"]),
+                "duration_ms": (
+                    round((item["end"] - item["start"]) * 1000, 1) if item["end"] else None
+                ),
+            }
+            for item in window
+            if item.get("method") == "POST" and item.get("path") == UPLOAD_PATH
+        ]
+        accepted_end = next(
+            (item["end"] for item in window if item.get("path") == UPLOAD_PATH and item["end"]),
+            None,
+        )
+        # Every full run of the knowledge page lists the workspaces first; a fragment run
+        # does not. Requests after the accepted upload therefore count full reruns.
+        reruns = (
+            sum(
+                1
+                for item in window
+                if item.get("path") == "/v1/workspaces" and item["start"] >= accepted_end
+            )
+            if accepted_end
+            else None
+        )
+        database: dict[str, Any] | None = None
+        with suppress(Exception):
+            database = self._database()
+        diagnostics: dict[str, Any] = {
+            "submit_clicked": self.submitted_at > 0,
+            "browser_file_transfers": [
+                {
+                    "method": item["method"],
+                    "status": item["status"],
+                    "start_ms": self._offset(item["start"]),
+                    "duration_ms": item["duration_ms"],
+                }
+                for item in self.transfers
+            ],
+            "websocket_frames_sent_after_submit": sum(
+                1 for moment, kind, _ in frames if kind == "sent" and moment >= self.submitted_at
+            ),
+            "websocket_frames_received_after_submit": sum(
+                1
+                for moment, kind, _ in frames
+                if kind == "received" and moment >= self.submitted_at
+            ),
+            "request_log_available": requests is not None,
+            "api_upload_requests": None if requests is None else uploads,
+            "dashboard_full_reruns_after_upload": reruns,
+            "acknowledgement": {
+                "shown": bool(shown),
+                "first_shown_ms": shown[0] if shown else None,
+                "removed_ms": removed[0] if removed else None,
+                "visible_at_end": bool((recorder or {}).get("ack")),
+                "recorder_available": recorder is not None,
+            },
+            "alerts": sorted({event["kind"] for event in events if event["kind"] != "armed"}),
+            "dom_events": events[:60],
+            "database": database,
+            "state_reached": state_reached,
+        }
+        diagnostics["classification"] = classify_upload(diagnostics)
+        return diagnostics
+
+
+def record_upload_diagnostics(
+    result: GateResult, session: BrowserSession, diagnostics: dict[str, Any], *, failed: bool
+) -> None:
+    """Evidence keeps the classification and a compact summary; a failure keeps the detail."""
+    result.metrics["upload_failure_classification"] = (
+        diagnostics["classification"]
+        if failed or diagnostics["classification"] != UPLOAD_OK
+        else None
+    )
+    result.metrics["upload_diagnostics"] = {
+        key: diagnostics[key]
+        for key in (
+            "classification",
+            "api_upload_requests",
+            "dashboard_full_reruns_after_upload",
+            "acknowledgement",
+            "state_reached",
+        )
+    }
+    if failed:
+        path = session.run_dir / "upload-diagnostics.json"
+        path.write_text(json.dumps(diagnostics, indent=2, default=str) + "\n", encoding="utf-8")
 
 
 def observe_job(page: Any, title: str, until: str, timeout_ms: int = JOB_TIMEOUT_MS) -> list[str]:
@@ -1339,7 +1771,6 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
     titles_a, titles_b = tenant_titles(env, "a-admin"), tenant_titles(env, "b-admin")
     result.check("support_tenant_corpora_disjoint", bool(titles_a) and not titles_a & titles_b)
     responsive_desktop: list[bool] = []
-    responsive_mobile: list[bool] = []
     axe: list[dict[str, Any]] = []
     states_seen: set[str] = set()
     a_markers = {ws_name_a, coll_name_a, f"bericht-{run}.pdf", f"Doppelklick {run}"}
@@ -1451,17 +1882,39 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
         responsive_desktop.append(
             unobstructed(page, main_area(page).get_by_role("button", name="Hochladen"))
         )
-        upload_via_ui(
-            page,
-            title=HOSTILE_TITLE,
-            name=f"bericht-{run}.pdf",
-            content=pdf_report,
-            mime="application/pdf",
+        probe = UploadProbe(session, page, env, pdf_report)
+        probe.arm()
+        upload_reached: list[bool] = []
+        try:
+            upload_via_ui(
+                page,
+                title=HOSTILE_TITLE,
+                name=f"bericht-{run}.pdf",
+                content=pdf_report,
+                mime="application/pdf",
+                before_submit=probe.mark_submit,
+            )
+            accepted = main_area(page).get_by_text(UPLOAD_ACK_TEXT, exact=False)
+            accepted.wait_for()
+            first_state = ["queued"] if STATUS_LABELS["queued"] in accepted.inner_text() else []
+            observed = first_state + observe_job(page, HOSTILE_TITLE, "completed")
+            upload_reached.append("completed" in observed)
+        finally:
+            record_upload_diagnostics(
+                result,
+                session,
+                probe.collect(upload_reached[0] if upload_reached else None),
+                failed=sys.exc_info()[0] is not None,
+            )
+        # The acknowledgement is user-facing: it must stay visible through the full reruns
+        # that switch the job list into polling and back, not only flash for a moment.
+        acknowledgement = result.metrics["upload_diagnostics"]["acknowledgement"]
+        result.check(
+            "upload_acknowledgement_stable",
+            acknowledgement["shown"]
+            and acknowledgement["removed_ms"] is None
+            and acknowledgement["visible_at_end"],
         )
-        accepted = main_area(page).get_by_text("Upload angenommen", exact=False)
-        accepted.wait_for()
-        first_state = ["queued"] if STATUS_LABELS["queued"] in accepted.inner_text() else []
-        observed = first_state + observe_job(page, HOSTILE_TITLE, "completed")
         states_seen.update(observed)
         result.metrics["upload_states_observed"] = observed
         result.check(
@@ -1715,14 +2168,15 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
         leaked = sum(marker in dom for marker in a_markers) + (HOSTILE_TITLE in dom)
         result.tenant_leakage += leaked
         result.check("tenant_b_isolated_ui", leaked == 0)
-        responsive_mobile.append(no_horizontal_overflow(page_b))
+        record_mobile_layout(
+            result, "responsive_mobile_knowledge_no_overflow", mobile_layout(page_b)
+        )
         session.screenshot(page_b, "tenant-b-mobile-knowledge")
         navigate(page_b, "Copilot")
         collapse_sidebar(page_b)
-        responsive_mobile.append(
-            no_horizontal_overflow(page_b)
-            and unobstructed(page_b, page_b.get_by_test_id("stChatInputTextArea"))
-        )
+        layout = mobile_layout(page_b, page_b.get_by_test_id("stChatInputTextArea"))
+        record_mobile_layout(result, "responsive_mobile_copilot_no_overflow", layout)
+        record_mobile_layout(result, "responsive_mobile_chat_input_unobscured", layout)
         # Tenant A's answerable question must not surface tenant A sources for tenant B.
         ask(page_b, QUESTION_A)
         main_area(page_b).get_by_text(ABSTENTION_TEXT, exact=False).first.wait_for()
@@ -1734,7 +2188,7 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
         shown = source_titles(page_b)
         result.tenant_leakage += len(set(shown) & (titles_a - titles_b))
         result.check("tenant_b_query_sources_isolated", bool(shown) and set(shown) <= titles_b)
-        responsive_mobile.append(no_horizontal_overflow(page_b))
+        record_mobile_layout(result, "responsive_mobile_answer_no_overflow", mobile_layout(page_b))
         session.screenshot(page_b, "tenant-b-mobile-answer")
         api_jobs = env.api("/v1/ingestion/jobs", "b-admin")[1] or []
         result.tenant_leakage += sum(
@@ -1956,7 +2410,7 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
     )
     result.check("axe_no_critical_violations", critical == 0 and len(axe) >= 3)
     result.check("responsive_desktop", bool(responsive_desktop) and all(responsive_desktop))
-    result.check("responsive_mobile", bool(responsive_mobile) and all(responsive_mobile))
+    derive_responsive_mobile(result)
     result.metrics["ingestion_states_observed"] = sorted(states_seen)
     result.check(
         "ingestion_states_observed",
@@ -1965,13 +2419,18 @@ def run_journeys(session: BrowserSession, env: Environment, evidence: dict[str, 
     evidence["browser_version"] = session.version
 
 
-def collapse_sidebar(page: Any) -> None:
-    """On narrow screens the sidebar overlays content; close it after navigating."""
+def collapse_sidebar(page: Any, timeout_ms: int = SIDEBAR_COLLAPSE_TIMEOUT_MS) -> None:
+    """On narrow screens the sidebar overlays content; close it and wait until it is gone.
+
+    Measurements must not run during the collapse transition: a sidebar that never settles
+    collapsed raises ``SidebarNotCollapsed`` and fails the journey.
+    """
     if page.viewport_size and page.viewport_size["width"] < 768:
         button = page.get_by_test_id("stSidebarCollapseButton")
         with suppress(Exception):
             if button.is_visible():
                 button.click()
+        wait_for_collapsed_sidebar(page, timeout_ms)
 
 
 # --------------------------------------------------------------------------- verdict
@@ -1998,6 +2457,7 @@ REQUIRED = (
     "journey_upload_completed",
     "upload_ui_present",
     "upload_verified",
+    "upload_acknowledgement_stable",
     "hostile_title_rendered_literally",
     "refresh_preserves_job_state",
     "journey_duplicate_submit_completed",
@@ -2043,6 +2503,7 @@ REQUIRED = (
     "axe_no_critical_violations",
     "responsive_desktop",
     "responsive_mobile",
+    *MOBILE_CHECKS,
     "ingestion_states_observed",
     "processes_stopped",
     "keycloak_gate_objects_removed",
@@ -2131,6 +2592,8 @@ def build_evidence(result: GateResult, evidence: dict[str, Any]) -> dict[str, An
         "upload_verified": bool(ok("upload_verified")),
         "ingestion_states_observed": m.get("ingestion_states_observed"),
         "upload_states_observed": m.get("upload_states_observed"),
+        "upload_failure_classification": m.get("upload_failure_classification"),
+        "upload_diagnostics": m.get("upload_diagnostics"),
         "retry_states_observed": m.get("retry_states_observed"),
         "retry_verified": bool(ok("retry_verified")),
         "duplicate_jobs": m.get("duplicate_jobs"),
@@ -2158,6 +2621,8 @@ def build_evidence(result: GateResult, evidence: dict[str, Any]) -> dict[str, An
         "axe_findings": m.get("axe"),
         "responsive_desktop": bool(ok("responsive_desktop")),
         "responsive_mobile": bool(ok("responsive_mobile")),
+        "responsive_mobile_checks": {name: bool(ok(name)) for name in MOBILE_CHECKS},
+        "mobile_layout": m.get("mobile_layout"),
         "page_errors": len(result.page_errors),
         "severe_console_errors": len(result.console_errors),
         "unexpected_failed_requests": len(result.failed_requests),

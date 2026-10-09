@@ -1,7 +1,8 @@
 """Tenant-owned SQLAlchemy schema. All inter-entity keys include the tenant.
 
 This schema is an implementation foundation, not an enabled production runtime.
-Alembic owns schema creation. JSON columns contain structured configuration only.
+Alembic owns schema creation. JSON columns contain structured configuration only, except the
+bounded, expiring response snapshot of a succeeded idempotent query (``QueryIdempotencyRecord``).
 """
 # ruff: noqa: E501
 
@@ -419,6 +420,39 @@ class BudgetReservation(TenantOwned, Base):
     status: Mapped[str] = mapped_column(String(16), default="reserved")
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class QueryIdempotencyRecord(TenantOwned, Base):
+    """One logical idempotent query per tenant, principal, endpoint and key digest.
+
+    Only an HMAC-SHA256 of the client key under a server secret and a digest of the principal
+    are stored. ``response`` holds the
+    replay envelope of a finished request until ``expires_at``; ambiguous records keep no
+    response and never expire on their own.
+    """
+
+    __tablename__ = "query_idempotency_records"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "principal", "endpoint", "key_hash"),
+        Index("ix_query_idempotency_records_tenant_state", "tenant_id", "state", "expires_at"),
+        CheckConstraint(
+            "state IN ('claimed','executing','succeeded','retryable','failed','ambiguous_held')",
+            name="state",
+        ),
+        CheckConstraint("attempt >= 1", name="attempt"),
+    )
+    principal: Mapped[str] = mapped_column(String(64))
+    endpoint: Mapped[str] = mapped_column(String(64))
+    key_hash: Mapped[str] = mapped_column(String(64))
+    request_fingerprint: Mapped[str] = mapped_column(String(64))
+    correlation_id: Mapped[UUID]
+    state: Mapped[str] = mapped_column(String(16))
+    attempt: Mapped[int] = mapped_column(default=1)
+    status_code: Mapped[int | None] = mapped_column(nullable=True)
+    response: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class EvaluationRun(TenantOwned, Base):

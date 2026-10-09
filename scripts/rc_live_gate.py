@@ -30,6 +30,7 @@ GATES = (
     "readiness_failure_recovery",
     "browser_e2e",
     "rag_query",
+    "query_idempotency",
     "security",
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
@@ -46,6 +47,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "readiness_failure_recovery",
         "browser_e2e",
         "rag_query",
+        "query_idempotency",
         "security",
     }
 )
@@ -283,6 +285,12 @@ def main() -> int:
         gate_results["rag_query"] = {
             "status": status,
             "detail": detail or "See sanitized rag-query.json evidence",
+        }
+    if "query_idempotency" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/query_idempotency_gate.py"])
+        gate_results["query_idempotency"] = {
+            "status": status,
+            "detail": detail or "See sanitized query-idempotency.json evidence",
         }
     if "browser_e2e" in selected:
         status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])

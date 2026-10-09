@@ -83,6 +83,8 @@ class Control:
     required: tuple[tuple[str, object], ...] = ()
     # Integer fields that must be present and at least this large (for example observed calls).
     minimums: tuple[tuple[str, int], ...] = ()
+    # Integer fields that must be present and at most this large (for example duplicates).
+    maximums: tuple[tuple[str, int], ...] = ()
     keycloak: bool = False
 
     def evidence_source(self) -> str:
@@ -95,6 +97,7 @@ class Control:
         fields = ", ".join(
             [f"`{key}={json.dumps(value)}`" for key, value in self.required]
             + [f"`{key}>={value}`" for key, value in self.minimums]
+            + [f"`{key}<={value}`" for key, value in self.maximums]
         )
         return f"`evidence/product-v1/rc-live/{self.evidence_file}`: {fields}"
 
@@ -472,6 +475,40 @@ CONTROLS: tuple[Control, ...] = (
         ),
         minimums=(("qdrant_requests_observed", 1),),
     ),
+    Control(
+        "LIVE-11",
+        "Repudiation",
+        "Same-key query retries are replayed or blocked from durable PostgreSQL state: at most "
+        "one provider call, reservation and usage record, keys stored only as server-keyed "
+        "HMAC digests, no cross-tenant or cross-user idempotency state",
+        "live",
+        evidence_file="query-idempotency.json",
+        required=(
+            ("status", "PASS"),
+            ("durable_store_used", True),
+            ("raw_keys_stored", False),
+            ("keyed_digest_used", True),
+            ("successful_replay_verified", True),
+            ("replay_provider_calls", 1),
+            ("replay_usage_records", 1),
+            ("duplicate_idempotency_records", 0),
+            ("conflict_verified", True),
+            ("idempotency_tenant_leakage", 0),
+            ("idempotency_user_leakage", 0),
+            ("response_tenant_leakage", 0),
+            ("accounting_failure_retry_blocked", True),
+            ("ambiguous_provider_retry_blocked", True),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("concurrent_request_count", 10),),
+        maximums=(
+            ("concurrent_provider_calls", 1),
+            ("concurrent_usage_records", 1),
+            ("concurrent_reservations", 1),
+        ),
+    ),
 )
 
 
@@ -721,9 +758,14 @@ def evaluate_live_evidence(
         value = data[key]
         if type(value) is not int or value < minimum:
             return ControlResult(control.id, FAIL, f"{control.evidence_file}: {key} is not met")
-    return ControlResult(
-        control.id, PASS, f"{len(control.required) + len(control.minimums)} fields verified"
-    )
+    for key, maximum in control.maximums:
+        if key not in data:
+            return ControlResult(control.id, MISSING, f"{control.evidence_file} lacks {key}")
+        value = data[key]
+        if type(value) is not int or not 0 <= value <= maximum:
+            return ControlResult(control.id, FAIL, f"{control.evidence_file}: {key} is not met")
+    count = len(control.required) + len(control.minimums) + len(control.maximums)
+    return ControlResult(control.id, PASS, f"{count} fields verified")
 
 
 def read_keycloak_state() -> tuple[dict[str, Any] | None, tuple[str, ...]]:

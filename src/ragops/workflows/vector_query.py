@@ -9,6 +9,11 @@ Generation always goes through ``LLMModelRouter``: route, reserve the budget, ex
 policy chain, then book the usage and close the reservation. An answer is returned only
 after its accounting committed. Fallback is limited to failures the provider certainly did
 not bill (rate limit, model unavailable), so a logical query is billed exactly once.
+
+A caller may pass the logical ``correlation_id`` (an idempotent retry keeps its identity) and
+a ``QueryProgress``: its ``before_billing`` hook runs right before the budget reservation, the
+first step that may lead to a billed provider call, and ``stage`` tells the caller how far a
+failed query got relative to that boundary.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from ragops.auth.identity import AuthenticatedUserContext
@@ -85,6 +91,23 @@ QUERY_FALLBACK = frozenset(
 )
 
 
+class ExecutionStage(StrEnum):
+    PREPARE = "prepare"  # retrieval, context and routing: nothing reserved or billed
+    RESERVE = "reserve"  # billing boundary crossed; the budget is being reserved
+    PROVIDER = "provider"  # the provider may run and bill
+    ACCOUNTING = "accounting"  # the provider answered; usage is being booked
+    COMPLETE = "complete"
+
+
+@dataclass
+class QueryProgress:
+    """How far a query got relative to the billing boundary; read by the caller on failure."""
+
+    before_billing: Callable[[], None] | None = None
+    stage: ExecutionStage = ExecutionStage.PREPARE
+    provider_category: ProviderErrorCategory | None = None
+
+
 class GenerationUnavailable(RuntimeError):
     """The provider could not answer from a valid context; the request fails closed."""
 
@@ -136,10 +159,17 @@ class VectorQueryService:
         self.accounting, self.max_output_tokens = accounting, max_output_tokens
 
     def run(
-        self, context: AuthenticatedUserContext, question: str, top_k: int
+        self,
+        context: AuthenticatedUserContext,
+        question: str,
+        top_k: int,
+        *,
+        correlation_id: str | None = None,
+        progress: QueryProgress | None = None,
     ) -> VectorQueryResult:
         started = time.perf_counter()
-        correlation_id = str(uuid4())
+        correlation_id = correlation_id or str(uuid4())
+        progress = progress or QueryProgress()
         user = QueryUser(user_id=context.user_id, tenant_id=context.tenant_id, role=context.role)
         if detect_prompt_injection(question):
             return self._finish(
@@ -200,7 +230,11 @@ class VectorQueryService:
                 "fallback_candidates": len(decision.fallback_chain),
             },
         )
+        if progress.before_billing is not None:
+            progress.before_billing()
+        progress.stage = ExecutionStage.RESERVE
         ticket = self._reserve(context, user, correlation_id, decision, input_tokens)
+        progress.stage = ExecutionStage.PROVIDER
 
         def invoke(provider_id: str, model_id: str) -> tuple[str, str, LLMResponse]:
             adapter = router.providers.get(provider_id)
@@ -216,8 +250,10 @@ class VectorQueryService:
                 ticket.decision, invoke, fallback_categories=QUERY_FALLBACK
             )
         except ProviderError as exc:
+            progress.provider_category = exc.category
             self._provider_failed(user, correlation_id, ticket, exc.category)
             raise GenerationUnavailable("generation unavailable") from exc
+        progress.stage = ExecutionStage.ACCOUNTING
         if fallback_count:
             self._event(
                 user,
@@ -233,6 +269,7 @@ class VectorQueryService:
         booked = self._book(
             user, correlation_id, ticket, provider_id, model_id, response, fallback_count
         )
+        progress.stage = ExecutionStage.COMPLETE
         used = set(response.used_source_ids)
         cited = tuple(chunk for chunk in built.chunks if not used or chunk.source_id in used)
         answer, abstained, outcome = response.text, response.abstained, "answered"

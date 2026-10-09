@@ -102,7 +102,9 @@ class Harness:
             vector_provider="qdrant",
             qdrant_url="http://127.0.0.1:9",
             embedding_dimension=DIMENSION,
+            query_idempotency_hmac_key=options.pop("hmac_key", None),
         )
+        self.settings = settings
         self.app = create_app(settings, vector_index=index, llm_provider=self.provider)
         self.client = TestClient(self.app, raise_server_exceptions=False)
         for owner, name, label in (

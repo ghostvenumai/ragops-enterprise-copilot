@@ -14,8 +14,19 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import Lock
 from typing import Any, cast
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import JSONResponse, PlainTextResponse
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
@@ -87,10 +98,29 @@ from ragops.workers.queue import (
     RedisIngestionQueue,
 )
 from ragops.workers.worker import IngestionWorker
+from ragops.workflows.query_idempotency import (
+    HEADER as IDEMPOTENCY_HEADER,
+)
+from ragops.workflows.query_idempotency import (
+    REPLAY_HEADER,
+    Claim,
+    Decision,
+    IdempotencyLost,
+    IdempotencyScope,
+    IdempotencyState,
+    IdempotencyUnavailable,
+    InvalidIdempotencyKey,
+    KeyDigest,
+    QueryIdempotencyStore,
+    failure_state,
+    parse_key,
+    request_fingerprint,
+)
 from ragops.workflows.state_machine import QueryRequest, RAGWorkflow
 from ragops.workflows.vector_query import (
     GenerationUnavailable,
     NoEligibleModel,
+    QueryProgress,
     VectorQueryService,
 )
 
@@ -377,6 +407,21 @@ def create_app(
         )
     else:
         workflow = _workflow(settings, audit_logger, metrics_registry, llm_provider)
+    # Idempotent retries need the durable store and the server secret of the key digest;
+    # without either a keyed request fails closed.
+    query_idempotency = (
+        QueryIdempotencyStore(resources.engine, ttl_seconds=settings.query_idempotency_ttl_seconds)
+        if vector_query is not None
+        and resources.database_configured()
+        and settings.query_idempotency_hmac_key is not None
+        else None
+    )
+    key_digest = (
+        KeyDigest(settings.query_idempotency_hmac_key)
+        if settings.query_idempotency_hmac_key is not None
+        else None
+    )
+    app.state.query_idempotency = query_idempotency
 
     def demo_workflow() -> RAGWorkflow:
         if workflow is None:
@@ -1110,8 +1155,17 @@ def create_app(
     @app.post("/v1/query", response_model=QueryApiResponse)
     def query(
         request: QueryApiRequest,
+        http_request: Request,
+        response: Response,
         trusted: AuthenticatedUserContext = Depends(limited("rag")),  # noqa: B008
-    ) -> QueryApiResponse:
+    ) -> QueryApiResponse | Response:
+        # The key is read only after authentication: its scope comes from the verified token.
+        try:
+            key = parse_key(http_request.headers.getlist(IDEMPOTENCY_HEADER))
+        except InvalidIdempotencyKey:
+            raise HTTPException(status_code=400, detail="invalid idempotency key") from None
+        if key is not None:
+            return idempotent_answer(trusted, request, key, response)
         if vector_query is not None:
             return vector_answer(trusted, request)
         authenticated = resolve_authenticated_identity(settings, trusted, request)
@@ -1149,13 +1203,199 @@ def create_app(
             correlation_id=state.request.correlation_id,
         )
 
+    def idempotency_event(
+        trusted: AuthenticatedUserContext,
+        correlation_id: str,
+        event_type: str,
+        outcome: str,
+        details: dict[str, str | int | float | bool],
+    ) -> None:
+        """Record id, state and counts only: never the key, the question or the answer."""
+        audit_logger.record(
+            correlation_id=correlation_id,
+            event_type=event_type,
+            user=QueryUser(user_id=trusted.user_id, tenant_id=trusted.tenant_id, role=trusted.role),
+            outcome=outcome,
+            details=details,
+        )
+
+    def idempotent_answer(
+        trusted: AuthenticatedUserContext,
+        request: QueryApiRequest,
+        key: str,
+        response: Response,
+    ) -> QueryApiResponse | Response:
+        """One logical query per tenant, principal, endpoint and key; fail closed."""
+        unavailable = HTTPException(
+            status_code=503, detail="idempotency unavailable", headers={"Retry-After": "1"}
+        )
+        if vector_query is None or query_idempotency is None or key_digest is None:
+            idempotency_event(trusted, str(uuid4()), "query_idempotency_unavailable", "failed", {})
+            raise unavailable
+        store = query_idempotency
+        scope = IdempotencyScope.for_query(trusted, key, key_digest)
+        try:
+            claim = store.claim(scope, request_fingerprint(request.question, request.top_k))
+        except IdempotencyUnavailable:
+            idempotency_event(trusted, str(uuid4()), "query_idempotency_unavailable", "failed", {})
+            raise unavailable from None
+        correlation_id = str(claim.correlation_id)
+        details: dict[str, str | int | float | bool] = {
+            "record_id": str(claim.record_id),
+            "attempt": claim.attempt,
+        }
+        if claim.decision is Decision.REPLAY:
+            idempotency_event(
+                trusted,
+                correlation_id,
+                "query_idempotency_replayed",
+                "success",
+                {**details, "status_code": claim.status_code or 0},
+            )
+            headers = {
+                name: value
+                for name, value in response.headers.items()
+                if name.lower().startswith("ratelimit-")
+            }
+            return JSONResponse(
+                claim.body or {},
+                status_code=claim.status_code or 200,
+                headers={**headers, REPLAY_HEADER: "true"},
+            )
+        if claim.decision is Decision.CONFLICT:
+            idempotency_event(
+                trusted, correlation_id, "query_idempotency_conflict", "blocked", details
+            )
+            raise HTTPException(
+                status_code=409, detail="idempotency key reused with a different request"
+            )
+        if claim.decision is Decision.IN_PROGRESS:
+            idempotency_event(
+                trusted, correlation_id, "query_idempotency_in_progress", "blocked", details
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="idempotent request in progress",
+                headers={"Retry-After": "1"},
+            )
+        if claim.decision is Decision.RECONCILIATION_REQUIRED:
+            idempotency_event(
+                trusted,
+                correlation_id,
+                "query_idempotency_reconciliation_required",
+                "blocked",
+                details,
+            )
+            raise HTTPException(
+                status_code=409, detail="idempotent request requires reconciliation"
+            )
+        if claim.reason == "expired":
+            idempotency_event(
+                trusted, correlation_id, "query_idempotency_expired", "success", details
+            )
+        idempotency_event(
+            trusted,
+            correlation_id,
+            "query_idempotency_claimed",
+            "success",
+            {**details, "reason": claim.reason},
+        )
+        progress = QueryProgress(before_billing=lambda: store.enter_billing(scope, claim))
+        try:
+            answer = vector_answer(trusted, request, correlation_id, progress)
+        except IdempotencyLost:
+            # Another attempt took the claim over before this one reached the boundary.
+            raise HTTPException(
+                status_code=409,
+                detail="idempotent request in progress",
+                headers={"Retry-After": "1"},
+            ) from None
+        except IdempotencyUnavailable:
+            idempotency_event(
+                trusted, correlation_id, "query_idempotency_unavailable", "failed", details
+            )
+            raise unavailable from None
+        except HTTPException as exc:
+            settle(
+                trusted,
+                scope,
+                claim,
+                failure_state(progress.stage, progress.provider_category),
+                exc.status_code,
+                {"detail": exc.detail},
+            )
+            raise
+        except Exception:
+            settle(
+                trusted,
+                scope,
+                claim,
+                failure_state(progress.stage, progress.provider_category),
+                500,
+                {"detail": "internal error"},
+            )
+            raise
+        settle(
+            trusted, scope, claim, IdempotencyState.SUCCEEDED, 200, answer.model_dump(mode="json")
+        )
+        return answer
+
+    def settle(
+        trusted: AuthenticatedUserContext,
+        scope: IdempotencyScope,
+        claim: Claim,
+        state: IdempotencyState,
+        status_code: int,
+        body: dict[str, Any],
+    ) -> None:
+        """Record the outcome; if that fails the record stays conservative (never re-run)."""
+        assert query_idempotency is not None
+        details: dict[str, str | int | float | bool] = {
+            "record_id": str(claim.record_id),
+            "attempt": claim.attempt,
+            "state": state.value,
+        }
+        try:
+            if state is IdempotencyState.SUCCEEDED:
+                query_idempotency.succeed(scope, claim, status_code, body)
+            elif state is IdempotencyState.FAILED:
+                query_idempotency.fail(scope, claim, status_code, body)
+            elif state is IdempotencyState.RETRYABLE:
+                query_idempotency.retryable(scope, claim)
+            else:
+                query_idempotency.hold(scope, claim)
+        except (IdempotencyLost, IdempotencyUnavailable):
+            idempotency_event(
+                trusted,
+                str(claim.correlation_id),
+                "query_idempotency_settle_failed",
+                "failed",
+                details,
+            )
+            return
+        event = {
+            IdempotencyState.AMBIGUOUS_HELD: ("query_idempotency_ambiguous_held", "failed"),
+            IdempotencyState.RETRYABLE: ("query_idempotency_retryable", "failed"),
+            IdempotencyState.FAILED: ("query_idempotency_failed", "failed"),
+        }.get(state, ("query_idempotency_succeeded", "success"))
+        idempotency_event(trusted, str(claim.correlation_id), *event, details)
+
     def vector_answer(
-        trusted: AuthenticatedUserContext, request: QueryApiRequest
+        trusted: AuthenticatedUserContext,
+        request: QueryApiRequest,
+        correlation_id: str | None = None,
+        progress: QueryProgress | None = None,
     ) -> QueryApiResponse:
         """The tenant is the verified identity's; request fields never select it."""
         assert vector_query is not None
         try:
-            result = vector_query.run(trusted, request.question, request.top_k)
+            result = vector_query.run(
+                trusted,
+                request.question,
+                request.top_k,
+                correlation_id=correlation_id,
+                progress=progress,
+            )
         except InvalidTenantScope:
             raise HTTPException(status_code=403, detail="tenant scope rejected") from None
         except RetrievalError as exc:

@@ -38,6 +38,17 @@ transaction; the answer is returned only after that commit.
 | Provider reported no usage | 503 `accounting unavailable` | answered, answer dropped | none | stays reserved |
 | Usage or reservation write fails | 503 `accounting unavailable` | answered, answer dropped | none | stays reserved |
 
+Client retries (ENT-11.5): a retry with the same `Idempotency-Key` never creates a second
+reservation, provider call or usage record for a logical query that succeeded, is still
+running or may have been billed (timeout, provider error, accounting failure after the
+provider answered); the last case answers `409 idempotent request requires reconciliation`
+and leaves the held reservation for an operator. Retries after failures before the
+provider (for example the hard limit) execute again under the same `correlation_id`, so
+the reservation key `query:<correlation_id>` stays unique. Retries without the header, or
+with a new key, are new queries. Keys are stored only as HMAC-SHA256 digests under the
+server secret `RAGOPS_IDEMPOTENCY_HMAC_KEY`; without that secret keyed requests answer
+`503 idempotency unavailable` before any reservation. See docs/API.md.
+
 Rules and limits:
 
 - A paid model is accountable only with a price; a price of zero is accepted only for
