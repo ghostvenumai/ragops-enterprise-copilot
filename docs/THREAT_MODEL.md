@@ -46,6 +46,7 @@ All of these tests are evidence of control SEC-08 or SEC-04 below.
 | Identity provider to API | Token claims | `OIDCIdentityProvider` with configured key, issuer, audience | SEC-01, SEC-02, SEC-03, LIVE-01, LIVE-02 |
 | Tenant to tenant | Identifiers and filters chosen by a caller | Tenant-scoped repositories and `AuthorizedVectorScope` | SEC-04, SEC-05, SEC-06, LIVE-03, LIVE-04, LIVE-10 |
 | Uploaded document to storage and index | File name, bytes, embedded text | Upload validation, structural inspection, injection flags | SEC-07, SEC-08 |
+| Scanned page or image to OCR and index | Pixels, page structure, visually embedded text | Header-checked pixel limits, page/time/pixel budgets, `prlimit`-bounded `pdftoppm` and Tesseract subprocesses, quality gate, OCR text kept as untrusted data, tenant-scoped page reports and chunk regions | LIVE-13 |
 | Application to audit and telemetry | Request content | Masked, correlated audit events | SEC-09 |
 | Client retry to billing | Repeated requests with an `Idempotency-Key` | Durable, tenant- and principal-scoped idempotency records in PostgreSQL; keys only as HMAC-SHA256 under a server secret | LIVE-11 |
 | Operator reconciliation to budget | Reservation, ledger and correlation identifiers | Tenant-scoped `ReconciliationService` acting only on the durable execution ledger under row locks; no provider call, no release while billing is unknown | LIVE-12 |
@@ -59,8 +60,8 @@ the audit trail. Only synthetic data is used in this repository.
 ## Control Matrix
 
 The security release gate (`scripts/security_gate.py`, gate `security` of
-`make rc-live-gate`) has 29 mandatory controls: 17 of type `regression`
-and 12 of type `live`. The table is generated with
+`make rc-live-gate`) has 30 mandatory controls: 17 of type `regression`
+and 13 of type `live`. The table is generated with
 `python scripts/security_gate.py --matrix`; a test keeps this document and the gate
 identical.
 
@@ -101,6 +102,7 @@ identical.
 | LIVE-10 | Information disclosure | Uploaded documents are answered through Qdrant, the router and accounting without tenant, citation, usage or budget leakage and without demo retrieval | live | `evidence/product-v1/rc-live/rag-query.json`: `status="PASS"`, `tenant_leakage=0`, `vector_tenant_leakage=0`, `citation_tenant_leakage=0`, `usage_tenant_leakage=0`, `budget_tenant_leakage=0`, `demo_retrieval_used=false`, `unique_nonce_verified=true`, `citations_verified=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `qdrant_requests_observed>=1` |
 | LIVE-11 | Repudiation | Same-key query retries are replayed or blocked from durable PostgreSQL state: at most one provider call, reservation and usage record, keys stored only as server-keyed HMAC digests, no cross-tenant or cross-user idempotency state | live | `evidence/product-v1/rc-live/query-idempotency.json`: `status="PASS"`, `durable_store_used=true`, `raw_keys_stored=false`, `keyed_digest_used=true`, `successful_replay_verified=true`, `replay_provider_calls=1`, `replay_usage_records=1`, `duplicate_idempotency_records=0`, `conflict_verified=true`, `idempotency_tenant_leakage=0`, `idempotency_user_leakage=0`, `response_tenant_leakage=0`, `accounting_failure_retry_blocked=true`, `ambiguous_provider_retry_blocked=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `concurrent_request_count>=10`, `concurrent_provider_calls<=1`, `concurrent_usage_records<=1`, `concurrent_reservations<=1` |
 | LIVE-12 | Tampering | Held query reservations are reconciled only from durable PostgreSQL evidence: no provider call, no release while billing is unknown, no duplicate or invented usage, at most one settlement under concurrency and no cross-tenant reach | live | `evidence/product-v1/rc-live/reservation-reconciliation.json`: `status="PASS"`, `provider_calls_during_reconciliation=0`, `accounting_failure_recovered=true`, `pre_provider_released=true`, `same_key_recovery=true`, `ambiguous_released=false`, `review_required_verified=true`, `existing_usage_committed=true`, `duplicate_usage_records=0`, `reconciliation_db_failure_fail_closed=true`, `cross_tenant_leakage=0`, `unknown_usage_booked_as_zero=false`, `legacy_unknown_auto_released=false`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `concurrent_reconcilers>=10`, `concurrent_usage_records<=1`, `concurrent_terminal_transitions<=1` |
+| LIVE-13 | Tampering | Scanned PDFs and images are read by the local OCR engine inside bounded intake and processing limits; pages keep their source numbers and positions, low-quality pages are never indexed as complete, OCR text stays untrusted data and citations, pages and boxes never cross tenants | live | `evidence/product-v1/rc-live/ocr-ingestion.json`: `status="PASS"`, `ocr_engine="tesseract"`, `real_ocr_engine_used=true`, `ocr_language_supported=true`, `scan_pdf_detected=true`, `native_pdf_ocr_skipped=true`, `mixed_pdf_page_routing_correct=true`, `jpg_ocr_verified=true`, `png_ocr_verified=true`, `page_numbers_preserved=true`, `bounding_boxes_valid=true`, `ocr_quality_checked=true`, `retrieval_preflight_verified=true`, `citation_page_verified=true`, `source_provenance_verified=true`, `corrupt_image_rejected=true`, `over_limit_rejected=true`, `image_bomb_rejected=true`, `poor_quality_flagged=true`, `ocr_timeout_fail_safe=true`, `ocr_injection_not_followed=true`, `qdrant_outage_fail_closed=true`, `foreign_tenant_denied=true`, `cross_tenant_leakage=0`, `tenant_leakage=0`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `chunk_count>=1`, `vector_count>=1` |
 
 ## Evidence Admissibility
 
@@ -123,7 +125,7 @@ Additional rules:
   Keycloak client `ragops-integration-check`) is a `FAIL`.
 - Evidence that contains a credential, token, private key or connection string is
   replaced by a minimal `FAIL` record.
-- `18/18` is reported only when all 29 controls are evidenced. Controls are
+- `19/19` is reported only when all 30 controls are evidenced. Controls are
   never removed, merged or weakened to reach that state.
 
 ## Identity Provider Clients

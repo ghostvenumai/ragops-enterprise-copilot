@@ -185,9 +185,9 @@ def test_gate_continues_to_migrations_when_redis_dependency_exists(
         commands.append(command)
         stdout = ""
         if command[0].endswith("alembic") and command[1:] == ["current"]:
-            stdout = "0008_query_reconciliation (head)\n"
+            stdout = "0009_ocr_extraction (head)\n"
         elif command[0].endswith("alembic") and command[1:] == ["heads"]:
-            stdout = "0008_query_reconciliation (head)\n"
+            stdout = "0009_ocr_extraction (head)\n"
         elif "tests/integration/test_redis_worker_live.py" in command:
             stdout = 'REDIS_WORKER_RESULT {"tenant_leakage":0}\n'
         return SimpleNamespace(returncode=0, stdout=stdout, stderr="")

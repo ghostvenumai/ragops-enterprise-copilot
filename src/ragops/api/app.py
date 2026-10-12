@@ -27,6 +27,9 @@ from fastapi import (
     Response,
     UploadFile,
 )
+from fastapi import (
+    Path as Path_,
+)
 from fastapi.responses import JSONResponse, PlainTextResponse
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
@@ -53,6 +56,7 @@ from ragops.finops.query_accounting import (
 )
 from ragops.finops.service import budget_decision, valid_amount
 from ragops.governance.audit import AuditLogger
+from ragops.knowledge.provenance import chunk_provenance, page_counts, page_report
 from ragops.knowledge.service import (
     KnowledgeAuthorizationError,
     KnowledgeManagementService,
@@ -377,7 +381,16 @@ def create_app(
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
     )
-    app.add_middleware(RequestHardening, max_body_bytes=settings.max_request_bytes)
+    app.add_middleware(
+        RequestHardening,
+        max_body_bytes=settings.max_request_bytes,
+        route_limits={
+            # Scans need more room; the upload route never gets less than the global limit.
+            ("POST", "/v1/documents/upload"): max(
+                settings.max_request_bytes, settings.max_upload_request_bytes
+            )
+        },
+    )
     app.state.resources = resources
     metrics_registry = MetricsRegistry()
     audit_logger = AuditLogger(settings.evidence_dir / "audit-events.jsonl")
@@ -981,6 +994,64 @@ def create_app(
         finally:
             session.close()
 
+    def _provenance_role(identity_context: AuthenticatedUserContext) -> Any:
+        try:
+            return identity_context.role
+        except (IndexError, TypeError):
+            raise HTTPException(status_code=404, detail="document not found") from None
+
+    @app.get("/v1/documents/{document_id}/versions/{version_id}/pages")
+    def document_pages(
+        document_id: str,
+        version_id: str,
+        identity_context: AuthenticatedUserContext = Depends(limited("knowledge")),  # noqa: B008
+    ) -> dict[str, object]:
+        from uuid import UUID
+
+        _service, session = km_service(identity_context)
+        try:
+            report = page_report(
+                session,
+                identity_context.tenant_id,
+                _provenance_role(identity_context),
+                UUID(document_id),
+                UUID(version_id),
+            )
+        except ValueError:
+            report = None
+        finally:
+            session.close()
+        if report is None:
+            raise HTTPException(status_code=404, detail="document not found")
+        return report
+
+    @app.get("/v1/documents/{document_id}/versions/{version_id}/chunks/{chunk_index}/provenance")
+    def document_chunk_provenance(
+        document_id: str,
+        version_id: str,
+        chunk_index: int = Path_(ge=0, le=1_000_000),
+        identity_context: AuthenticatedUserContext = Depends(limited("knowledge")),  # noqa: B008
+    ) -> dict[str, object]:
+        from uuid import UUID
+
+        _service, session = km_service(identity_context)
+        try:
+            provenance = chunk_provenance(
+                session,
+                identity_context.tenant_id,
+                _provenance_role(identity_context),
+                UUID(document_id),
+                UUID(version_id),
+                chunk_index,
+            )
+        except ValueError:
+            provenance = None
+        finally:
+            session.close()
+        if provenance is None:
+            raise HTTPException(status_code=404, detail="chunk not found")
+        return provenance
+
     @app.get("/v1/ingestion/jobs")
     def ingestion_jobs(
         identity_context: AuthenticatedUserContext = Depends(limited("ingestion")),  # noqa: B008
@@ -993,7 +1064,12 @@ def create_app(
         try:
             tenant = identity_context.tenant_id
             rows = session.execute(
-                select(IngestionJob, Document.title, DocumentVersion.filename)
+                select(
+                    IngestionJob,
+                    Document.title,
+                    DocumentVersion.filename,
+                    DocumentVersion.ingestion_status,
+                )
                 .outerjoin(
                     Document,
                     (Document.tenant_id == IngestionJob.tenant_id)
@@ -1008,6 +1084,8 @@ def create_app(
                 .order_by(IngestionJob.created_at.desc())
                 .limit(200)
             )
+            listed = list(rows)
+            pages = page_counts(session, tenant, {job.document_version_id for job, *_ in listed})
             return [
                 {
                     "job_id": str(job.id),
@@ -1019,8 +1097,11 @@ def create_app(
                     "error_code": job.error_code,
                     "title": title,
                     "filename": filename,
+                    "review_required": ingestion_status == "review_required",
+                    "pages_total": pages.get(job.document_version_id, (0, 0))[0],
+                    "pages_review": pages.get(job.document_version_id, (0, 0))[1],
                 }
-                for job, title, filename in rows
+                for job, title, filename, ingestion_status in listed
             ]
         finally:
             session.close()

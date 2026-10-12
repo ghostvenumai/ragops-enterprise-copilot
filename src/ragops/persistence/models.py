@@ -193,6 +193,67 @@ class DocumentVersion(TenantOwned, Base):
         return self.storage_reference
 
 
+class DocumentPageExtraction(TenantOwned, Base):
+    """Per-page extraction report of a document version (ENT-11.7); never holds document text."""
+
+    __tablename__ = "document_page_extractions"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "document_version_id", "page_number", name="uq_document_page_extractions_page"),
+        Index("ix_document_page_extractions_tenant_version", "tenant_id", "document_version_id"),
+        CheckConstraint("page_number >= 1", name="page_number"),
+        CheckConstraint(
+            "classification IN ('native_text','scanned_image','mixed_content','empty_page','unreadable','ocr_review_required')",
+            name="classification",
+        ),
+        CheckConstraint("quality_state IN ('accepted','review_required','not_applicable')", name="quality_state"),
+        CheckConstraint("char_count >= 0 AND word_count >= 0", name="counts"),
+    )
+    document_version_id: Mapped[UUID]
+    page_number: Mapped[int]
+    classification: Mapped[str] = mapped_column(String(32))
+    extraction_method: Mapped[str] = mapped_column(String(32))
+    schema_version: Mapped[str] = mapped_column(String(32))
+    coordinate_space: Mapped[str | None] = mapped_column(String(32))
+    width: Mapped[float | None]
+    height: Mapped[float | None]
+    unit: Mapped[str | None] = mapped_column(String(8))
+    engine: Mapped[str | None] = mapped_column(String(32))
+    engine_version: Mapped[str | None] = mapped_column(String(32))
+    config_version: Mapped[str | None] = mapped_column(String(64))
+    language: Mapped[str | None] = mapped_column(String(64))
+    quality_state: Mapped[str] = mapped_column(String(24))
+    mean_confidence: Mapped[float | None]
+    low_confidence_ratio: Mapped[float | None]
+    implausible_ratio: Mapped[float | None]
+    char_count: Mapped[int] = mapped_column(default=0)
+    word_count: Mapped[int] = mapped_column(default=0)
+    flags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    transformations: Mapped[list[str]] = mapped_column(JSON, default=list)
+    regions: Mapped[list[list[float]]] = mapped_column(JSON, default=list)
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    ocr_milliseconds: Mapped[int] = mapped_column(default=0)
+
+
+class DocumentChunkSource(TenantOwned, Base):
+    """Where a chunk came from: its source page, extraction method and OCR line boxes."""
+
+    __tablename__ = "document_chunk_sources"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "document_version_id", "chunk_index", name="uq_document_chunk_sources_chunk"),
+        Index("ix_document_chunk_sources_tenant_version", "tenant_id", "document_version_id"),
+        CheckConstraint("chunk_index >= 0", name="chunk_index"),
+        CheckConstraint("page_number IS NULL OR page_number >= 1", name="page_number"),
+    )
+    document_version_id: Mapped[UUID]
+    chunk_index: Mapped[int]
+    chunk_id: Mapped[str] = mapped_column(String(80))
+    page_number: Mapped[int | None]
+    extraction_method: Mapped[str] = mapped_column(String(32))
+    regions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+
 class IngestionJob(TenantOwned, Base):
     __tablename__ = "ingestion_jobs"
     __table_args__ = (

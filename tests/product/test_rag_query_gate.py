@@ -171,11 +171,12 @@ def test_nonce_proof_is_a_digest_never_the_nonce() -> None:
 
 
 def test_rc_runner_runs_rag_query_before_security() -> None:
-    assert len(rc_live_gate.GATES) == 18
-    assert rc_live_gate.GATES[-4:] == (
+    assert len(rc_live_gate.GATES) == 19
+    assert rc_live_gate.GATES[-5:] == (
         "rag_query",
         "query_idempotency",
         "reservation_reconciliation",
+        "ocr_ingestion",
         "security",
     )
     assert "rag_query" in rc_live_gate.DETAILED_EVIDENCE_GATES
@@ -183,14 +184,14 @@ def test_rc_runner_runs_rag_query_before_security() -> None:
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"rag_query"}, {"rag_query": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 18
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 19
     assert rc_live_gate.merge_gate_statuses(prior, set(), {})["rag_query"] == "BLOCKED"
 
 
 def test_security_validates_rag_query_evidence() -> None:
-    assert len(security_gate.CONTROLS) == 29
+    assert len(security_gate.CONTROLS) == 30
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 12
+    assert len(live) == 13
     (control,) = [c for c in security_gate.CONTROLS if c.evidence_file == "rag-query.json"]
     required = dict(control.required)
     for key in (

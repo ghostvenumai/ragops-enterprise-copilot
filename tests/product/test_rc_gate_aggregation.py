@@ -95,6 +95,6 @@ def test_concurrency_database_requires_isolated_postgres_name() -> None:
 
 
 def test_migration_revision_requires_expected_head() -> None:
-    assert migration_revision("0008_query_reconciliation (head)") == "0008_query_reconciliation"
+    assert migration_revision("0009_ocr_extraction (head)") == "0009_ocr_extraction"
     assert migration_revision("0007_query_idempotency") is None
     assert migration_revision("0005_ai_finops") is None

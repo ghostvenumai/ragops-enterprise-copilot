@@ -541,6 +541,47 @@ CONTROLS: tuple[Control, ...] = (
             ("concurrent_terminal_transitions", 1),
         ),
     ),
+    Control(
+        "LIVE-13",
+        "Tampering",
+        "Scanned PDFs and images are read by the local OCR engine inside bounded intake and "
+        "processing limits; pages keep their source numbers and positions, low-quality pages "
+        "are never indexed as complete, OCR text stays untrusted data and citations, pages "
+        "and boxes never cross tenants",
+        "live",
+        evidence_file="ocr-ingestion.json",
+        required=(
+            ("status", "PASS"),
+            ("ocr_engine", "tesseract"),
+            ("real_ocr_engine_used", True),
+            ("ocr_language_supported", True),
+            ("scan_pdf_detected", True),
+            ("native_pdf_ocr_skipped", True),
+            ("mixed_pdf_page_routing_correct", True),
+            ("jpg_ocr_verified", True),
+            ("png_ocr_verified", True),
+            ("page_numbers_preserved", True),
+            ("bounding_boxes_valid", True),
+            ("ocr_quality_checked", True),
+            ("retrieval_preflight_verified", True),
+            ("citation_page_verified", True),
+            ("source_provenance_verified", True),
+            ("corrupt_image_rejected", True),
+            ("over_limit_rejected", True),
+            ("image_bomb_rejected", True),
+            ("poor_quality_flagged", True),
+            ("ocr_timeout_fail_safe", True),
+            ("ocr_injection_not_followed", True),
+            ("qdrant_outage_fail_closed", True),
+            ("foreign_tenant_denied", True),
+            ("cross_tenant_leakage", 0),
+            ("tenant_leakage", 0),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("chunk_count", 1), ("vector_count", 1)),
+    ),
 )
 
 

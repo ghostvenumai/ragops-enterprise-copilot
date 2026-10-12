@@ -9,7 +9,13 @@ Payloads carry tenant, workspace, collection, document and version IDs, access
 level, lifecycle status, content hash, chunk index and citation metadata. Since
 ENT-11.1 they also carry `chunk_text` (the wording the chunk was embedded from)
 and `embedding_model`; both are additive and optional in the schema, but the
-productive retriever rejects chunks without them. `content_hash` is the SHA-256
+productive retriever rejects chunks without them. Since ENT-11.7 they also carry
+`extraction_method` (`native_text`, `ocr` or `native_text+ocr`), `ocr_quality`,
+`page_width`, `page_height`, `coordinate_space` (`page-normalized-v1`) and
+`source_regions` (indices of the page's OCR lines); all are additive and optional, so
+earlier points stay readable. The line boxes themselves are stored once in PostgreSQL
+(`document_chunk_sources`, `document_page_extractions`), not repeated per point. Chunks
+never span pages, so `page_number` is always the chunk's source page. `content_hash` is the SHA-256
 of the chunk text. A point without a tenant is rejected before it is written. The
 point ID is a canonical UUID built from the first 128 bits of the SHA-256 digest
 of tenant, version, chunk index and content hash. It is deterministic and uses

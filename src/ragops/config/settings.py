@@ -82,8 +82,10 @@ class Settings:
     worker_backoff_max_seconds: float = 5.0
     # Admins of this tenant operate the shared model catalog; unset disables catalog changes.
     platform_admin_tenant_id: str | None = None
-    # Upper bound for any request body; rejected before parsing (uploads are at most 2 MB).
+    # Upper bound for any request body; rejected before parsing.
     max_request_bytes: int = 3_000_000
+    # The document upload route alone admits scans (12 MB file plus multipart overhead).
+    max_upload_request_bytes: int = 12_600_000
     # "vector" answers /v1/query from the vector index only; "demo" from the local corpus.
     # Empty selects "vector" with the Qdrant provider and "demo" otherwise; never a fallback.
     query_mode: str = ""
@@ -125,6 +127,10 @@ class Settings:
             raise ValueError("RAGOPS_DEPENDENCY_TIMEOUT_SECONDS must be in (0, 10]")
         if not 1024 <= self.max_request_bytes <= 50_000_000:
             raise ValueError("RAGOPS_MAX_REQUEST_BYTES must be between 1 KiB and 50 MB")
+        if not self.max_request_bytes <= self.max_upload_request_bytes <= 50_000_000:
+            raise ValueError(
+                "RAGOPS_MAX_UPLOAD_REQUEST_BYTES must be between RAGOPS_MAX_REQUEST_BYTES and 50 MB"
+            )
         if not 0 < self.worker_backoff_max_seconds <= 60:
             raise ValueError("RAGOPS_WORKER_BACKOFF_MAX_SECONDS must be in (0, 60]")
         if self.query_mode not in {"", "demo", "vector"}:
@@ -279,6 +285,9 @@ class Settings:
             worker_backoff_max_seconds=float(os.getenv("RAGOPS_WORKER_BACKOFF_MAX_SECONDS", "5")),
             platform_admin_tenant_id=os.getenv("RAGOPS_PLATFORM_ADMIN_TENANT_ID") or None,
             max_request_bytes=int(os.getenv("RAGOPS_MAX_REQUEST_BYTES", "3000000")),
+            max_upload_request_bytes=int(
+                os.getenv("RAGOPS_MAX_UPLOAD_REQUEST_BYTES", "12600000")
+            ),
             query_mode=os.getenv("RAGOPS_QUERY_MODE", "").lower(),
             context_max_chunks=int(os.getenv("RAGOPS_CONTEXT_MAX_CHUNKS", "20")),
             context_max_tokens=int(os.getenv("RAGOPS_CONTEXT_MAX_TOKENS", "6000")),

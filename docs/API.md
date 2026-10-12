@@ -23,6 +23,8 @@ The FastAPI app is created by **ragops.api.app:create_app** and exposed through
 - GET /v1/collections
 - POST /v1/documents/upload
 - GET /v1/documents/{document_id}/versions
+- GET /v1/documents/{document_id}/versions/{version_id}/pages
+- GET /v1/documents/{document_id}/versions/{version_id}/chunks/{chunk_index}/provenance
 - POST /v1/documents/{document_id}/reindex
 - GET /v1/ingestion/jobs
 - GET /v1/ingestion/jobs/{job_id}
@@ -33,6 +35,37 @@ for workspace, collection, document upload, version, metadata and reindex
 operations. Its database-backed router is enabled only when a configured
 PostgreSQL session is available; the local demo remains deliberately isolated
 from that runtime.
+
+## Uploads and Scanned Documents (ENT-11.7)
+
+`POST /v1/documents/upload` accepts PDF, JPEG (`.jpg`, `.jpeg`), PNG, DOCX, Markdown, TXT
+and CSV. Extension, declared MIME type and file signature must agree, and the content is
+inspected structurally before it is stored. PDF, JPEG and PNG may be up to 12 MB (the upload
+route accepts request bodies up to `RAGOPS_MAX_UPLOAD_REQUEST_BYTES`, 12.6 MB by default;
+every other route keeps `RAGOPS_MAX_REQUEST_BYTES`); the other formats keep 2 MB. Images
+must be single-frame, at most 40 megapixels and 20 000 px per side (checked from the header
+before decoding) and decode completely. Rejections are `400` with `file content does not
+match its type`, `file is encrypted or contains active content`, `image exceeds safety
+limits`, `file exceeds size limit` or `unsupported file type or MIME type`; an oversized
+body is `413`.
+
+The worker decides per page whether OCR is needed (see ADR 0018). `GET /v1/ingestion/jobs`
+reports `review_required`, `pages_total` and `pages_review` per job; a version with pages
+that could not be read reliably is indexed only with its acceptable pages and has
+`ingestion_status = review_required`. Failure codes include `ocr_engine_unavailable`,
+`ocr_language_unavailable` and `ocr_review_required`.
+
+`GET /v1/documents/{document_id}/versions/{version_id}/pages` returns the page report:
+per page `page_number`, `classification` (`native_text`, `scanned_image`,
+`mixed_content`, `empty_page`, `unreadable`, `ocr_review_required`), `extraction_method`,
+`quality_state`, `mean_confidence` (Tesseract's word score, not a probability of
+correctness), counts, flags, transformations, page size and unit, `coordinate_space`,
+engine, engine version, configuration version, language and `ocr_milliseconds`.
+`GET .../chunks/{chunk_index}/provenance` returns a chunk's `chunk_id`, `page_number`,
+`source_name`, `extraction_method` and its OCR line `regions` as `[x0, y0, x1, y1]` in
+`page-normalized-v1` (origin top-left of the displayed page, values in `[0, 1]`). Both
+carry no document text and answer `404` for another tenant, another document's version or a
+document above the caller's access level.
 
 ## Query Contract
 

@@ -641,6 +641,7 @@ def environment(
     query_mode: str = "demo",
     observe_qdrant: bool = False,
     idp_down_dashboard: bool = True,
+    with_dashboard: bool = True,
 ) -> Iterator[Environment]:
     """Gate-owned API, worker and dashboards on the local identity provider.
 
@@ -813,14 +814,19 @@ def environment(
             secret=client_secret,
             metadata=f"http://127.0.0.1:{free_port()}/realms/{REALM}/.well-known/openid-configuration",
         )
-        services.append(start_dashboard("dashboard", ui_port, secrets_file, dashboard_env, logs))
-        if idp_down_dashboard:
+        # API-only gates (ocr_ingestion) skip the dashboards and save their memory.
+        if with_dashboard:
+            services.append(
+                start_dashboard("dashboard", ui_port, secrets_file, dashboard_env, logs)
+            )
+        if with_dashboard and idp_down_dashboard:
             services.append(
                 start_dashboard(
                     "dashboard-idp-down", idp_down_port, down_secrets, dashboard_env, logs
                 )
             )
-        for port in (ui_port, idp_down_port) if idp_down_dashboard else (ui_port,):
+        ports = (ui_port, idp_down_port) if idp_down_dashboard else (ui_port,)
+        for port in ports if with_dashboard else ():
             if not wait_http(f"http://127.0.0.1:{port}/_stcore/health", 60):
                 raise RuntimeError("gate dashboard did not start")
         evidence["ui_start_command_sanitized"] = (

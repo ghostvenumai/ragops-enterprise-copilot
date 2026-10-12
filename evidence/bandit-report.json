@@ -1,19 +1,19 @@
 {
   "errors": [],
-  "generated_at": "2026-10-12T07:14:56Z",
+  "generated_at": "2026-10-12T15:18:20Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 143,
+      "CONFIDENCE.HIGH": 148,
       "CONFIDENCE.LOW": 1,
       "CONFIDENCE.MEDIUM": 1,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 136,
-      "SEVERITY.MEDIUM": 9,
+      "SEVERITY.LOW": 140,
+      "SEVERITY.MEDIUM": 10,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 29390,
+      "loc": 32636,
       "nosec": 0,
-      "skipped_tests": 11
+      "skipped_tests": 13
     },
     "apps/api/main.py": {
       "CONFIDENCE.HIGH": 0,
@@ -37,7 +37,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1184,
+      "loc": 1206,
       "nosec": 0,
       "skipped_tests": 3
     },
@@ -193,7 +193,7 @@
       "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 3,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2495,
+      "loc": 2500,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -285,6 +285,32 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 643,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "scripts/ocr_fixtures.py": {
+      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 2,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 201,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "scripts/ocr_ingestion_gate.py": {
+      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 2,
+      "SEVERITY.MEDIUM": 1,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1097,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -531,7 +557,7 @@
       "SEVERITY.LOW": 5,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 367,
+      "loc": 375,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -648,7 +674,7 @@
       "SEVERITY.LOW": 6,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 938,
+      "loc": 979,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -726,7 +752,7 @@
       "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1413,
+      "loc": 1488,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -739,7 +765,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 88,
+      "loc": 97,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -830,7 +856,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 262,
+      "loc": 270,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1038,7 +1064,33 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 45,
+      "loc": 49,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ragops/ingestion/ocr.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 262,
+      "nosec": 0,
+      "skipped_tests": 2
+    },
+    "src/ragops/ingestion/pages.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 763,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1055,6 +1107,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "src/ragops/ingestion/raster.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 256,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "src/ragops/knowledge/__init__.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -1068,6 +1133,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "src/ragops/knowledge/provenance.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 149,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "src/ragops/knowledge/service.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -1077,7 +1155,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 343,
+      "loc": 352,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1285,7 +1363,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 478,
+      "loc": 533,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1376,7 +1454,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 101,
+      "loc": 202,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1415,7 +1493,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 30,
+      "loc": 37,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1493,7 +1571,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 319,
+      "loc": 332,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1532,7 +1610,7 @@
       "SEVERITY.LOW": 2,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 201,
+      "loc": 211,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1545,7 +1623,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 323,
+      "loc": 474,
       "nosec": 0,
       "skipped_tests": 0
     },

@@ -37,9 +37,25 @@ class VectorPayload:
     # Additive in ENT-11: the text the chunk was embedded from and the embedding model.
     chunk_text: str | None = None
     embedding_model: str | None = None
+    # Additive in ENT-11.7: how the chunk's text was obtained and where it sits on its page.
+    # Detailed line boxes live in PostgreSQL (document_chunk_sources); these stay small.
+    extraction_method: str | None = None
+    ocr_quality: str | None = None
+    page_width: float | None = None
+    page_height: float | None = None
+    coordinate_space: str | None = None
+    source_regions: tuple[int, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return self.__dict__.copy()
+        data = self.__dict__.copy()
+        data["source_regions"] = list(self.source_regions)
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> VectorPayload:
+        values = dict(data)
+        values["source_regions"] = tuple(values.get("source_regions") or ())
+        return cls(**values)
 
 
 @dataclass(frozen=True)
@@ -322,7 +338,7 @@ class QdrantVectorIndex:
             VectorHit(
                 str(item.id),
                 float(item.score),
-                VectorPayload(**(item.payload or {})),
+                VectorPayload.from_dict(item.payload or {}),
             )
             for item in raw
         ]

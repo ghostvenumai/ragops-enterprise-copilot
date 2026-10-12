@@ -4,16 +4,30 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ragops.auth.rbac import ACCESS_RANK
-from ragops.ingestion.extract import DocumentExtractionError, extract_segments
-from ragops.ingestion.normalization import chunk_words, tokenize
-from ragops.persistence.models import Document, DocumentVersion, IngestionJob
+from ragops.ingestion.extract import DocumentExtractionError
+from ragops.ingestion.normalization import chunk_spans, tokenize
+from ragops.ingestion.ocr import OcrEngineUnavailable, OcrLanguageUnavailable
+from ragops.ingestion.pages import (
+    DocumentExtraction,
+    DocumentExtractor,
+    ExtractionMethod,
+    PageExtraction,
+)
+from ragops.persistence.models import (
+    Document,
+    DocumentChunkSource,
+    DocumentPageExtraction,
+    DocumentVersion,
+    IngestionJob,
+)
 from ragops.vector.embedding import DeterministicEmbeddingProvider, EmbeddingProvider
 from ragops.vector.index import VectorIndex, VectorPayload
 
@@ -60,13 +74,55 @@ def _utc_iso(value: datetime) -> str:
     return (value if value.tzinfo is not None else value.replace(tzinfo=UTC)).isoformat()
 
 
-def build_chunk_vectors(
-    document: Document, version: DocumentVersion, embedding: EmbeddingProvider
-) -> list[tuple[list[float], VectorPayload]]:
+@dataclass(frozen=True)
+class SourcedChunk:
+    """One chunk of one page with the OCR lines its words came from."""
+
+    page: PageExtraction
+    text: str
+    lines: tuple[int, ...]
+    method: str
+
+
+@dataclass(frozen=True)
+class ChunkBuild:
+    extraction: DocumentExtraction
+    chunks: tuple[SourcedChunk, ...]
+    vectors: list[tuple[list[float], VectorPayload]]
+
+
+def _page_chunks(page: PageExtraction) -> list[SourcedChunk]:
+    """Chunks never span pages; each keeps the OCR lines of exactly its own words."""
+    words = page.words
+    out: list[SourcedChunk] = []
+    for start, end in chunk_spans(len(words), CHUNK_WORDS, CHUNK_OVERLAP):
+        window = words[start:end]
+        text = " ".join(word.text for word in window)
+        if not tokenize(text):
+            continue
+        lines = tuple(dict.fromkeys(word.line for word in window if word.line is not None))
+        native = any(word.line is None for word in window)
+        if lines and native:
+            method = ExtractionMethod.HYBRID.value
+        elif lines:
+            method = ExtractionMethod.OCR.value
+        else:
+            method = ExtractionMethod.NATIVE_TEXT.value
+        out.append(SourcedChunk(page, text, lines, method))
+    return out
+
+
+def build_chunks(
+    document: Document,
+    version: DocumentVersion,
+    embedding: EmbeddingProvider,
+    extractor: DocumentExtractor | None = None,
+) -> ChunkBuild:
     """Extract, chunk and embed one document version into complete vector payloads.
 
     Every identifier comes from the persisted document and version. Missing mandatory
-    metadata, unreadable content and content without indexable text fail closed.
+    metadata and unreadable content fail closed. Only pages that passed extraction are
+    chunked; pages needing review are reported, never indexed.
     """
     identifiers = (
         document.tenant_id,
@@ -86,46 +142,141 @@ def build_chunk_vectors(
     ):
         raise IngestionContentError("metadata_incomplete")
     try:
-        segments = extract_segments(version.filename, bytes(version.content))
+        extraction = (extractor or DocumentExtractor()).extract(
+            version.filename, bytes(version.content)
+        )
+    except (OcrEngineUnavailable, OcrLanguageUnavailable) as exc:
+        raise IngestionContentError(exc.code) from None
     except DocumentExtractionError:
         raise IngestionContentError("extraction_failed") from None
-    chunks = [
-        (page, chunk)
-        for page, text in segments
-        for chunk in chunk_words(text, CHUNK_WORDS, CHUNK_OVERLAP)
-        if tokenize(chunk)
-    ]
-    if not chunks:
-        raise IngestionContentError("empty_document")
+    chunks = tuple(
+        chunk for page in extraction.pages if page.indexable for chunk in _page_chunks(page)
+    )
     created = datetime.now(UTC).isoformat()
-    vectors = embedding.embed([chunk for _, chunk in chunks])
-    return [
-        (
-            vector,
-            VectorPayload(
-                tenant_id=document.tenant_id,
-                workspace_id=str(document.workspace_id),
-                collection_id=str(document.collection_id),
-                document_id=str(document.id),
-                document_version_id=str(version.id),
-                chunk_id=f"{version.id}:{index}",
-                access_level=document.access_level,  # type: ignore[arg-type]
-                document_status="indexed",
-                version_status="indexed",
-                content_hash=hashlib.sha256(chunk.encode("utf-8")).hexdigest(),
-                chunk_index=index,
-                source_name=version.filename,
-                created_at=created,
-                valid_from=_utc_iso(version.valid_from),
-                valid_to=_utc_iso(version.valid_to) if version.valid_to else None,
-                title=document.title or None,
-                page_number=page,
-                chunk_text=chunk,
-                embedding_model=embedding.model,
-            ),
+    vectors = embedding.embed([chunk.text for chunk in chunks]) if chunks else []
+    return ChunkBuild(
+        extraction,
+        chunks,
+        [
+            (
+                vector,
+                VectorPayload(
+                    tenant_id=document.tenant_id,
+                    workspace_id=str(document.workspace_id),
+                    collection_id=str(document.collection_id),
+                    document_id=str(document.id),
+                    document_version_id=str(version.id),
+                    chunk_id=f"{version.id}:{index}",
+                    access_level=document.access_level,  # type: ignore[arg-type]
+                    document_status="indexed",
+                    version_status="indexed",
+                    content_hash=hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+                    chunk_index=index,
+                    source_name=version.filename,
+                    created_at=created,
+                    valid_from=_utc_iso(version.valid_from),
+                    valid_to=_utc_iso(version.valid_to) if version.valid_to else None,
+                    title=document.title or None,
+                    page_number=chunk.page.page_number,
+                    chunk_text=chunk.text,
+                    embedding_model=embedding.model,
+                    extraction_method=chunk.method,
+                    ocr_quality=chunk.page.quality.state if chunk.lines else None,
+                    page_width=chunk.page.width if extraction.paginated else None,
+                    page_height=chunk.page.height if extraction.paginated else None,
+                    coordinate_space=chunk.page.coordinate_space if extraction.paginated else None,
+                    source_regions=chunk.lines,
+                ),
+            )
+            for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True))
+        ],
+    )
+
+
+def build_chunk_vectors(
+    document: Document,
+    version: DocumentVersion,
+    embedding: EmbeddingProvider,
+    extractor: DocumentExtractor | None = None,
+) -> list[tuple[list[float], VectorPayload]]:
+    """Vectors of one version; content without indexable text fails closed."""
+    built = build_chunks(document, version, embedding, extractor)
+    if not built.vectors:
+        raise IngestionContentError(
+            "ocr_review_required" if built.extraction.review_required else "empty_document"
         )
-        for index, ((page, chunk), vector) in enumerate(zip(chunks, vectors, strict=True))
-    ]
+    return built.vectors
+
+
+def record_extraction(session: Session, version: DocumentVersion, built: ChunkBuild) -> None:
+    """Replace this version's page report and chunk provenance (reprocessing is idempotent)."""
+    for model in (DocumentChunkSource, DocumentPageExtraction):
+        session.execute(
+            delete(model).where(
+                model.tenant_id == version.tenant_id,
+                model.document_version_id == version.id,
+            )
+        )
+    if not built.extraction.paginated:
+        return
+    for page in built.extraction.pages:
+        if page.page_number is None:
+            continue
+        session.add(
+            DocumentPageExtraction(
+                tenant_id=version.tenant_id,
+                document_version_id=version.id,
+                page_number=page.page_number,
+                classification=page.classification.value,
+                extraction_method=page.method.value,
+                schema_version=built.extraction.schema_version,
+                coordinate_space=page.coordinate_space,
+                width=page.width,
+                height=page.height,
+                unit=page.unit,
+                engine=page.engine,
+                engine_version=page.engine_version,
+                config_version=page.config_version,
+                language=page.language,
+                quality_state=page.quality.state,
+                mean_confidence=page.quality.mean_confidence,
+                low_confidence_ratio=page.quality.low_confidence_ratio,
+                implausible_ratio=page.quality.implausible_ratio,
+                char_count=page.quality.char_count,
+                word_count=page.quality.word_count,
+                flags=list(page.quality.flags),
+                transformations=list(page.transformations),
+                regions=[box.as_list() for box in page.ocr_regions],
+                lines=[
+                    {
+                        "line": line.index,
+                        "box": line.box.as_list(),
+                        "confidence": line.confidence,
+                        "words": line.word_count,
+                    }
+                    for line in page.lines
+                ],
+                ocr_milliseconds=round(page.ocr_seconds * 1000),
+            )
+        )
+    for index, chunk in enumerate(built.chunks):
+        boxes = {line.index: line.box for line in chunk.page.lines}
+        session.add(
+            DocumentChunkSource(
+                tenant_id=version.tenant_id,
+                document_version_id=version.id,
+                chunk_index=index,
+                chunk_id=f"{version.id}:{index}",
+                page_number=chunk.page.page_number,
+                extraction_method=chunk.method,
+                regions=[
+                    {"line": line, "box": boxes[line].as_list()}
+                    for line in chunk.lines
+                    if line in boxes
+                ],
+            )
+        )
+    session.flush()
 
 
 class IngestionWorker:
@@ -137,8 +288,10 @@ class IngestionWorker:
         max_attempts: int = 3,
         audit: Callable[[str, IngestionJob], None] | None = None,
         embedding: EmbeddingProvider | None = None,
+        extractor: DocumentExtractor | None = None,
     ) -> None:
         self.session = session
+        self.extractor = extractor
         self.vector_index = vector_index or NoopVectorIndex()
         # Documents are embedded in the dimension of the index they are written to.
         self.embedding = embedding or DeterministicEmbeddingProvider(self.vector_index.dimension)
@@ -227,6 +380,7 @@ class IngestionWorker:
             return self._fail(job, "invalid_relationship", retryable=False)
         document.status = "processing"
         indexed = False
+        review = False
         vectors: list[tuple[list[float], VectorPayload]] = []
         try:
             for index, stage in enumerate(STAGES, start=1):
@@ -238,15 +392,24 @@ class IngestionWorker:
                     return self._fail(job, fail_code, retryable=fail_code in RETRYABLE)
                 if stage == "embedding":
                     try:
-                        vectors = build_chunk_vectors(document, version, self.embedding)
+                        built = build_chunks(document, version, self.embedding, self.extractor)
                     except IngestionContentError as exc:
                         document.status = "failed"
                         return self._fail(job, exc.code, retryable=False)
+                    record_extraction(self.session, version, built)
+                    vectors = built.vectors
+                    review = built.extraction.review_required
+                    if not vectors:
+                        document.status = "failed"
+                        version.ingestion_status = "review_required" if review else "failed"
+                        code = "ocr_review_required" if review else "empty_document"
+                        return self._fail(job, code, retryable=False)
                 if stage == "indexing":
                     self._index(tenant_id, document, version, vectors)
                     indexed = True
             document.status = "indexed"
-            version.ingestion_status = "indexed"
+            # Some pages could not be read reliably: indexed, but never presented as complete.
+            version.ingestion_status = "review_required" if review else "indexed"
             job.status = job.state = "completed"
             job.stage = "finalization"
             job.progress = 100

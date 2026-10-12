@@ -24,8 +24,8 @@ from ragops.persistence.models import (
 from ragops.security.documents import inspect_document
 from ragops.security.upload import (
     ALLOWED_EXTENSIONS,
-    MAX_FILE_SIZE_BYTES,
     UnsafeUploadError,
+    max_upload_bytes,
     safe_filename,
 )
 
@@ -53,13 +53,22 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     "superseded": frozenset({"deleted"}),
     "deleted": frozenset(),
 }
-CONTENT_SIGNATURES: dict[str, bytes] = {".pdf": b"%PDF-", ".docx": b"PK\x03\x04"}
+CONTENT_SIGNATURES: dict[str, bytes] = {
+    ".pdf": b"%PDF-",
+    ".docx": b"PK\x03\x04",
+    ".png": b"\x89PNG\r\n\x1a\n",
+    ".jpg": b"\xff\xd8\xff",
+    ".jpeg": b"\xff\xd8\xff",
+}
 ALLOWED_MIME: dict[str, str] = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".md": "text/markdown",
     ".txt": "text/plain",
     ".csv": "text/csv",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
 }
 Record = TypeVar("Record", bound=TenantOwned)
 
@@ -124,7 +133,7 @@ def slugify(value: str) -> str:
 
 
 def validate_upload(
-    filename: str, mime_type: str, content: bytes, max_size: int = MAX_FILE_SIZE_BYTES
+    filename: str, mime_type: str, content: bytes, max_size: int | None = None
 ) -> str:
     normalized = safe_filename(filename)
     suffix = Path(normalized).suffix.lower()
@@ -132,7 +141,7 @@ def validate_upload(
         raise UnsafeUploadError("unsupported file type or MIME type")
     if not content:
         raise UnsafeUploadError("empty files are not allowed")
-    if len(content) > max_size:
+    if len(content) > (max_upload_bytes(suffix) if max_size is None else max_size):
         raise UnsafeUploadError("file exceeds size limit")
     # Binary formats must carry their signature; a renamed or corrupted file is rejected
     # at intake instead of being reported as successfully ingested.

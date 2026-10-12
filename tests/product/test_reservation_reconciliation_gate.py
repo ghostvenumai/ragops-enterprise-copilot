@@ -97,23 +97,23 @@ def test_secret_leaks_turn_the_evidence_into_a_failure(tmp_path, monkeypatch) ->
     assert leak not in raw and "detail" not in written
 
 
-def test_rc_runner_has_eighteen_gates_with_reconciliation_before_security() -> None:
-    assert len(rc_live_gate.GATES) == 18
-    assert rc_live_gate.GATES[-2:] == ("reservation_reconciliation", "security")
+def test_rc_runner_has_reconciliation_before_ocr_and_security() -> None:
+    assert len(rc_live_gate.GATES) == 19
+    assert rc_live_gate.GATES[-3:] == ("reservation_reconciliation", "ocr_ingestion", "security")
     assert "reservation_reconciliation" in rc_live_gate.DETAILED_EVIDENCE_GATES
     prior = {name: "PASS" for name in rc_live_gate.GATES if name != "reservation_reconciliation"}
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"reservation_reconciliation"}, {"reservation_reconciliation": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 18
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 19
     blocked = rc_live_gate.merge_gate_statuses(prior, set(), {})
     assert blocked["reservation_reconciliation"] == "BLOCKED"
 
 
-def test_security_has_twenty_nine_controls_with_live_twelve() -> None:
-    assert len(security_gate.CONTROLS) == 29
+def test_security_has_thirty_controls_with_live_twelve() -> None:
+    assert len(security_gate.CONTROLS) == 30
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 12
+    assert len(live) == 13
     (control,) = [c for c in live if c.evidence_file == "reservation-reconciliation.json"]
     assert control.id == "LIVE-12"
     required = dict(control.required)

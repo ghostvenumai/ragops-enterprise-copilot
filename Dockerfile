@@ -16,6 +16,12 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     RAGOPS_LLM_PROVIDER=deterministic
 WORKDIR /app
+# Local OCR for scanned documents (ENT-11.7): Tesseract with German and English data and
+# poppler's pdftoppm; util-linux prlimit (bounded subprocesses) is part of the base image.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system appuser \
     && useradd --system --gid appuser --home-dir /app --shell /usr/sbin/nologin appuser
 COPY --from=builder /opt/venv /opt/venv

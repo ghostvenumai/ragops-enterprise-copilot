@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".md", ".txt", ".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".md", ".txt", ".csv", ".jpg", ".jpeg", ".png"}
+# Text formats stay small. Scans are larger: a 300 dpi grayscale page is about 0.3-0.6 MB, so
+# 12 MB holds a realistic letter bundle; pages, pixels and OCR time are bounded separately.
 MAX_FILE_SIZE_BYTES = 2_000_000
+MAX_SCAN_FILE_SIZE_BYTES = 12_000_000
+SCAN_EXTENSIONS = frozenset({".pdf", ".jpg", ".jpeg", ".png"})
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png"})
 
 
 class UnsafeUploadError(ValueError):
     """Raised when a document upload violates intake policy."""
+
+
+def max_upload_bytes(suffix: str) -> int:
+    """The compressed input limit of one upload of this type."""
+    return MAX_SCAN_FILE_SIZE_BYTES if suffix.lower() in SCAN_EXTENSIONS else MAX_FILE_SIZE_BYTES
 
 
 def safe_filename(name: str) -> str:
@@ -27,13 +37,14 @@ def safe_filename(name: str) -> str:
     return candidate.name
 
 
-def validate_document_path(path: Path, base_dir: Path, max_size: int = MAX_FILE_SIZE_BYTES) -> Path:
+def validate_document_path(path: Path, base_dir: Path, max_size: int | None = None) -> Path:
     resolved_base = base_dir.resolve()
     resolved_path = path.resolve()
     if resolved_base not in resolved_path.parents and resolved_path != resolved_base:
         raise UnsafeUploadError("path traversal blocked")
     if resolved_path.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise UnsafeUploadError("file extension is not allowed")
-    if resolved_path.stat().st_size > max_size:
+    limit = max_upload_bytes(resolved_path.suffix) if max_size is None else max_size
+    if resolved_path.stat().st_size > limit:
         raise UnsafeUploadError("file exceeds size limit")
     return resolved_path

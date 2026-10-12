@@ -11,6 +11,7 @@ event finishes the in-flight message and then closes clients.
 
 from __future__ import annotations
 
+import os
 import random
 import signal
 from collections.abc import Callable
@@ -23,6 +24,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from ragops.config.settings import Settings
+from ragops.ingestion.ocr import DEFAULT_LANGUAGES, OcrLimits, TesseractEngine
+from ragops.ingestion.pages import DocumentExtractor
 from ragops.persistence.database import open_engine
 from ragops.vector.embedding import embedding_provider_for
 from ragops.workers.queue import IngestionMessage, RedisIngestionQueue
@@ -62,6 +65,7 @@ class WorkerRuntime:
         vector_index: Any | None = None,
         *,
         embedding: Any | None = None,
+        extractor: Any | None = None,
         worker_id: str | None = None,
         max_attempts: int = 3,
         reserve_timeout: float = 1.0,
@@ -73,6 +77,7 @@ class WorkerRuntime:
             raise ValueError("worker backoff must satisfy 0 < base <= max <= 60 seconds")
         self.queue, self.engine, self.vector_index = queue, engine, vector_index
         self.embedding = embedding
+        self.extractor = extractor
         self.worker_id = worker_id or f"worker-{uuid4()}"
         self.max_attempts = max_attempts
         self.reserve_timeout = reserve_timeout
@@ -87,6 +92,7 @@ class WorkerRuntime:
             session,
             vector_index=self.vector_index,
             embedding=self.embedding,
+            extractor=self.extractor,
             worker_id=self.worker_id,
             max_attempts=self.max_attempts,
             audit=self.audit,
@@ -210,6 +216,11 @@ def build_runtime(settings: Settings) -> WorkerRuntime:
         vector_index,
         # Fails at start-up for an unknown embedding provider or model; never falls back.
         embedding=embedding_provider_for(settings),
+        # Local OCR for scanned pages; probed lazily, so text-only deployments start without it.
+        extractor=DocumentExtractor(
+            TesseractEngine(os.getenv("RAGOPS_OCR_LANGUAGES", DEFAULT_LANGUAGES)),
+            OcrLimits.from_env(),
+        ),
         max_attempts=settings.job_max_attempts,
         backoff_max=settings.worker_backoff_max_seconds,
     )

@@ -43,14 +43,28 @@ JOB_STATUS_LABELS = {
     "cancelled": "Abgebrochen",
 }
 PENDING_JOB_STATES = frozenset({"queued", "running", "retrying"})
-UPLOAD_TYPES = ("pdf", "docx", "md", "txt", "csv")
+REVIEW_LABEL = "Prüfung erforderlich"
+# Failure codes with an actionable explanation; anything else keeps the generic retry hint.
+JOB_FAILURE_HINTS = {
+    "ocr_engine_unavailable": "Texterkennung (OCR) ist nicht installiert – Betrieb informieren.",
+    "ocr_language_unavailable": "Sprachdaten der Texterkennung fehlen – Betrieb informieren.",
+    "ocr_review_required": "Keine Seite war zuverlässig lesbar – bitte prüfen oder neu scannen.",
+    "empty_document": "Kein lesbarer Text gefunden.",
+}
+UPLOAD_TYPES = ("pdf", "docx", "md", "txt", "csv", "jpg", "jpeg", "png")
 # Known API rejection details mapped to actionable text; anything else stays generic.
 UPLOAD_REJECTIONS = {
     "unsupported file type or MIME type": (
-        "Dieser Dateityp wird nicht unterstützt. Erlaubt sind PDF, DOCX, Markdown, Text und CSV."
+        "Dieser Dateityp wird nicht unterstützt. Erlaubt sind PDF, JPEG, PNG, DOCX, Markdown, "
+        "Text und CSV."
     ),
     "empty files are not allowed": "Die Datei ist leer und wurde nicht übernommen.",
-    "file exceeds size limit": "Die Datei ist zu groß (maximal 2 MB).",
+    "file exceeds size limit": (
+        "Die Datei ist zu groß (PDF, JPEG und PNG maximal 12 MB, andere Formate maximal 2 MB)."
+    ),
+    "image exceeds safety limits": (
+        "Das Bild ist zu groß (maximal 40 Megapixel bzw. 20 000 Pixel Kantenlänge)."
+    ),
     "file content does not match its type": (
         "Die Datei ist beschädigt oder passt nicht zu ihrem Dateityp."
     ),
@@ -318,14 +332,24 @@ def job_rows(jobs: object) -> list[dict[str, object]]:
         if not isinstance(job, dict):
             continue
         status = str(job.get("status", ""))
+        label = JOB_STATUS_LABELS.get(status, status or "–")
+        hint = "Erneut versuchen möglich" if status == "failed" else ""
+        pages = int(job.get("pages_review") or 0)
+        if status == "failed":
+            hint = JOB_FAILURE_HINTS.get(str(job.get("error_code") or ""), hint)
+        if job.get("review_required") is True and status in {"completed", "failed"}:
+            # Never "Bereit" when pages could not be read reliably.
+            label = REVIEW_LABEL
+            if pages:
+                hint = f"{pages} {'Seite' if pages == 1 else 'Seiten'} nicht zuverlässig lesbar"
         rows.append(
             {
                 "Dokument": str(job.get("title") or "–"),
                 "Datei": str(job.get("filename") or "–"),
-                "Status": JOB_STATUS_LABELS.get(status, status or "–"),
+                "Status": label,
                 "Schritt": str(job.get("stage") or "–"),
                 "Fortschritt": f"{int(job.get('progress') or 0)} %",
-                "Hinweis": "Erneut versuchen möglich" if status == "failed" else "",
+                "Hinweis": hint,
                 "Auftrag": str(job.get("job_id", ""))[:8],
             }
         )

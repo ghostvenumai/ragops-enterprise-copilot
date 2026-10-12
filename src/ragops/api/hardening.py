@@ -47,8 +47,15 @@ async def _reject(send: Send, status: int, detail: str) -> None:
 class RequestHardening:
     """Reject oversized bodies before any parsing and add security headers."""
 
-    def __init__(self, app: ASGIApp, max_body_bytes: int) -> None:
-        self.app, self.max_body_bytes = app, max_body_bytes
+    def __init__(
+        self,
+        app: ASGIApp,
+        max_body_bytes: int,
+        route_limits: dict[tuple[str, str], int] | None = None,
+    ) -> None:
+        self.app, self.default_max_body_bytes = app, max_body_bytes
+        # Exact (method, path) pairs with their own limit, e.g. the document upload route.
+        self.route_limits = dict(route_limits or {})
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -56,6 +63,9 @@ class RequestHardening:
             return
         started = False
         too_large = False
+        limit = self.route_limits.get(
+            (str(scope.get("method", "")), str(scope.get("path", ""))), self.default_max_body_bytes
+        )
         csp = DOCS_CSP if str(scope.get("path", "")).startswith(DOCS_PATHS) else API_CSP
 
         async def send_with_headers(message: Message) -> None:
@@ -84,7 +94,7 @@ class RequestHardening:
             if not length.isdigit():
                 await _reject(send_with_headers_raw, 400, "invalid content length")
                 return
-            if int(length) > self.max_body_bytes:
+            if int(length) > limit:
                 await _reject(send_with_headers_raw, 413, "request body too large")
                 return
         received = 0
@@ -94,7 +104,7 @@ class RequestHardening:
             message: Message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_body_bytes:
+                if received > limit:
                     too_large = True
                     raise _BodyTooLarge
             return dict(message)
