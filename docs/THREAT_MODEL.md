@@ -48,6 +48,7 @@ All of these tests are evidence of control SEC-08 or SEC-04 below.
 | Uploaded document to storage and index | File name, bytes, embedded text | Upload validation, structural inspection, injection flags | SEC-07, SEC-08 |
 | Application to audit and telemetry | Request content | Masked, correlated audit events | SEC-09 |
 | Client retry to billing | Repeated requests with an `Idempotency-Key` | Durable, tenant- and principal-scoped idempotency records in PostgreSQL; keys only as HMAC-SHA256 under a server secret | LIVE-11 |
+| Operator reconciliation to budget | Reservation, ledger and correlation identifiers | Tenant-scoped `ReconciliationService` acting only on the durable execution ledger under row locks; no provider call, no release while billing is unknown | LIVE-12 |
 | Backup artifact to restore target | Artifact bytes, key file | Authenticated decryption, fresh-target checks | SEC-12, LIVE-06 |
 | Configuration and supply chain | Environment, dependency set, repository files | Fail-closed settings, pinned dependencies | SEC-13, CFG-03, CFG-04, LIVE-07, LIVE-09 |
 
@@ -58,8 +59,8 @@ the audit trail. Only synthetic data is used in this repository.
 ## Control Matrix
 
 The security release gate (`scripts/security_gate.py`, gate `security` of
-`make rc-live-gate`) has 28 mandatory controls: 17 of type `regression`
-and 11 of type `live`. The table is generated with
+`make rc-live-gate`) has 29 mandatory controls: 17 of type `regression`
+and 12 of type `live`. The table is generated with
 `python scripts/security_gate.py --matrix`; a test keeps this document and the gate
 identical.
 
@@ -99,6 +100,7 @@ identical.
 | LIVE-09 | Tampering | The production Compose configuration is valid on the host | live | `evidence/product-v1/rc-live/docker-compose.json`: `status="PASS"` |
 | LIVE-10 | Information disclosure | Uploaded documents are answered through Qdrant, the router and accounting without tenant, citation, usage or budget leakage and without demo retrieval | live | `evidence/product-v1/rc-live/rag-query.json`: `status="PASS"`, `tenant_leakage=0`, `vector_tenant_leakage=0`, `citation_tenant_leakage=0`, `usage_tenant_leakage=0`, `budget_tenant_leakage=0`, `demo_retrieval_used=false`, `unique_nonce_verified=true`, `citations_verified=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `qdrant_requests_observed>=1` |
 | LIVE-11 | Repudiation | Same-key query retries are replayed or blocked from durable PostgreSQL state: at most one provider call, reservation and usage record, keys stored only as server-keyed HMAC digests, no cross-tenant or cross-user idempotency state | live | `evidence/product-v1/rc-live/query-idempotency.json`: `status="PASS"`, `durable_store_used=true`, `raw_keys_stored=false`, `keyed_digest_used=true`, `successful_replay_verified=true`, `replay_provider_calls=1`, `replay_usage_records=1`, `duplicate_idempotency_records=0`, `conflict_verified=true`, `idempotency_tenant_leakage=0`, `idempotency_user_leakage=0`, `response_tenant_leakage=0`, `accounting_failure_retry_blocked=true`, `ambiguous_provider_retry_blocked=true`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `concurrent_request_count>=10`, `concurrent_provider_calls<=1`, `concurrent_usage_records<=1`, `concurrent_reservations<=1` |
+| LIVE-12 | Tampering | Held query reservations are reconciled only from durable PostgreSQL evidence: no provider call, no release while billing is unknown, no duplicate or invented usage, at most one settlement under concurrency and no cross-tenant reach | live | `evidence/product-v1/rc-live/reservation-reconciliation.json`: `status="PASS"`, `provider_calls_during_reconciliation=0`, `accounting_failure_recovered=true`, `pre_provider_released=true`, `same_key_recovery=true`, `ambiguous_released=false`, `review_required_verified=true`, `existing_usage_committed=true`, `duplicate_usage_records=0`, `reconciliation_db_failure_fail_closed=true`, `cross_tenant_leakage=0`, `unknown_usage_booked_as_zero=false`, `legacy_unknown_auto_released=false`, `paid_provider_calls=0`, `secret_scan_passed=true`, `cleanup_status="PASS"`, `concurrent_reconcilers>=10`, `concurrent_usage_records<=1`, `concurrent_terminal_transitions<=1` |
 
 ## Evidence Admissibility
 
@@ -121,7 +123,7 @@ Additional rules:
   Keycloak client `ragops-integration-check`) is a `FAIL`.
 - Evidence that contains a credential, token, private key or connection string is
   replaced by a minimal `FAIL` record.
-- `17/17` is reported only when all 28 controls are evidenced. Controls are
+- `18/18` is reported only when all 29 controls are evidenced. Controls are
   never removed, merged or weakened to reach that state.
 
 ## Identity Provider Clients

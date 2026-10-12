@@ -196,22 +196,26 @@ def test_evidence_with_a_secret_key_or_text_is_replaced_by_a_failure(
     assert leak not in raw and "detail" not in written
 
 
-def test_rc_runner_has_seventeen_gates_with_query_idempotency_before_security() -> None:
-    assert len(rc_live_gate.GATES) == 17
-    assert rc_live_gate.GATES[-2:] == ("query_idempotency", "security")
+def test_rc_runner_runs_query_idempotency_before_reconciliation_and_security() -> None:
+    assert len(rc_live_gate.GATES) == 18
+    assert rc_live_gate.GATES[-3:] == (
+        "query_idempotency",
+        "reservation_reconciliation",
+        "security",
+    )
     assert "query_idempotency" in rc_live_gate.DETAILED_EVIDENCE_GATES
     prior = {name: "PASS" for name in rc_live_gate.GATES if name != "query_idempotency"}
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"query_idempotency"}, {"query_idempotency": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 17
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 18
     assert rc_live_gate.merge_gate_statuses(prior, set(), {})["query_idempotency"] == "BLOCKED"
 
 
-def test_security_has_twenty_eight_controls_and_validates_idempotency_evidence() -> None:
-    assert len(security_gate.CONTROLS) == 28
+def test_security_validates_idempotency_evidence() -> None:
+    assert len(security_gate.CONTROLS) == 29
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 11
+    assert len(live) == 12
     (control,) = [c for c in security_gate.CONTROLS if c.evidence_file == "query-idempotency.json"]
     assert control.id == "LIVE-11"
     required = dict(control.required)

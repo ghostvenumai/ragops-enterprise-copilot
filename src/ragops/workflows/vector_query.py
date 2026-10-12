@@ -5,10 +5,13 @@ instruction-like content, an empty retrieval and an empty context all abstain wi
 route, reservation or provider call; retrieval failures and tenant violations are audited
 and raised so that the API answers fail closed. Nothing here can read the local demo corpus.
 
-Generation always goes through ``LLMModelRouter``: route, reserve the budget, execute the
-policy chain, then book the usage and close the reservation. An answer is returned only
-after its accounting committed. Fallback is limited to failures the provider certainly did
-not bill (rate limit, model unavailable), so a logical query is billed exactly once.
+Generation always goes through ``LLMModelRouter``: route, reserve the budget, durably mark
+the provider boundary, execute the policy chain, commit the usage receipt, then book the
+usage and close the reservation. The provider is invoked only after the boundary marker
+committed; if the marker cannot be written the reservation is returned and the provider is
+never called. An answer is returned only after its accounting committed. Fallback is
+limited to failures the provider certainly did not bill (rate limit, model unavailable), so
+a logical query is billed exactly once.
 
 A caller may pass the logical ``correlation_id`` (an idempotent retry keeps its identity) and
 a ``QueryProgress``: its ``before_billing`` hook runs right before the budget reservation, the
@@ -32,6 +35,7 @@ from ragops.finops.query_accounting import (
     BookedUsage,
     BudgetLimitExceeded,
     QueryAccounting,
+    ambiguity_reason,
 )
 from ragops.governance.audit import AuditLogger
 from ragops.llm.providers import LLMResponse
@@ -93,8 +97,8 @@ QUERY_FALLBACK = frozenset(
 
 class ExecutionStage(StrEnum):
     PREPARE = "prepare"  # retrieval, context and routing: nothing reserved or billed
-    RESERVE = "reserve"  # billing boundary crossed; the budget is being reserved
-    PROVIDER = "provider"  # the provider may run and bill
+    RESERVE = "reserve"  # budget reserved; the provider boundary is not yet marked
+    PROVIDER = "provider"  # the boundary marker committed: the provider may run and bill
     ACCOUNTING = "accounting"  # the provider answered; usage is being booked
     COMPLETE = "complete"
 
@@ -234,6 +238,7 @@ class VectorQueryService:
             progress.before_billing()
         progress.stage = ExecutionStage.RESERVE
         ticket = self._reserve(context, user, correlation_id, decision, input_tokens)
+        self._begin_provider(user, correlation_id, ticket)
         progress.stage = ExecutionStage.PROVIDER
 
         def invoke(provider_id: str, model_id: str) -> tuple[str, str, LLMResponse]:
@@ -340,6 +345,26 @@ class VectorQueryService:
         )
         return ticket
 
+    def _begin_provider(
+        self, user: QueryUser, correlation_id: str, ticket: AccountingTicket
+    ) -> None:
+        """No marker, no provider: a lost marker returns the budget and fails closed."""
+        assert self.accounting is not None
+        try:
+            self.accounting.begin_provider(ticket)
+        except AccountingError:
+            self._event(user, correlation_id, "provider_boundary_failed", "failed", {})
+            try:
+                self.accounting.release_unstarted(ticket)
+                self._event(user, correlation_id, "reservation_released", "success", {})
+            except AccountingError:
+                # Still provably pre-provider: reconciliation releases it from the ledger.
+                self._event(
+                    user, correlation_id, "reservation_reconciliation_required", "failed", {}
+                )
+            self._audit(user, correlation_id, "failed", "accounting_unavailable", 0)
+            raise
+
     def _provider_failed(
         self,
         user: QueryUser,
@@ -363,6 +388,7 @@ class VectorQueryService:
                 self._event(user, correlation_id, "reservation_reconciliation_failed", "failed", {})
         else:
             # The provider may have billed the attempt: the reservation keeps the budget.
+            self.accounting.note_ambiguous(ticket, ambiguity_reason(category))
             self._event(
                 user,
                 correlation_id,

@@ -257,6 +257,7 @@ def test_finalization_is_idempotent_per_logical_query(tmp_path) -> None:
         == ticket.reservation_id
     )
     usage = LLMUsage(100, 20, 120, 0.0, 3.0, "cheap-v1")
+    world.accounting.begin_provider(ticket)  # ENT-11.6: the provider runs only after the marker
     first = world.accounting.finalize(ticket, "primary", "cheap-v1", usage, 0, 3.0)
     second = world.accounting.finalize(ticket, "primary", "cheap-v1", usage, 0, 3.0)
     assert first == second
@@ -280,6 +281,7 @@ def test_unreported_usage_is_rejected_before_any_write(tmp_path) -> None:
     ticket = world.accounting.prepare(
         context(), decision, input_tokens=10, output_tokens=600, correlation_id=uuid4()
     )
+    world.accounting.begin_provider(ticket)
     with pytest.raises(UsageUnavailable):
         world.accounting.finalize(
             ticket, "primary", "cheap-v1", LLMUsage(0, 0, 0, 0.0, 1.0, "x", reported=False), 0, 1

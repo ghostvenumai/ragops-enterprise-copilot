@@ -599,3 +599,65 @@ def test_stale_or_foreign_query_idempotency_evidence_is_not_admissible(tmp_path)
 def test_the_security_gate_never_runs_the_idempotency_workflow() -> None:
     source = (ROOT / "scripts" / "security_gate.py").read_text(encoding="utf-8")
     assert "query_idempotency_gate" not in source and "rag_query_gate" not in source
+
+
+# ---------------------------------------------------------- reservation_reconciliation (LIVE-12)
+
+
+def test_reconciliation_evidence_passes_when_complete(tmp_path) -> None:
+    control = CONTROLS["LIVE-12"]
+    assert control.evidence_file == "reservation-reconciliation.json"
+    write_live(tmp_path, control)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.PASS
+    write_live(tmp_path, control, concurrent_terminal_transitions=0, concurrent_reconcilers=12)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.PASS
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"provider_calls_during_reconciliation": 1},
+        {"ambiguous_released": True},
+        {"review_required_verified": False},
+        {"duplicate_usage_records": 1},
+        {"concurrent_usage_records": 2},
+        {"concurrent_terminal_transitions": 2},
+        {"concurrent_reconcilers": 9},
+        {"concurrent_reconcilers": "10"},
+        {"cross_tenant_leakage": 1},
+        {"unknown_usage_booked_as_zero": True},
+        {"legacy_unknown_auto_released": True},
+        {"accounting_failure_recovered": False},
+        {"pre_provider_released": False},
+        {"same_key_recovery": False},
+        {"existing_usage_committed": False},
+        {"reconciliation_db_failure_fail_closed": False},
+        {"paid_provider_calls": 1},
+        {"cleanup_status": "FAIL"},
+        {"secret_scan_passed": False},
+    ],
+)
+def test_false_reconciliation_evidence_fails(tmp_path, changes) -> None:
+    control = CONTROLS["LIVE-12"]
+    write_live(tmp_path, control, **changes)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.FAIL
+
+
+def test_stale_or_foreign_reconciliation_evidence_is_not_admissible(tmp_path) -> None:
+    control = CONTROLS["LIVE-12"]
+    write_live(tmp_path, control, tested_commit="b" * 40)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+    old = (NOW - gate.MAX_EVIDENCE_AGE - timedelta(minutes=1)).isoformat()
+    write_live(tmp_path, control, timestamp=old)
+    assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.STALE
+    for key in ("provider_calls_during_reconciliation", "concurrent_reconcilers"):
+        write_live(tmp_path, control)
+        payload = json.loads((tmp_path / control.evidence_file).read_text())
+        del payload[key]
+        (tmp_path / control.evidence_file).write_text(json.dumps(payload))
+        assert gate.evaluate_live_evidence(control, tmp_path, COMMIT, NOW).status == gate.MISSING
+
+
+def test_the_security_gate_never_runs_reconciliation() -> None:
+    source = (ROOT / "scripts" / "security_gate.py").read_text(encoding="utf-8")
+    assert "reservation_reconciliation_gate" not in source and "reconcile(" not in source

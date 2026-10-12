@@ -21,12 +21,16 @@ States (``TRANSITIONS`` lists every allowed write):
   not billed) is replayed until the record expires.
 * ``ambiguous_held`` – the provider may have billed and the outcome was not booked; the
   reservation stays held and the key never executes again (operator reconciliation).
+* ``reconciled`` – operator reconciliation booked the billed execution from durable evidence
+  (ENT-11.6); the answer was never delivered and is never regenerated. The key replays a
+  stable 409 until the record expires.
 
-Expired ``succeeded``, ``failed`` and ``retryable`` records start a new logical execution
-and are purged; ``claimed``, ``executing`` and ``ambiguous_held`` records never expire on
-their own. This bounds duplicate provider execution to at most one per key and retention
-window; it is not a global exactly-once guarantee and it does not deduplicate requests that
-use different keys.
+Reconciliation also returns an ``executing`` record whose provider provably never ran to
+``retryable`` (``finops.reconciliation``). Expired ``succeeded``, ``failed``, ``retryable``
+and ``reconciled`` records start a new logical execution and are purged; ``claimed``,
+``executing`` and ``ambiguous_held`` records never expire on their own. This bounds
+duplicate provider execution to at most one per key and retention window; it is not a global
+exactly-once guarantee and it does not deduplicate requests that use different keys.
 """
 
 from __future__ import annotations
@@ -67,6 +71,8 @@ KEY_DIGEST_ALGORITHM = "HMAC-SHA256"
 DEFAULT_TTL_SECONDS = 86_400
 MIN_TTL_SECONDS, MAX_TTL_SECONDS = 300, 604_800
 DEFAULT_LEASE_SECONDS = 300
+RECONCILED_STATUS = 409
+RECONCILED_DETAIL = "idempotent request was settled without a deliverable response"
 _KEY = re.compile(r"[A-Za-z0-9._~:+/=-]{1,128}")
 
 
@@ -77,18 +83,22 @@ class IdempotencyState(StrEnum):
     RETRYABLE = "retryable"
     FAILED = "failed"
     AMBIGUOUS_HELD = "ambiguous_held"
+    RECONCILED = "reconciled"
 
 
 _S = IdempotencyState
 TRANSITIONS: dict[IdempotencyState, frozenset[IdempotencyState]] = {
     _S.CLAIMED: frozenset({_S.CLAIMED, _S.EXECUTING, _S.SUCCEEDED, _S.RETRYABLE, _S.FAILED}),
-    _S.EXECUTING: frozenset({_S.SUCCEEDED, _S.RETRYABLE, _S.FAILED, _S.AMBIGUOUS_HELD}),
+    _S.EXECUTING: frozenset(
+        {_S.SUCCEEDED, _S.RETRYABLE, _S.FAILED, _S.AMBIGUOUS_HELD, _S.RECONCILED}
+    ),
     _S.SUCCEEDED: frozenset({_S.CLAIMED}),  # only after expiry, as a new logical query
     _S.FAILED: frozenset({_S.CLAIMED}),  # only after expiry, as a new logical query
     _S.RETRYABLE: frozenset({_S.CLAIMED}),
-    _S.AMBIGUOUS_HELD: frozenset(),
+    _S.AMBIGUOUS_HELD: frozenset({_S.RECONCILED}),  # only by reconciliation from evidence
+    _S.RECONCILED: frozenset({_S.CLAIMED}),  # only after expiry, as a new logical query
 }
-_FINISHED = (_S.SUCCEEDED, _S.FAILED, _S.RETRYABLE)
+_FINISHED = (_S.SUCCEEDED, _S.FAILED, _S.RETRYABLE, _S.RECONCILED)
 
 
 class Decision(StrEnum):
@@ -297,7 +307,7 @@ class QueryIdempotencyStore:
             return self._restart(row, fingerprint, now, "expired", new_identity=True)
         if row.request_fingerprint != fingerprint:
             return self._claim_of(row, Decision.CONFLICT)
-        if state in (_S.SUCCEEDED, _S.FAILED):
+        if state in (_S.SUCCEEDED, _S.FAILED, _S.RECONCILED):
             return self._claim_of(row, Decision.REPLAY)
         if state is _S.RETRYABLE:
             return self._restart(row, fingerprint, now, "retryable", new_identity=False)

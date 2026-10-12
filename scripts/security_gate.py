@@ -509,6 +509,38 @@ CONTROLS: tuple[Control, ...] = (
             ("concurrent_reservations", 1),
         ),
     ),
+    Control(
+        "LIVE-12",
+        "Tampering",
+        "Held query reservations are reconciled only from durable PostgreSQL evidence: no "
+        "provider call, no release while billing is unknown, no duplicate or invented usage, "
+        "at most one settlement under concurrency and no cross-tenant reach",
+        "live",
+        evidence_file="reservation-reconciliation.json",
+        required=(
+            ("status", "PASS"),
+            ("provider_calls_during_reconciliation", 0),
+            ("accounting_failure_recovered", True),
+            ("pre_provider_released", True),
+            ("same_key_recovery", True),
+            ("ambiguous_released", False),
+            ("review_required_verified", True),
+            ("existing_usage_committed", True),
+            ("duplicate_usage_records", 0),
+            ("reconciliation_db_failure_fail_closed", True),
+            ("cross_tenant_leakage", 0),
+            ("unknown_usage_booked_as_zero", False),
+            ("legacy_unknown_auto_released", False),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("concurrent_reconcilers", 10),),
+        maximums=(
+            ("concurrent_usage_records", 1),
+            ("concurrent_terminal_transitions", 1),
+        ),
+    ),
 )
 
 

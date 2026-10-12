@@ -436,7 +436,8 @@ class QueryIdempotencyRecord(TenantOwned, Base):
         UniqueConstraint("tenant_id", "principal", "endpoint", "key_hash"),
         Index("ix_query_idempotency_records_tenant_state", "tenant_id", "state", "expires_at"),
         CheckConstraint(
-            "state IN ('claimed','executing','succeeded','retryable','failed','ambiguous_held')",
+            "state IN ('claimed','executing','succeeded','retryable','failed','ambiguous_held',"
+            "'reconciled')",
             name="state",
         ),
         CheckConstraint("attempt >= 1", name="attempt"),
@@ -453,6 +454,72 @@ class QueryIdempotencyRecord(TenantOwned, Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class QueryExecution(TenantOwned, Base):
+    """Durable provider boundary and usage receipt of one accounted query attempt (ENT-11.6).
+
+    Written in the reservation's transaction as ``prepared``; ``provider_may_run`` is committed
+    before the provider is invoked, ``receipt_recorded`` holds the reported usage and the
+    execution-time price snapshot before it is booked, ``accounted`` is written together with
+    the usage record and the reservation commit. ``released`` means the provider certainly did
+    not bill. Only identifiers, counts and amounts are stored: no question, context, answer,
+    key or credential.
+    """
+
+    __tablename__ = "query_executions"
+    __table_args__ = (
+        tenant_fk("reservation_id", "budget_reservations"),
+        tenant_fk("user_id", "users"),
+        tenant_fk("model_configuration_id", "model_configurations"),
+        UniqueConstraint("tenant_id", "reservation_id", name="uq_query_executions_reservation"),
+        UniqueConstraint(
+            "tenant_id", "correlation_id", "attempt", name="uq_query_executions_attempt"
+        ),
+        Index("ix_query_executions_tenant_state", "tenant_id", "state", "updated_at"),
+        CheckConstraint(
+            "state IN ('prepared','provider_may_run','receipt_recorded','accounted','released')",
+            name="state",
+        ),
+        CheckConstraint("attempt >= 1", name="attempt"),
+        CheckConstraint(
+            "state <> 'receipt_recorded' OR (provider_id IS NOT NULL AND model_id_text IS NOT "
+            "NULL AND model_configuration_id IS NOT NULL AND input_price IS NOT NULL AND "
+            "output_price IS NOT NULL AND input_tokens IS NOT NULL AND output_tokens IS NOT "
+            "NULL AND cost IS NOT NULL AND latency_ms IS NOT NULL AND fallback_count IS NOT NULL)",
+            name="receipt_complete",
+        ),
+        CheckConstraint(
+            "(input_tokens IS NULL OR input_tokens >= 0) AND (output_tokens IS NULL OR "
+            "output_tokens >= 0) AND (cost IS NULL OR cost >= 0) AND (input_price IS NULL OR "
+            "input_price >= 0) AND (output_price IS NULL OR output_price >= 0) AND "
+            "(latency_ms IS NULL OR latency_ms >= 0) AND (fallback_count IS NULL OR "
+            "fallback_count >= 0) AND estimated_cost >= 0",
+            name="nonnegative",
+        ),
+    )
+    correlation_id: Mapped[UUID]
+    attempt: Mapped[int] = mapped_column(default=1)
+    reservation_id: Mapped[UUID]
+    user_id: Mapped[UUID]
+    state: Mapped[str] = mapped_column(String(24))
+    routing_class: Mapped[str] = mapped_column(String(32))
+    routing_reason: Mapped[str] = mapped_column(String(255))
+    estimated_cost: Mapped[Decimal] = mapped_column(Numeric(18, 8))
+    provider_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model_id_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    model_configuration_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    input_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
+    output_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
+    latency_ms: Mapped[float | None] = mapped_column(nullable=True)
+    fallback_count: Mapped[int | None] = mapped_column(nullable=True)
+    ambiguity_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class EvaluationRun(TenantOwned, Base):

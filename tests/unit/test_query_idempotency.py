@@ -151,11 +151,13 @@ def test_states_and_transitions_are_explicit() -> None:
         "retryable",
         "failed",
         "ambiguous_held",
+        "reconciled",
     }
     allowed = idem.TRANSITIONS
     # Once the billing boundary is crossed the record never returns to an executable state.
     assert IdempotencyState.CLAIMED not in allowed[IdempotencyState.EXECUTING]
-    assert allowed[IdempotencyState.AMBIGUOUS_HELD] == frozenset()
+    # An ambiguous record only leaves its hold when reconciliation booked the billed usage.
+    assert allowed[IdempotencyState.AMBIGUOUS_HELD] == frozenset({IdempotencyState.RECONCILED})
     assert IdempotencyState.AMBIGUOUS_HELD in allowed[IdempotencyState.EXECUTING]
     assert IdempotencyState.AMBIGUOUS_HELD not in allowed[IdempotencyState.CLAIMED]
 

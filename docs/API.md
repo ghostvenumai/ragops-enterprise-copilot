@@ -94,6 +94,8 @@ concurrent request claim it.
 | Earlier request failed before the provider (budget limit, no eligible model, retrieval or accounting setup) | executed again with the same `correlation_id` | as usual | as usual |
 | Provider rejection that was certainly not billed | the stored `503 generation unavailable`, `Idempotency-Replayed: true` | no | no new ones |
 | Provider timeout or provider error, or accounting failed after the provider answered | `409 idempotent request requires reconciliation` | no | the held reservation stays; no new ones |
+| Reconciliation booked the billed query from its durable receipt (ENT-11.6) | the stored `409 idempotent request was settled without a deliverable response`, `Idempotency-Replayed: true` | no | no new ones |
+| Reconciliation proved the provider never ran and released the reservation | executed again with the same `correlation_id` | as usual | a fresh reservation |
 | Idempotency store unavailable or not configured | `503 idempotency unavailable` | no | none |
 
 The `correlation_id` identifies the logical query: a replay returns the original one, and
@@ -104,7 +106,9 @@ metrics) for that period, so idempotency introduces bounded, tenant-scoped respo
 retention; expired finished records are deleted when the tenant claims a new key. After
 expiry the same key starts a new logical query. Ambiguous records (provider may have
 billed, outcome not booked) keep no response and never expire on their own: they need
-operator reconciliation, like the held reservation they belong to. Audit events
+operator reconciliation, like the held reservation they belong to. Reconciliation
+(`scripts/reconcile_reservations.py`, docs/FINOPS.md) turns them into `reconciled` (billed,
+booked, not re-executable; expires like a finished record) only from durable evidence. Audit events
 `query_idempotency_claimed`, `_replayed`, `_conflict`, `_in_progress`,
 `_reconciliation_required`, `_retryable`, `_failed`, `_ambiguous_held`, `_expired`,
 `_succeeded` and `_unavailable` carry the record id and state, never the key, the
