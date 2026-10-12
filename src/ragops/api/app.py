@@ -40,6 +40,8 @@ from sqlalchemy.orm import Session
 
 from ragops import __version__
 from ragops.api.hardening import RequestHardening
+from ragops.api.intelligence import ENDPOINT_CLASS as INTELLIGENCE_ENDPOINT_CLASS
+from ragops.api.intelligence import register_intelligence_routes
 from ragops.api.schemas import (
     CitationApi,
     QueryApiRequest,
@@ -1051,6 +1053,22 @@ def create_app(
         if provenance is None:
             raise HTTPException(status_code=404, detail="chunk not found")
         return provenance
+
+    def open_intelligence_session() -> Session:
+        try:
+            return Session(resources.engine())
+        except (ValueError, OSError) as exc:
+            raise HTTPException(
+                status_code=503, detail="knowledge persistence unavailable"
+            ) from exc
+
+    register_intelligence_routes(
+        app,
+        authenticated=limited(INTELLIGENCE_ENDPOINT_CLASS),
+        open_session=open_intelligence_session,
+        enqueue=ingestion_queue.enqueue,
+        max_attempts=settings.job_max_attempts,
+    )
 
     @app.get("/v1/ingestion/jobs")
     def ingestion_jobs(

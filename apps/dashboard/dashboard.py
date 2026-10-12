@@ -875,6 +875,8 @@ def render_copilot(tenant_id: str, role: str, top_k: int, demo_scene: str = "") 
 
 
 UPLOAD_NOTICE = "upload_notice"
+JOBS_NOTICE = "jobs_notice"
+JOBS_TENANT = "jobs_tenant"
 
 
 def submit_upload(
@@ -938,15 +940,20 @@ def _render_jobs() -> None:
             "Fehlgeschlagener Auftrag", list(failed), format_func=lambda job_id: failed[job_id]
         )
         if st.button("Erneut versuchen", icon=":material/replay:"):
+            tenant_id = st.session_state.get(JOBS_TENANT)
             try:
                 api_request("POST", f"/v1/ingestion/jobs/{choice}/retry")
-                st.session_state["jobs_notice"] = ("success", "Auftrag erneut eingereiht.")
+                outcome = ("success", "Auftrag erneut eingereiht.")
             except DashboardApiError as exc:
-                st.session_state["jobs_notice"] = ("error", str(exc))
+                outcome = ("error", str(exc))
+            st.session_state[JOBS_NOTICE] = (tenant_id, *outcome)
             st.rerun(scope="fragment")
-    notice = st.session_state.pop("jobs_notice", None)
-    if notice:
-        getattr(st, notice[0])(notice[1])
+    # The requeued job switches the list into polling through a full rerun, which would drop a
+    # notice rendered only once: like the upload outcome, it stays until the next retry or
+    # until the user leaves this page.
+    notice = st.session_state.get(JOBS_NOTICE)
+    if notice and notice[0] == st.session_state.get(JOBS_TENANT):
+        getattr(st, notice[1])(notice[2])
     pending = any(job.get("status") in PENDING_JOB_STATES for job in jobs)
     if pending != st.session_state.get("jobs_polling", False):
         st.session_state["jobs_polling"] = pending
@@ -1017,6 +1024,7 @@ def render_knowledge_base(tenant_id: str) -> None:
         notice = st.session_state.get(UPLOAD_NOTICE)
         if notice and notice[0] == tenant_id:
             getattr(st, notice[1])(notice[2])
+    st.session_state[JOBS_TENANT] = tenant_id
     if st.session_state.get("jobs_polling", False):
         _jobs_polling()
     else:
@@ -1318,6 +1326,7 @@ def main() -> None:
     )
     if navigation != "Wissensbasis":
         st.session_state.pop(UPLOAD_NOTICE, None)
+        st.session_state.pop(JOBS_NOTICE, None)
     if navigation == "Copilot":
         render_copilot(tenant_id, role, top_k, demo_scene)
     elif navigation == "Wissensbasis":

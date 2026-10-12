@@ -13,16 +13,21 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from ragops.knowledge.service import KnowledgeManagementService, LocalDocumentBlobStore
-from ragops.persistence.models import (
-    Document,
-    DocumentVersion,
-    IngestionJob,
-    KnowledgeCollection,
-    Tenant,
-    Workspace,
-)
+from ragops.persistence.models import Base, IngestionJob, Tenant
 from ragops.workers.queue import IngestionMessage, RedisIngestionQueue
 from ragops.workers.worker import IngestionWorker
+
+
+def delete_tenant_records(session: Session, tenant_id: str) -> None:
+    """Remove a disposable test tenant's rows, dependents first; constraints stay RESTRICT.
+
+    The order comes from the schema, so records added by later pipeline stages (page reports,
+    document intelligence) are removed before the document versions they reference.
+    """
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name != "tenants" and "tenant_id" in table.c:
+            session.execute(delete(table).where(table.c.tenant_id == tenant_id))
+    session.execute(delete(Tenant.__table__).where(Tenant.__table__.c.id == tenant_id))
 
 
 @pytest.mark.integration
@@ -111,15 +116,9 @@ def test_live_redis_worker_path(tmp_path: Path) -> None:
                 }
             )
         )
-        session.execute(delete(IngestionJob).where(IngestionJob.tenant_id == tenant_id))
-        session.execute(delete(DocumentVersion).where(DocumentVersion.tenant_id == tenant_id))
-        session.execute(delete(Document).where(Document.tenant_id == tenant_id))
-        session.execute(
-            delete(KnowledgeCollection).where(KnowledgeCollection.tenant_id == tenant_id)
-        )
-        session.execute(delete(Workspace).where(Workspace.tenant_id == tenant_id))
-        session.delete(intruder)
-        session.delete(tenant)
+        session.expunge_all()
+        delete_tenant_records(session, tenant_id)
+        delete_tenant_records(session, intruder_tenant_id)
         session.commit()
     queue.client.delete(queue_name)
     engine.dispose()

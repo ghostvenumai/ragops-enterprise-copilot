@@ -1,0 +1,161 @@
+{
+  "extractor_version": "rules-de-v1",
+  "taxonomy_version": "doc-taxonomy-v1",
+  "corpus_digest": "b2632c189ea3e12298696d6327e16c8010855d62048840d7ce894abc0f6e92ba",
+  "selection": "all_letters_frozen_corpus",
+  "note": "design corpus metrics are in-sample: the rules were written against it",
+  "documents": 16,
+  "classification": {
+    "correct": 16,
+    "accuracy": 1.0
+  },
+  "fields": {
+    "amount": {
+      "tp": 26,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "date": {
+      "tp": 25,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "identifier": {
+      "tp": 18,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "party": {
+      "tp": 57,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "status": {
+      "tp": 8,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  },
+  "false_positives": [],
+  "false_negatives": [],
+  "forbidden_violations": 0,
+  "debtor": {
+    "wrong_person": 0,
+    "missed_person": 0,
+    "status_errors": 0
+  },
+  "claims": {
+    "expected_groups": 7,
+    "found_groups": 7,
+    "false_merges": 0,
+    "missed_merges": 0
+  },
+  "holdout": {
+    "digest": "3b1039dde3ccf02ae0f8b8a11059a78a7eed71bbb377efb1c1c29a93c6a28366",
+    "note": "written after the rules; rules not tuned on it",
+    "documents": 7,
+    "classification": {
+      "correct": 6,
+      "accuracy": 0.8571
+    },
+    "fields": {
+      "amount": {
+        "tp": 11,
+        "fp": 0,
+        "fn": 3,
+        "precision": 1.0,
+        "recall": 0.7857
+      },
+      "date": {
+        "tp": 7,
+        "fp": 2,
+        "fn": 1,
+        "precision": 0.7778,
+        "recall": 0.875
+      },
+      "identifier": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 3,
+        "precision": 1.0,
+        "recall": 0.5714
+      },
+      "party": {
+        "tp": 18,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "status": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "false_positives": [
+      {
+        "letter": "h_second_reminder_fee",
+        "fact_type": "other_date"
+      },
+      {
+        "letter": "h_enforcement_order",
+        "fact_type": "other_date"
+      }
+    ],
+    "false_negatives": [
+      {
+        "letter": "h_invoice_inline",
+        "fact_type": "invoice_number"
+      },
+      {
+        "letter": "h_second_reminder_fee",
+        "fact_type": "fee_amount"
+      },
+      {
+        "letter": "h_second_reminder_fee",
+        "fact_type": "invoice_number"
+      },
+      {
+        "letter": "h_second_reminder_fee",
+        "fact_type": "principal_amount"
+      },
+      {
+        "letter": "h_second_reminder_fee",
+        "fact_type": "stated_total_claim"
+      },
+      {
+        "letter": "h_enforcement_order",
+        "fact_type": "interest_calculation_date"
+      },
+      {
+        "letter": "h_dispute_letter",
+        "fact_type": "invoice_number"
+      }
+    ],
+    "forbidden_violations": 0,
+    "debtor": {
+      "wrong_person": 0,
+      "missed_person": 0,
+      "status_errors": 3
+    },
+    "claims": {
+      "expected_groups": 2,
+      "found_groups": 1,
+      "false_merges": 0,
+      "missed_merges": 1
+    }
+  }
+}

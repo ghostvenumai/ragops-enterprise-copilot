@@ -33,6 +33,7 @@ GATES = (
     "query_idempotency",
     "reservation_reconciliation",
     "ocr_ingestion",
+    "document_intelligence",
     "security",
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
@@ -52,6 +53,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "query_idempotency",
         "reservation_reconciliation",
         "ocr_ingestion",
+        "document_intelligence",
         "security",
     }
 )
@@ -309,6 +311,12 @@ def main() -> int:
         gate_results["ocr_ingestion"] = {
             "status": status,
             "detail": detail or "See sanitized ocr-ingestion.json evidence",
+        }
+    if "document_intelligence" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/document_intelligence_gate.py"])
+        gate_results["document_intelligence"] = {
+            "status": status,
+            "detail": detail or "See sanitized document-intelligence.json evidence",
         }
     if "browser_e2e" in selected:
         status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])

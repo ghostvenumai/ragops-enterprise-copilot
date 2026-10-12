@@ -21,6 +21,7 @@ from ragops.ingestion.pages import (
     ExtractionMethod,
     PageExtraction,
 )
+from ragops.intelligence.service import analyze_version
 from ragops.persistence.models import (
     Document,
     DocumentChunkSource,
@@ -82,6 +83,8 @@ class SourcedChunk:
     text: str
     lines: tuple[int, ...]
     method: str
+    start: int = 0  # word window [start, end) on the page
+    end: int = 0
 
 
 @dataclass(frozen=True)
@@ -108,7 +111,7 @@ def _page_chunks(page: PageExtraction) -> list[SourcedChunk]:
             method = ExtractionMethod.OCR.value
         else:
             method = ExtractionMethod.NATIVE_TEXT.value
-        out.append(SourcedChunk(page, text, lines, method))
+        out.append(SourcedChunk(page, text, lines, method, start, end))
     return out
 
 
@@ -397,6 +400,8 @@ class IngestionWorker:
                         document.status = "failed"
                         return self._fail(job, exc.code, retryable=False)
                     record_extraction(self.session, version, built)
+                    # Structured analysis of the same extraction, in this transaction (ENT-11.8).
+                    analyze_version(self.session, document, version, built)
                     vectors = built.vectors
                     review = built.extraction.review_required
                     if not vectors:

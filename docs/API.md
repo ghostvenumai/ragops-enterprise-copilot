@@ -173,3 +173,28 @@ and return `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. An ex
 limit returns 429 with `Retry-After`; an unavailable limiter returns 503 with
 `Retry-After: 1`. `/health`, `/ready` and `/metrics` are exempt. See
 [RATE_LIMITING.md](RATE_LIMITING.md).
+
+# Document intelligence (ENT-11.8)
+
+Structured, deterministic answers from PostgreSQL about the caller's documents (ADR 0019).
+Every route needs a verified identity (401 otherwise) and is rate limited in the
+`intelligence` endpoint class. Reads cover only the caller's tenant, documents at or below the
+caller's access level and each document's current version; anything else is 404 and absent
+from every list. Writes need the `admin` or `compliance` role (403 otherwise). Request bodies
+reject unknown fields (422), so a client cannot supply pages, spans, source references or raw
+values. No model is called; `/v1/query` is unchanged.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/intelligence/documents?classification=&person_id=&review_required=` | Documents with primary class (`doc-taxonomy-v1`), classification status, debtor status (`identified`, `ambiguous`, `unmatched`, `unknown`) and review flags; `person_id` lists documents where that person is an evidenced or confirmed debtor |
+| `GET /v1/intelligence/documents/{document_id}` | Classification candidates with rule evidence and strength, facts, person links (`debtor`/`addressee`, state, basis) and claim memberships of the current version |
+| `GET /v1/intelligence/facts/{fact_id}` | One fact with its source: version, page, line, character span, raw stated value, chunk index, extraction method and, for OCR, the `page-normalized-v1` line box; `effective` shows a reviewer's correction beside the immutable source value |
+| `GET /v1/intelligence/creditors` | Normalized creditors (creditor, original creditor, current claimant) with document and fact references |
+| `GET /v1/intelligence/claims?person_id=` | Claim groups with member documents and amount roles (`historical`, `potentially_current`, `component`, `payment`, `unclassified`), the potentially current amount with its date and basis, `settled`, and `unresolved` items; `consolidated_total` (per currency) is present only when nothing is unresolved, otherwise `null` with `resolved_subtotal` |
+| `GET /v1/intelligence/deadlines?person_id=` | Due dates and payment deadlines with sources |
+| `GET /v1/intelligence/findings` | Everything that needs a human: review-required facts, ambiguous classifications and debtors, flagged documents, failed analyses, unresolved groups |
+| `GET /v1/intelligence/persons` | Person profiles (label, status, alias count; alias values are never listed) |
+| `POST /v1/intelligence/persons` | `{label}`; 409 for an existing label |
+| `POST /v1/intelligence/persons/{id}/aliases` | `{kind: name\|identifier, value}`; 409 if the normalized alias already belongs to a person of the tenant; existing documents are re-attributed |
+| `POST /v1/intelligence/reviews` | `{entity_type, entity_id, action, expected_version, reason_category, value?, person_id?, role?}`; actions per entity: fact `confirm`/`reject`/`correct`/`mark_for_review`, classification `confirm`/`reject`/`mark_for_review`, person link `confirm`/`reject`, claim group `confirm`/`dismiss`, claim member `confirm`/`reject`, document `assign_person`/`mark_for_review`/`clear_review_flag`; a stale `expected_version` is 409; a correction is typed (Decimal amount ≥ 0 with two places and an ISO currency, ISO date or text) and stored beside the source fact; every decision is an append-only event with actor, previous and new state |
+| `POST /v1/intelligence/documents/{id}/reprocess` | 202; re-runs extraction and analysis of the current version through the worker (idempotent) |

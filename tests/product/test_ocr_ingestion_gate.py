@@ -107,21 +107,21 @@ def test_documents_are_synthetic_and_declare_their_expectations() -> None:
 
 
 def test_rc_runner_runs_ocr_ingestion_before_security() -> None:
-    assert len(rc_live_gate.GATES) == 19
-    assert rc_live_gate.GATES[-2:] == ("ocr_ingestion", "security")
+    assert len(rc_live_gate.GATES) == 20
+    assert rc_live_gate.GATES[-3:] == ("ocr_ingestion", "document_intelligence", "security")
     assert "ocr_ingestion" in rc_live_gate.DETAILED_EVIDENCE_GATES
     prior = {name: "PASS" for name in rc_live_gate.GATES if name != "ocr_ingestion"}
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"ocr_ingestion"}, {"ocr_ingestion": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 19
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 20
     assert rc_live_gate.merge_gate_statuses(prior, set(), {})["ocr_ingestion"] == "BLOCKED"
 
 
-def test_security_has_thirty_controls_with_live_thirteen() -> None:
-    assert len(security_gate.CONTROLS) == 30
+def test_security_has_thirty_one_controls_with_live_fourteen() -> None:
+    assert len(security_gate.CONTROLS) == 31
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 13
+    assert len(live) == 14
     (control,) = [c for c in live if c.evidence_file == "ocr-ingestion.json"]
     assert control.id == "LIVE-13"
     required = dict(control.required)

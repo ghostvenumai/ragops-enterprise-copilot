@@ -606,3 +606,235 @@ class SystemSetting(TenantOwned, Base):
     __table_args__ = (UniqueConstraint("tenant_id", "key"),)
     key: Mapped[str] = mapped_column(String(128))
     value: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+# --------------------------------------------------------------------------- document intelligence (ENT-11.8)
+
+DOCUMENT_CLASS_CHECK = (
+    "document_class IN ('invoice','payment_reminder','formal_demand','debt_collection_letter',"
+    "'payment_order_or_court_notice','enforcement_document','creditor_statement','loan_agreement',"
+    "'payment_receipt','settlement_agreement','correspondence','unrelated_document','unknown')"
+)
+FACT_REVIEW_CHECK = "review_state IN ('unreviewed','review_required','confirmed','corrected','rejected')"
+
+
+class PersonProfile(TenantOwned, Base):
+    """A tenant-scoped person with a stable id and a neutral label; a name is never an id."""
+
+    __tablename__ = "person_profiles"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "label", name="uq_person_profiles_label"),
+        CheckConstraint("status IN ('active','archived')", name="status"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    label: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    created_by: Mapped[str] = mapped_column(String(255))
+    review_version: Mapped[int] = mapped_column(default=1)
+
+
+class PersonAlias(TenantOwned, Base):
+    """An explicitly configured name or identifier; it belongs to at most one person."""
+
+    __tablename__ = "person_aliases"
+    __table_args__ = (
+        tenant_fk("person_id", "person_profiles"),
+        UniqueConstraint("tenant_id", "kind", "normalized_value", name="uq_person_aliases_value"),
+        Index("ix_person_aliases_tenant_person", "tenant_id", "person_id"),
+        CheckConstraint("kind IN ('name','identifier')", name="kind"),
+    )
+    person_id: Mapped[UUID]
+    kind: Mapped[str] = mapped_column(String(16))
+    normalized_value: Mapped[str] = mapped_column(String(255))
+    created_by: Mapped[str] = mapped_column(String(255))
+
+
+class DocumentIntelligenceRun(TenantOwned, Base):
+    """The analysis of one document version: extractor version, outcome and review state."""
+
+    __tablename__ = "document_intelligence_runs"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "document_version_id", name="uq_document_intelligence_runs_version"),
+        CheckConstraint("status IN ('completed','failed')", name="status"),
+        CheckConstraint("classification_status IN ('classified','ambiguous','unknown')", name="classification_status"),
+        CheckConstraint("debtor_status IN ('identified','ambiguous','unmatched','unknown')", name="debtor_status"),
+        CheckConstraint("fact_count >= 0 AND ignored_instruction_lines >= 0", name="counts"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    document_version_id: Mapped[UUID]
+    extractor_version: Mapped[str] = mapped_column(String(32))
+    taxonomy_version: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    classification_status: Mapped[str] = mapped_column(String(16), default="unknown")
+    debtor_status: Mapped[str] = mapped_column(String(16), default="unknown")
+    review_required: Mapped[bool] = mapped_column(default=False)
+    flagged_for_review: Mapped[bool] = mapped_column(default=False)
+    fact_count: Mapped[int] = mapped_column(default=0)
+    ignored_instruction_lines: Mapped[int] = mapped_column(default=0)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_version: Mapped[int] = mapped_column(default=1)
+
+
+class DocumentClassification(TenantOwned, Base):
+    """One classification candidate with its rule evidence; never a probability."""
+
+    __tablename__ = "document_classifications"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "document_version_id", "taxonomy_version", "document_class", name="uq_document_classifications_class"),
+        Index("ix_document_classifications_tenant_class", "tenant_id", "document_class"),
+        CheckConstraint(DOCUMENT_CLASS_CHECK, name="document_class"),
+        CheckConstraint("evidence_strength IN ('strong','moderate','weak')", name="evidence_strength"),
+        CheckConstraint("review_state IN ('unreviewed','review_required','confirmed','rejected')", name="review_state"),
+        CheckConstraint("review_version >= 1 AND rank >= 1", name="versions"),
+    )
+    document_version_id: Mapped[UUID]
+    taxonomy_version: Mapped[str] = mapped_column(String(32))
+    document_class: Mapped[str] = mapped_column(String(40))
+    evidence_strength: Mapped[str] = mapped_column(String(16))
+    rank: Mapped[int]
+    is_primary: Mapped[bool] = mapped_column(default=False)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_state: Mapped[str] = mapped_column(String(24), default="unreviewed")
+    review_version: Mapped[int] = mapped_column(default=1)
+
+
+class DocumentFact(TenantOwned, Base):
+    """An immutable extracted fact with provenance; user decisions live beside it."""
+
+    __tablename__ = "document_facts"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "document_version_id", "fact_key", name="uq_document_facts_key"),
+        Index("ix_document_facts_tenant_version", "tenant_id", "document_version_id"),
+        Index("ix_document_facts_tenant_type", "tenant_id", "fact_type"),
+        Index("ix_document_facts_tenant_value", "tenant_id", "normalized_value"),
+        Index("ix_document_facts_tenant_review", "tenant_id", "review_state"),
+        CheckConstraint("category IN ('party','amount','identifier','date','status')", name="category"),
+        CheckConstraint("assertion IN ('document_stated','rule_inferred')", name="assertion"),
+        CheckConstraint("quality_state IN ('accepted','review_required','not_applicable')", name="quality_state"),
+        CheckConstraint(FACT_REVIEW_CHECK, name="review_state"),
+        CheckConstraint("status IN ('active','withdrawn')", name="status"),
+        CheckConstraint("amount IS NULL OR amount >= 0", name="amount"),
+        CheckConstraint("corrected_amount IS NULL OR corrected_amount >= 0", name="corrected_amount"),
+        CheckConstraint("char_start >= 0 AND char_end > char_start", name="span"),
+        CheckConstraint("page_number IS NULL OR page_number >= 1", name="page_number"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    document_version_id: Mapped[UUID]
+    extractor_version: Mapped[str] = mapped_column(String(32))
+    fact_key: Mapped[str] = mapped_column(String(64))
+    category: Mapped[str] = mapped_column(String(16))
+    fact_type: Mapped[str] = mapped_column(String(40))
+    assertion: Mapped[str] = mapped_column(String(16))
+    raw_value: Mapped[str] = mapped_column(String(255))
+    normalized_value: Mapped[str | None] = mapped_column(String(255))
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    currency: Mapped[str | None] = mapped_column(String(3))
+    date_value: Mapped[date | None]
+    as_of_date: Mapped[date | None]
+    page_number: Mapped[int | None]
+    source_line: Mapped[int]
+    char_start: Mapped[int]
+    char_end: Mapped[int]
+    chunk_index: Mapped[int | None]
+    ocr_line: Mapped[int | None]
+    extraction_method: Mapped[str] = mapped_column(String(32))
+    quality_state: Mapped[str] = mapped_column(String(24))
+    regions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    review_state: Mapped[str] = mapped_column(String(24), default="unreviewed")
+    review_version: Mapped[int] = mapped_column(default=1)
+    corrected_text: Mapped[str | None] = mapped_column(String(255))
+    corrected_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    corrected_currency: Mapped[str | None] = mapped_column(String(3))
+    corrected_date: Mapped[date | None]
+
+
+class DocumentPersonLink(TenantOwned, Base):
+    """A person's role in one document version, from evidence or from a reviewer."""
+
+    __tablename__ = "document_person_links"
+    __table_args__ = (
+        tenant_fk("document_version_id", "document_versions"),
+        tenant_fk("person_id", "person_profiles"),
+        UniqueConstraint("tenant_id", "document_version_id", "person_id", "role", name="uq_document_person_links_role"),
+        Index("ix_document_person_links_tenant_person", "tenant_id", "person_id"),
+        CheckConstraint("role IN ('debtor','addressee')", name="role"),
+        CheckConstraint("state IN ('evidenced','review_required','confirmed','rejected','withdrawn')", name="state"),
+        CheckConstraint("origin IN ('system','user')", name="origin"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    document_version_id: Mapped[UUID]
+    person_id: Mapped[UUID]
+    role: Mapped[str] = mapped_column(String(16))
+    state: Mapped[str] = mapped_column(String(24))
+    origin: Mapped[str] = mapped_column(String(16), default="system")
+    basis: Mapped[list[str]] = mapped_column(JSON, default=list)
+    review_version: Mapped[int] = mapped_column(default=1)
+
+
+class ClaimGroup(TenantOwned, Base):
+    """Documents about one underlying claim, keyed by creditor and claim identifier."""
+
+    __tablename__ = "claim_groups"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "group_key", name="uq_claim_groups_key"),
+        CheckConstraint("status IN ('system_linked','review_required','contradictory','confirmed','dismissed')", name="status"),
+        CheckConstraint("identifier_type IN ('invoice_number','contract_reference')", name="identifier_type"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    group_key: Mapped[str] = mapped_column(String(64))
+    creditor_normalized: Mapped[str] = mapped_column(String(255))
+    identifier_type: Mapped[str] = mapped_column(String(40))
+    identifier_normalized: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(24), default="system_linked")
+    basis: Mapped[list[str]] = mapped_column(JSON, default=list)
+    review_version: Mapped[int] = mapped_column(default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ClaimGroupMember(TenantOwned, Base):
+    """Why a document version belongs to a claim group; rejected members stay rejected."""
+
+    __tablename__ = "claim_group_members"
+    __table_args__ = (
+        tenant_fk("claim_group_id", "claim_groups"),
+        tenant_fk("document_version_id", "document_versions"),
+        UniqueConstraint("tenant_id", "claim_group_id", "document_version_id", name="uq_claim_group_members_member"),
+        Index("ix_claim_group_members_tenant_version", "tenant_id", "document_version_id"),
+        CheckConstraint("state IN ('linked','proposed','confirmed','rejected')", name="state"),
+        CheckConstraint("origin IN ('system','user')", name="origin"),
+        CheckConstraint("review_version >= 1", name="review_version"),
+    )
+    claim_group_id: Mapped[UUID]
+    document_version_id: Mapped[UUID]
+    state: Mapped[str] = mapped_column(String(16))
+    origin: Mapped[str] = mapped_column(String(16), default="system")
+    basis: Mapped[list[str]] = mapped_column(JSON, default=list)
+    review_version: Mapped[int] = mapped_column(default=1)
+
+
+class IntelligenceReviewEvent(TenantOwned, Base):
+    """Append-only reviewer decision; (entity, version) is unique, so a race has one winner."""
+
+    __tablename__ = "intelligence_review_events"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "entity_type", "entity_id", "entity_version", name="uq_intelligence_review_events_version"),
+        Index("ix_intelligence_review_events_tenant_entity", "tenant_id", "entity_type", "entity_id"),
+        CheckConstraint("entity_type IN ('document','classification','fact','person_link','claim_group','claim_member')", name="entity_type"),
+        CheckConstraint("entity_version >= 2", name="entity_version"),
+    )
+    entity_type: Mapped[str] = mapped_column(String(32))
+    entity_id: Mapped[UUID]
+    entity_version: Mapped[int]
+    document_version_id: Mapped[UUID | None]
+    action: Mapped[str] = mapped_column(String(32))
+    reason_category: Mapped[str] = mapped_column(String(32))
+    previous_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    new_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    actor_subject: Mapped[str] = mapped_column(String(255))
