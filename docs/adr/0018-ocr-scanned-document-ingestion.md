@@ -47,6 +47,13 @@ small-angle deskew) is recorded per page; every geometric step is an affine tran
 inverse maps OCR boxes back to the original page, so stored boxes refer to the uploaded
 document, not to the processed image.
 
+Resolution normalization upscales a small image (long side below 1600 px) only when its text
+is small: the median height of inked row runs in 64 px strips must be below 16 px. Resampling
+already legible text by a fractional factor made Tesseract misread glyphs at high confidence
+(for example "8" as "3" at 1.29x, about 1–4 % of the gate's synthetic PNG/JPEG pages), which
+no confidence-based quality check can catch; small text and pages without measurable ink are
+still upscaled as before (ENT-12-UI closure finding).
+
 **Quality gate.** OCR confidence is Tesseract's per-word score, a tool-derived indicator and not
 a probability of correctness. A page is `ocr_review_required` when no text was recognized on an
 inked page, the mean word confidence is below 65, more than 35 % of words score below 40,

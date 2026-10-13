@@ -632,6 +632,47 @@ CONTROLS: tuple[Control, ...] = (
         minimums=(("documents_analysed", 16), ("facts_observed", 1), ("concurrent_reviewers", 10)),
         maximums=(("concurrent_applied", 1),),
     ),
+    Control(
+        "LIVE-15",
+        "Information disclosure",
+        "The web frontend keeps a Backend-for-Frontend boundary: tokens never reach the browser "
+        "or server logs, sessions are server-side behind hardened cookies, state changes need "
+        "the same origin and a CSRF token, the BFF forwards only allowlisted operations and no "
+        "client tenant or authorization, FastAPI denies other tenants and roles, document text "
+        "never becomes markup and both UI languages pass the WCAG 2.2 AA rule set",
+        "live",
+        evidence_file="web-e2e.json",
+        required=(
+            ("status", "PASS"),
+            ("browser_engine", "chromium"),
+            ("keycloak_login_pkce", True),
+            ("session_cookie_hardened", True),
+            ("no_tokens_in_browser", True),
+            ("no_tokens_in_server_logs", True),
+            ("security_headers_present", True),
+            ("bff_responses_not_cacheable", True),
+            ("bff_allowlist_enforced", True),
+            ("csrf_missing_token_rejected", True),
+            ("csrf_cross_origin_rejected", True),
+            ("client_tenant_override_rejected", True),
+            ("forged_authorization_ignored", True),
+            ("viewer_admin_api_forbidden", True),
+            ("viewer_review_api_forbidden", True),
+            ("tenant_b_list_isolated", True),
+            ("tenant_b_direct_access_denied", True),
+            ("copilot_xss_inert", True),
+            ("review_conflict_409_shown", True),
+            ("session_expiry_handled", True),
+            ("logout_ends_session", True),
+            ("language_switch_keeps_tenant_and_session", True),
+            ("accessibility_wcag22aa", True),
+            ("cross_tenant_leakage", 0),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("locales_verified", 2),),
+    ),
 )
 
 

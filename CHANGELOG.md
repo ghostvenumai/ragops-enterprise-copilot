@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.0.dev0 — ENT-12-UI enterprise web frontend
+
+- Added `apps/web`: Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS,
+  shadcn/ui-style components on Radix, Lucide, Recharts, TanStack Query and Zod contracts.
+- Backend-for-Frontend: Authorization Code + PKCE, server-side sessions behind `__Host-`
+  HttpOnly/Secure/SameSite cookies, token verification and refresh in the BFF, Origin +
+  synchronizer CSRF token on every state change, allowlisted API proxy with `no-store`
+  responses and sanitized errors, nonce CSP. FastAPI stays the authority (ADR 0020).
+- Modules: Enterprise Cockpit, AI Copilot (idempotent questions, citations with pages,
+  uncertainty and controlled refusals), Knowledge Base (uploads, versions, jobs, retry, OCR
+  page reports), Document Intelligence (documents, creditors, claims with historical
+  balances, deadlines, persons and aliases, findings, source provenance, versioned reviews
+  with 409 conflicts), Monitoring, FinOps, Governance & Operations.
+- Full de-DE / en-US internationalisation with `next-intl`, typed catalogs, parity and
+  hardcoded-text tests; source evidence and model answers are never translated.
+- New mandatory release gate `web_e2e` (21 gates) and security control LIVE-15 (32 controls).
+- OCR fix found by the `ocr_ingestion` gate: small images are upscaled only when their text
+  is small. The fractional 1.29x upscale of legible 1240 px pages made Tesseract misread
+  digits and umlaut words at high confidence (ADR 0018); regression tests with the
+  reproduced reference numbers.
+- Release evidence integrity: `final-release-gate.json` no longer keeps statuses from the previous
+  summary. Every mandatory gate is re-validated from its own evidence (gate name, commit, fresh
+  timestamp, no exit/evidence contradiction); missing or stale evidence is BLOCKED, malformed or
+  contradictory evidence FAIL. Only the paid provider gate may use an ancestor's PASS, and only
+  while its paths are unchanged (docs/RELEASE_CANDIDATE.md).
+
 ## 0.2.0.dev0 — Phase 10H Qdrant live gate
 
 - Added a disposable, isolated host-side Qdrant RC gate using the production

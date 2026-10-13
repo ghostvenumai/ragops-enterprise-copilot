@@ -72,7 +72,7 @@ video:
 video-dry-run:
 	./video/build_demo.sh --dry-run
 
-.PHONY: migrate migration-check product-verify
+.PHONY: migrate migration-check product-verify web-verify web-e2e
 migrate:
 	$(PYTHON) -m alembic upgrade head
 
@@ -111,6 +111,12 @@ rc-gate:
 
 rc-live-gate:
 	$(PYTHON) scripts/rc_live_gate.py
+
+web-verify:
+	cd apps/web && npm ci --no-fund && npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev
+
+web-e2e:
+	RAGOPS_RC_GATES=web_e2e $(PYTHON) scripts/rc_live_gate.py
 
 e2e-setup:
 	.venv/bin/python -m pip install -e ".[e2e]" -c constraints.txt

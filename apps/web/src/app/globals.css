@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * RAGOps design tokens (HSL triplets). Navy sidebar, light neutral workspace,
+ * emerald/teal brand accents. Contrast pairs are chosen for WCAG 2.2 AA (>= 4.5:1 text).
+ */
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 168 84% 24%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 222 47% 15%;
+    --muted: 210 20% 95%;
+    --muted-foreground: 215 19% 35%;
+    --accent: 166 60% 93%;
+    --accent-foreground: 168 84% 18%;
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 38 92% 92%;
+    --warning-foreground: 26 90% 25%;
+    --success: 152 60% 92%;
+    --success-foreground: 158 80% 20%;
+    --info: 210 90% 94%;
+    --info-foreground: 214 80% 30%;
+    --border: 214 24% 87%;
+    --input: 214 24% 80%;
+    --ring: 168 84% 30%;
+    --radius: 0.625rem;
+    --font-sans: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --sidebar: 222 47% 13%;
+    --sidebar-foreground: 210 30% 96%;
+    --sidebar-muted: 215 25% 75%;
+    --sidebar-accent: 222 40% 20%;
+    --sidebar-border: 222 35% 22%;
+    --sidebar-active: 168 70% 45%;
+
+    --brand-50: 166 76% 96%;
+    --brand-100: 167 70% 89%;
+    --brand-500: 168 76% 36%;
+    --brand-600: 168 84% 28%;
+    --brand-700: 169 80% 22%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

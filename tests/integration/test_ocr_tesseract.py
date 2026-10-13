@@ -77,6 +77,65 @@ def test_jpeg_png_and_exif_rotated_jpeg_are_recognized() -> None:
         _assert_exact(page.text)
 
 
+@pytest.mark.parametrize("number", ["202188", "792928", "128228", "887142"])
+def test_reference_numbers_and_umlauts_survive_small_images_with_legible_text(number) -> None:
+    """Regression (ocr_ingestion gate, ENT-12-UI closure): these numbers come from runs of the
+    gate's PNG and JPEG samples in which the old upscale (1.29x) of the 1240x1000 page made
+    Tesseract read an "8" as "3" or drop the umlaut words, at high confidence.
+    """
+    statement = [
+        "Hausverwaltung Südstadt",
+        "Nebenkostenabrechnung",
+        f"Kundennummer {number}",
+        "Zeitraum: 2025",
+        "Nachzahlung: 412,75 EUR",
+        "Fällig zum 30.09.2026.",
+        "Heizöl und Müllgebühren",
+    ]
+    receipt = [
+        "Hotel Rheinblick Düsseldorf",
+        "Reisekostenbeleg",
+        f"Belegnummer {number}",
+        "Anreise: 07.06.2026",
+        "Übernachtung: 186,40 EUR",
+        "Frühstück inklusive.",
+        "Gezahlt mit Firmenkarte",
+    ]
+    for name, content, exact in (
+        (
+            "bild.png",
+            image_bytes(scan_image(statement, size=(1240, 1000)), "PNG"),
+            (
+                number,
+                "Nebenkostenabrechnung",
+                "30.09.2026",
+                "412,75",
+                "Südstadt",
+                "Fällig",
+                "Müllgebühren",
+            ),
+        ),
+        (
+            "foto.jpg",
+            jpeg_with_orientation(scan_image(receipt, size=(1240, 1000)), 6),
+            (
+                number,
+                "Reisekostenbeleg",
+                "07.06.2026",
+                "186,40",
+                "Düsseldorf",
+                "Übernachtung",
+                "Frühstück",
+            ),
+        ),
+    ):
+        page = DocumentExtractor(engine=engine()).extract(name, content).pages[0]
+        text = " ".join(page.text.split())
+        missing = [token for token in exact if token not in text]
+        assert not missing, (name, number, missing)
+        assert not any(step.startswith("upscale:") for step in page.transformations), name
+
+
 def test_boxes_point_at_the_text_on_the_original_page() -> None:
     image = scan_image(["Kennung ZX-4711"], size=(1240, 900), text_px=40, origin=(600, 700))
     page = DocumentExtractor(engine=engine()).extract("box.png", image_bytes(image, "PNG")).pages[0]

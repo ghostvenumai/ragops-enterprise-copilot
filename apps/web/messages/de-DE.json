@@ -1,0 +1,889 @@
+{
+  "meta": {
+    "title": "RAGOps Enterprise Copilot",
+    "description": "Sichere KI-Wissensplattform mit Dokumentenintelligenz, Mandantentrennung und FinOps."
+  },
+  "language": {
+    "label": "Sprache der Benutzeroberfläche",
+    "switchToGerman": "Deutsch (Deutschland)",
+    "switchToEnglish": "Englisch (USA)"
+  },
+  "nav": {
+    "cockpit": "Enterprise-Cockpit",
+    "copilot": "KI-Copilot",
+    "knowledge": "Wissensbasis",
+    "intelligence": "Dokumentenintelligenz",
+    "monitoring": "Monitoring",
+    "finops": "FinOps",
+    "governance": "Governance & Betrieb"
+  },
+  "shell": {
+    "productLine": "Enterprise Copilot",
+    "mainNavigation": "Hauptnavigation",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen",
+    "skipToContent": "Zum Inhalt springen",
+    "signOut": "Abmelden",
+    "tenant": "Mandant",
+    "unknownUser": "Angemeldete Person",
+    "noRole": "Keine Rolle",
+    "syntheticNotice": "Nur synthetische Testdaten verwenden."
+  },
+  "roles": {
+    "admin": "Administration",
+    "compliance": "Compliance",
+    "viewer": "Lesezugriff",
+    "support": "Support",
+    "sales": "Vertrieb",
+    "operations": "Betrieb"
+  },
+  "session": {
+    "expiredTitle": "Sitzung abgelaufen",
+    "expiredBody": "Ihre Anmeldung ist nicht mehr gültig. Bitte melden Sie sich erneut an. Nicht gespeicherte Eingaben gehen dabei verloren.",
+    "signInAgain": "Erneut anmelden",
+    "close": "Schließen"
+  },
+  "signin": {
+    "title": "Anmelden",
+    "subtitle": "Melden Sie sich mit Ihrem Unternehmenskonto an. Mandant und Berechtigungen stammen ausschließlich aus Ihrem Identitätsanbieter.",
+    "action": "Mit Unternehmenskonto anmelden",
+    "securityNote": "Die Anmeldung erfolgt per Authorization Code mit PKCE. Zugriffstoken verbleiben auf dem Server und werden nie an den Browser übertragen.",
+    "claim": "Unternehmenswissen sicher nutzen – mit Quellen, Prüfpfad und Kostenkontrolle.",
+    "claimDetail": "Antworten mit Belegen, Dokumentenintelligenz mit menschlicher Prüfung, strikte Mandantentrennung.",
+    "footer": "RAGOps Enterprise Copilot",
+    "signedOutTitle": "Abgemeldet",
+    "signedOutBody": "Sie wurden erfolgreich abgemeldet.",
+    "errors": {
+      "idp_unavailable": {
+        "title": "Anmeldedienst nicht erreichbar",
+        "body": "Der Identitätsanbieter antwortet derzeit nicht. Bitte versuchen Sie es in einigen Minuten erneut."
+      },
+      "invalid_state": {
+        "title": "Anmeldung abgebrochen",
+        "body": "Der Anmeldevorgang ist abgelaufen oder ungültig. Bitte starten Sie die Anmeldung erneut."
+      },
+      "denied": {
+        "title": "Anmeldung abgelehnt",
+        "body": "Der Identitätsanbieter hat die Anmeldung nicht bestätigt."
+      },
+      "token_rejected": {
+        "title": "Anmeldung nicht möglich",
+        "body": "Ihr Konto liefert keine gültige Berechtigung für diese Anwendung. Wenden Sie sich an Ihre Administration."
+      },
+      "session_expired": {
+        "title": "Sitzung abgelaufen",
+        "body": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+      }
+    }
+  },
+  "errors": {
+    "retryAfter": "Erneuter Versuch in {seconds} Sekunden möglich.",
+    "unauthenticated": {
+      "title": "Nicht angemeldet",
+      "body": "Bitte melden Sie sich an."
+    },
+    "session_expired": {
+      "title": "Sitzung abgelaufen",
+      "body": "Bitte melden Sie sich erneut an."
+    },
+    "forbidden": {
+      "title": "Keine Berechtigung",
+      "body": "Ihre Rolle erlaubt diese Aktion nicht.",
+      "pageBody": "Dieser Bereich ist Administratorinnen und Administratoren Ihres Mandanten vorbehalten."
+    },
+    "not_found": {
+      "title": "Nicht gefunden",
+      "body": "Der Eintrag existiert nicht oder ist für Ihren Mandanten nicht sichtbar."
+    },
+    "conflict": {
+      "title": "Konflikt",
+      "body": "Der Eintrag wurde zwischenzeitlich geändert oder die Aktion ist im aktuellen Zustand nicht möglich."
+    },
+    "rate_limited": {
+      "title": "Zu viele Anfragen",
+      "body": "Das Anfragelimit ist erreicht."
+    },
+    "unavailable": {
+      "title": "Dienst vorübergehend nicht verfügbar",
+      "body": "Eine abhängige Komponente ist nicht bereit. Bitte später erneut versuchen."
+    },
+    "api_unreachable": {
+      "title": "API nicht erreichbar",
+      "body": "Der RAGOps-Dienst antwortet nicht."
+    },
+    "network_error": {
+      "title": "Netzwerkfehler",
+      "body": "Die Anfrage konnte nicht gesendet werden. Bitte Verbindung prüfen."
+    },
+    "csrf_rejected": {
+      "title": "Sicherheitsprüfung fehlgeschlagen",
+      "body": "Bitte laden Sie die Seite neu und versuchen Sie es erneut."
+    },
+    "too_large": {
+      "title": "Datei zu groß",
+      "body": "Die Anfrage überschreitet die zulässige Größe."
+    },
+    "validation_error": {
+      "title": "Ungültige Eingabe",
+      "body": "Bitte prüfen Sie die Eingaben."
+    },
+    "bad_request": {
+      "title": "Anfrage abgelehnt",
+      "body": "Die Anfrage wurde vom Dienst abgelehnt."
+    },
+    "contract": {
+      "title": "Unerwartete Antwort",
+      "body": "Die Antwort des Dienstes entspricht nicht dem erwarteten Format und wird nicht angezeigt."
+    },
+    "unknown": {
+      "title": "Unerwarteter Fehler",
+      "body": "Etwas ist schiefgelaufen. Details wurden nicht angezeigt.",
+      "retry": "Erneut versuchen"
+    }
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "body": "Die angeforderte Seite existiert nicht.",
+    "back": "Zum Cockpit"
+  },
+  "states": {
+    "completed": "Abgeschlossen",
+    "indexed": "Indiziert",
+    "ready": "Bereit",
+    "accepted": "In Ordnung",
+    "active": "Aktiv",
+    "up": "Verfügbar",
+    "down": "Ausgefallen",
+    "confirmed": "Bestätigt",
+    "classified": "Klassifiziert",
+    "system_linked": "System-verknüpft",
+    "linked": "Verknüpft",
+    "analyzed": "Analysiert",
+    "running": "Läuft",
+    "processing": "In Verarbeitung",
+    "queued": "In Warteschlange",
+    "retrying": "Wird wiederholt",
+    "pending": "Ausstehend",
+    "proposed": "Vorgeschlagen",
+    "review_required": "Prüfung erforderlich",
+    "needs_review": "Prüfung erforderlich",
+    "ambiguous": "Mehrdeutig",
+    "unready": "Nicht bereit",
+    "shutting_down": "Fährt herunter",
+    "corrected": "Korrigiert",
+    "unreviewed": "Ungeprüft",
+    "not_configured": "Nicht konfiguriert",
+    "not_analyzed": "Nicht analysiert",
+    "unknown": "Unbekannt",
+    "cancelled": "Abgebrochen",
+    "dismissed": "Verworfen",
+    "withdrawn": "Zurückgezogen",
+    "failed": "Fehlgeschlagen",
+    "rejected": "Abgelehnt",
+    "blocked": "Blockiert",
+    "success": "Erfolgreich",
+    "not_applicable": "Nicht anwendbar",
+    "evidenced": "Belegt"
+  },
+  "cockpit": {
+    "title": "Enterprise-Cockpit",
+    "description": "Betriebslage für Mandant {tenant}. Alle Werte stammen live aus der RAGOps-API.",
+    "loading": "Wird geladen …",
+    "jobsTotal": "Verarbeitungsaufträge",
+    "jobsActive": "Aktive Aufträge",
+    "jobsFailed": "Fehlgeschlagene Aufträge",
+    "findings": "Offene Prüfpunkte",
+    "systemStatus": "Systemstatus",
+    "systemStatusHint": "Liveness und Readiness der API und ihrer Abhängigkeiten.",
+    "liveness": "Liveness",
+    "readiness": "Readiness",
+    "critical": "kritisch",
+    "components": {
+      "postgres": "PostgreSQL",
+      "postgresql": "PostgreSQL",
+      "redis": "Redis",
+      "queue": "Warteschlange",
+      "rate_limiter": "Ratenbegrenzung",
+      "qdrant": "Qdrant (Vektorindex)",
+      "vector": "Vektorindex",
+      "identity": "Identitätsanbieter",
+      "audit": "Audit-Protokoll",
+      "llm": "Sprachmodell"
+    },
+    "processing": "Dokumentenverarbeitung",
+    "processingHint": "{count, plural, =0 {Keine Aufträge} one {# Auftrag} other {# Aufträge}} (neueste 200).",
+    "jobsChartLabel": "Aufträge nach Status",
+    "jobs": "Aufträge",
+    "noJobs": "Noch keine Dokumente verarbeitet",
+    "noJobsHint": "Laden Sie in der Wissensbasis ein synthetisches Dokument hoch.",
+    "ocrReview": "OCR-Prüfung nötig",
+    "reviewQueue": "Prüfwarteschlange",
+    "reviewQueueHint": "Befunde der Dokumentenintelligenz, die eine menschliche Entscheidung brauchen.",
+    "openFindings": "offene Befunde",
+    "documentsNeedingReview": "{count, plural, =0 {Kein Dokument} one {# Dokument} other {# Dokumente}} mit Prüfbedarf",
+    "openReviewQueue": "Prüfwarteschlange öffnen",
+    "usage": "Nutzung & Kosten",
+    "usageScope": "Prozessweite Zähler der API seit dem letzten Start – nicht mandantenbezogen.",
+    "adminOnly": "Nutzungs- und Kostendaten sind nur für Administratorinnen und Administratoren sichtbar.",
+    "requests": "Anfragen",
+    "tokens": "Token",
+    "estimatedCost": "Geschätzte Kosten",
+    "recentActivity": "Letzte Aktivität",
+    "recentActivityAudit": "Neueste Audit-Ereignisse Ihres Mandanten.",
+    "recentActivityJobs": "Neueste Verarbeitungsaufträge Ihres Mandanten.",
+    "noActivity": "Noch keine Aktivität"
+  },
+  "copilot": {
+    "title": "KI-Copilot",
+    "description": "Fragen an die Wissensbasis Ihres Mandanten. Antworten nennen ihre Quellen; ohne ausreichende Belege verweigert der Copilot eine Antwort.",
+    "languageNotice": "Die Sprachumschaltung betrifft nur die Benutzeroberfläche. KI-Antworten und Quelltexte werden nicht automatisch übersetzt.",
+    "emptyTitle": "Stellen Sie Ihre erste Frage",
+    "emptyBody": "Zum Beispiel: Welche Fristen nennt das Mahnschreiben?",
+    "you": "Sie",
+    "assistant": "Copilot",
+    "thinking": "Antwort wird erstellt …",
+    "questionLabel": "Ihre Frage",
+    "questionPlaceholder": "Frage eingeben …",
+    "questionHint": "Enter sendet, Umschalt+Enter fügt eine Zeile ein. Maximal 4000 Zeichen.",
+    "topK": "Anzahl Quellen",
+    "ask": "Fragen",
+    "retrySame": "Dieselbe Anfrage erneut senden",
+    "validation": {
+      "required": "Bitte geben Sie eine Frage ein.",
+      "tooLong": "Die Frage ist zu lang (maximal 4000 Zeichen)."
+    },
+    "abstainedTitle": "Keine belastbare Antwort",
+    "abstainedBody": "Die gefundenen Quellen reichen für eine verlässliche Antwort nicht aus. Der Copilot hat bewusst keine Antwort erfunden.",
+    "lowEvidenceTitle": "Geringe Belegstärke",
+    "lowEvidenceBody": "Die Antwort stützt sich auf schwache Belege. Bitte prüfen Sie die Quellen.",
+    "injectionTitle": "Verdächtige Anweisungen erkannt",
+    "injectionBody": "In den Quellen wurden mögliche eingeschleuste Anweisungen erkannt und ignoriert.",
+    "evidence": "Belegstärke {value}",
+    "replayed": "Wiederholte Antwort (idempotent)",
+    "sources": "Quellen",
+    "noSources": "Keine Quellen.",
+    "page": "Seite {page}",
+    "relevance": "Relevanz {value}",
+    "metrics": "Abfragemetriken",
+    "tokens": "Token",
+    "cost": "Geschätzte Kosten",
+    "retrievalLatency": "Retrieval-Latenz",
+    "llmLatency": "Modell-Latenz",
+    "correlation": "Korrelations-ID",
+    "refusals": {
+      "forbidden": "Für diese Anfrage fehlt Ihnen die Berechtigung. Es wurden keine Inhalte offengelegt.",
+      "rate_limited": "Das Anfragelimit ist erreicht. Bitte warten Sie kurz und senden Sie dieselbe Anfrage erneut.",
+      "budget_exceeded": "Das Budget Ihres Mandanten ist ausgeschöpft. Die Anfrage wurde nicht ausgeführt und nicht berechnet.",
+      "key_conflict": "Dieser Anfrageschlüssel wurde bereits mit einer anderen Frage verwendet. Bitte stellen Sie die Frage neu.",
+      "in_progress": "Diese Anfrage wird bereits bearbeitet. Bitte senden Sie sie in Kürze erneut – sie wird nicht doppelt ausgeführt.",
+      "reconciliation": "Eine frühere Ausführung dieser Anfrage muss erst vom Betrieb abgeglichen werden. Sie wird nicht erneut ausgeführt.",
+      "no_model": "Für Ihren Mandanten ist kein freigegebenes Modell verfügbar. Bitte wenden Sie sich an Ihre Administration.",
+      "not_configured": "Die Kostenabrechnung ist für Ihren Mandanten nicht eingerichtet. Ohne sie werden keine Anfragen ausgeführt."
+    }
+  },
+  "knowledge": {
+    "title": "Wissensbasis",
+    "description": "Arbeitsbereiche, Sammlungen, Uploads, Versionen und Verarbeitungsaufträge Ihres Mandanten.",
+    "upload": {
+      "title": "Dokument hochladen",
+      "description": "Das Dokument wird asynchron verarbeitet (Text- bzw. OCR-Extraktion, Indexierung, Analyse).",
+      "syntheticOnly": "Laden Sie ausschließlich synthetische Testdokumente hoch. Echte personenbezogene Unterlagen sind in dieser Umgebung nicht zugelassen.",
+      "workspace": "Arbeitsbereich",
+      "collection": "Sammlung",
+      "documentTitle": "Titel",
+      "file": "Datei",
+      "fileHint": "PDF, DOCX, Markdown, Text, CSV, JPG oder PNG. Scans bis 12 MB, Textformate bis 2 MB.",
+      "submit": "Hochladen",
+      "uploading": "Wird hochgeladen …",
+      "accepted": "„{title}“ wurde zur Verarbeitung angenommen.",
+      "errors": {
+        "workspace": "Bitte wählen Sie einen Arbeitsbereich.",
+        "collection": "Bitte wählen Sie eine aktive Sammlung.",
+        "title": "Bitte geben Sie einen Titel ein.",
+        "file": "Bitte wählen Sie eine Datei.",
+        "type": "Dieser Dateityp wird nicht unterstützt.",
+        "size": "Die Datei ist zu groß."
+      }
+    },
+    "jobs": {
+      "title": "Verarbeitungsaufträge",
+      "description": "Status wird automatisch aktualisiert, solange Aufträge laufen.",
+      "loading": "Aufträge werden geladen …",
+      "empty": "Keine Aufträge",
+      "emptyHint": "Hochgeladene Dokumente erscheinen hier.",
+      "document": "Dokument",
+      "status": "Status",
+      "stage": "Phase",
+      "pages": "Seiten",
+      "pagesReview": "{count} zur Prüfung",
+      "actions": "Aktionen",
+      "details": "Details",
+      "detailsFor": "Details zu {title}",
+      "retry": "Erneut versuchen",
+      "cancel": "Abbrechen",
+      "notices": {
+        "retried": "Auftrag erneut eingereiht",
+        "cancelled": "Auftrag abgebrochen",
+        "actionFailed": "Aktion fehlgeschlagen"
+      }
+    },
+    "details": {
+      "document": "Dokument",
+      "description": "Versionen und Seitenbericht der Text- und OCR-Extraktion.",
+      "close": "Schließen",
+      "loading": "Wird geladen …",
+      "versions": "Versionen",
+      "version": "Version",
+      "filename": "Datei",
+      "size": "Größe",
+      "status": "Status",
+      "pages": "Seitenbericht",
+      "noPageReport": "Für diese Version liegt noch kein Seitenbericht vor.",
+      "reviewRequiredTitle": "Prüfung erforderlich",
+      "reviewRequiredBody": "Mindestens eine Seite wurde mit geringer Qualität erkannt. Inhalte daraus gelten nicht als verifiziert.",
+      "page": "Seite",
+      "method": "Methode",
+      "confidence": "OCR-Konfidenz",
+      "words": "Wörter",
+      "quality": "Qualität"
+    },
+    "structure": {
+      "title": "Arbeitsbereiche & Sammlungen",
+      "loading": "Wird geladen …",
+      "empty": "Keine Arbeitsbereiche vorhanden",
+      "inactive": "inaktiv"
+    }
+  },
+  "intelligence": {
+    "title": "Dokumentenintelligenz",
+    "description": "Deterministisch extrahierte Klassifikationen, Beteiligte, Beträge und Fristen – mit Quellenbeleg und menschlicher Prüfung.",
+    "sections": "Bereiche der Dokumentenintelligenz",
+    "legalNotice": "Angezeigte Beträge sind Angaben aus Dokumenten. Sie stellen keine rechtliche Bewertung dar und sind keine Bestätigung einer geschuldeten oder aktuellen Forderung.",
+    "tabs": {
+      "documents": "Dokumente",
+      "findings": "Prüfbefunde",
+      "claims": "Forderungen",
+      "creditors": "Gläubiger",
+      "deadlines": "Fristen",
+      "persons": "Personen"
+    },
+    "documents": {
+      "loading": "Dokumente werden geladen …",
+      "caption": "Analysierte Dokumente",
+      "filterClass": "Klassifikation",
+      "filterReview": "Prüfstatus",
+      "all": "Alle",
+      "needsReview": "Prüfung erforderlich",
+      "noReview": "Keine Prüfung erforderlich",
+      "empty": "Keine analysierten Dokumente",
+      "emptyHint": "Nach der Verarbeitung eines Uploads erscheint hier das Analyseergebnis.",
+      "title": "Titel",
+      "classification": "Klassifikation",
+      "debtor": "Schuldnerzuordnung",
+      "status": "Status"
+    },
+    "findings": {
+      "loading": "Befunde werden geladen …",
+      "caption": "Offene Prüfbefunde",
+      "empty": "Keine offenen Prüfbefunde",
+      "emptyHint": "Alle Ergebnisse sind geprüft oder benötigen keine Entscheidung.",
+      "kind": "Art",
+      "reason": "Grund",
+      "subject": "Gegenstand",
+      "open": "Öffnen",
+      "openDocument": "Dokument öffnen",
+      "openClaims": "Forderungen öffnen"
+    },
+    "creditors": {
+      "loading": "Gläubiger werden geladen …",
+      "caption": "Gläubiger",
+      "empty": "Keine Gläubiger erkannt",
+      "creditor": "Gläubiger",
+      "roles": "Rollen",
+      "documents": "Dokumente"
+    },
+    "deadlines": {
+      "loading": "Fristen werden geladen …",
+      "caption": "Fristen",
+      "hint": "Daten wie im Dokument angegeben; sie werden nicht rechtlich bewertet.",
+      "empty": "Keine Fristen erkannt",
+      "date": "Datum",
+      "type": "Art",
+      "document": "Dokument",
+      "page": "Seite",
+      "state": "Prüfstatus"
+    },
+    "claims": {
+      "loading": "Forderungen werden geladen …",
+      "summary": "Zusammenfassung",
+      "summaryHint": "Eine Gesamtsumme wird nur gebildet, wenn alle Forderungsgruppen aufgelöst sind.",
+      "consolidated": "Summe der zuletzt angegebenen Beträge aller aufgelösten Forderungen",
+      "noTotalTitle": "Keine Gesamtsumme",
+      "noTotalBody": "{count, plural, one {# offener Punkt verhindert} other {# offene Punkte verhindern}} eine belastbare Summe. Bitte prüfen Sie die Einträge.",
+      "resolvedSubtotal": "Zwischensumme aufgelöster Gruppen",
+      "rule": "Regel: {rule}",
+      "empty": "Keine Forderungsgruppen erkannt",
+      "identifier": "Kennung",
+      "resolved": "aufgelöst",
+      "unresolved": "offen",
+      "settledStated": "laut Dokument beglichen",
+      "reviewGroup": "Gruppe prüfen",
+      "review": "Prüfen",
+      "latestStatedBalance": "Zuletzt im Dokument angegebener Saldo (nicht bestätigt)",
+      "latestPrincipalOnly": "Zuletzt angegebene Hauptforderung ohne Saldo (nicht bestätigt)",
+      "statedAsOf": "Angabe zum {date}",
+      "noLatest": "Kein eindeutig zuletzt angegebener Betrag ermittelbar.",
+      "openPoints": "Offene Punkte",
+      "history": "Betragsverlauf",
+      "document": "Dokument",
+      "amountType": "Betragsart",
+      "statedAmount": "Angegebener Betrag",
+      "role": "Rolle in der Forderung",
+      "membership": "Zugehörigkeit"
+    },
+    "persons": {
+      "title": "Personenprofile",
+      "hint": "Aliaswerte werden aus Datenschutzgründen nicht angezeigt, nur ihre Anzahl.",
+      "loading": "Personen werden geladen …",
+      "empty": "Keine Personenprofile",
+      "create": "Personenprofil anlegen",
+      "createHint": "Profile verknüpfen Dokumente mit einer betroffenen Person.",
+      "label": "Bezeichnung",
+      "labelInvalid": "Bitte 1–120 Zeichen eingeben.",
+      "createAction": "Anlegen",
+      "created": "Personenprofil angelegt",
+      "status": "Status",
+      "aliases": "Aliase",
+      "actions": "Aktionen",
+      "addAlias": "Alias hinzufügen",
+      "aliasPrivacy": "Aliase dienen nur dem Abgleich und werden nach dem Speichern nicht mehr angezeigt.",
+      "aliasKind": "Art",
+      "aliasValue": "Wert",
+      "aliasInvalid": "Bitte 2–255 Zeichen eingeben.",
+      "aliasAdded": "Alias gespeichert",
+      "kinds": {
+        "name": "Name",
+        "identifier": "Kennung"
+      },
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "close": "Schließen"
+    },
+    "document": {
+      "loading": "Dokument wird geladen …",
+      "back": "Zurück zur Übersicht",
+      "description": "Analyseergebnis mit Quellenbelegen. Korrekturen werden neben dem Originalwert gespeichert und revisionssicher protokolliert.",
+      "reviewDocument": "Dokument prüfen",
+      "reprocess": "Neu analysieren",
+      "reprocessQueued": "Neuanalyse eingereiht",
+      "readOnlyTitle": "Nur Lesezugriff",
+      "readOnlyBody": "Prüfentscheidungen sind den Rollen Administration und Compliance vorbehalten.",
+      "injectionTitle": "Eingebettete Anweisungen ignoriert",
+      "injectionBody": "{count, plural, one {# Zeile} other {# Zeilen}} mit anweisungsartigem Inhalt wurden bei der Analyse ignoriert.",
+      "classification": "Klassifikation",
+      "debtor": "Schuldnerzuordnung",
+      "analysis": "Analyse",
+      "reviewNeeded": "Prüfbedarf",
+      "classifications": "Klassifikationen",
+      "classificationsHint": "Kandidaten mit Belegstärke; genau eine Klasse kann bestätigt werden.",
+      "class": "Klasse",
+      "strength": "Belegstärke",
+      "state": "Status",
+      "actions": "Aktionen",
+      "primary": "primär",
+      "review": "Prüfen",
+      "facts": "Extrahierte Angaben",
+      "factsHint": "Werte aus dem Dokument oder regelbasiert abgeleitet. Prüferkorrekturen sind gekennzeichnet.",
+      "noFacts": "Keine Angaben extrahiert",
+      "factType": "Angabe",
+      "value": "Wert",
+      "page": "Seite",
+      "source": "Quelle",
+      "sourceFor": "Quelle zu {type}",
+      "rejectedValue": "verworfen",
+      "correctedByReviewer": "vom Prüfer korrigiert",
+      "persons": "Verknüpfte Personen",
+      "noPersons": "Keine Personen verknüpft",
+      "personRoles": {
+        "debtor": "Schuldner",
+        "addressee": "Empfänger"
+      },
+      "claimGroups": "Forderungsgruppen",
+      "noClaimGroups": "Keiner Forderungsgruppe zugeordnet",
+      "openClaims": "Zur Forderungsübersicht"
+    },
+    "source": {
+      "title": "Quellenbeleg",
+      "description": "Herkunft der Angabe im Originaldokument.",
+      "close": "Schließen",
+      "loading": "Quelle wird geladen …",
+      "document": "Dokument",
+      "factType": "Angabe",
+      "assertion": "Herkunft",
+      "page": "Seite",
+      "line": "Zeile",
+      "method": "Extraktion",
+      "quality": "Qualität",
+      "reviewState": "Prüfstatus",
+      "statedAmount": "Angegebener Betrag",
+      "statedDate": "Angegebenes Datum",
+      "rawValue": "Originaltext",
+      "untranslated": "Unverändert wiedergegeben und nicht übersetzt.",
+      "highlightLimitTitle": "Keine Originalansicht",
+      "highlightLimitBody": "Die API stellt die Originaldatei nicht bereit. Eine Seitenansicht mit Markierung ist daher nicht verfügbar (gespeicherte Regionen: {regions})."
+    },
+    "review": {
+      "title": "Prüfentscheidung",
+      "close": "Schließen",
+      "auditNotice": "Jede Entscheidung wird mit Ihrer Kennung, dem Grund und der Versionsnummer unveränderlich protokolliert.",
+      "action": "Entscheidung",
+      "reason": "Begründung",
+      "amount": "Korrigierter Betrag",
+      "amountHint": "Nicht negativ, höchstens zwei Nachkommastellen, z. B. 1234.50.",
+      "currency": "Währung",
+      "date": "Korrigiertes Datum",
+      "text": "Korrigierter Wert",
+      "person": "Person",
+      "role": "Rolle",
+      "roles": {
+        "debtor": "Schuldner",
+        "addressee": "Empfänger"
+      },
+      "statusNotCorrectable": "Statusangaben können nur bestätigt oder verworfen werden.",
+      "submit": "Entscheidung speichern",
+      "cancel": "Abbrechen",
+      "saved": "Entscheidung gespeichert",
+      "conflictTitle": "Zwischenzeitlich geändert",
+      "conflictBody": "Eine andere Person hat diesen Eintrag bereits bearbeitet. Die Ansicht wurde neu geladen – bitte prüfen Sie den aktuellen Stand und öffnen Sie die Prüfung erneut.",
+      "invalid": {
+        "amount": "Bitte einen nicht negativen Betrag mit höchstens zwei Nachkommastellen und eine dreistellige Währung angeben.",
+        "date": "Bitte ein gültiges Datum angeben.",
+        "text": "Bitte 1–255 Zeichen eingeben.",
+        "generic": "Bitte prüfen Sie Ihre Angaben."
+      },
+      "actions": {
+        "confirm": "Bestätigen",
+        "reject": "Verwerfen",
+        "correct": "Korrigieren",
+        "dismiss": "Gruppe auflösen",
+        "mark_for_review": "Zur Prüfung markieren",
+        "clear_review_flag": "Prüfmarkierung entfernen",
+        "assign_person": "Person zuordnen"
+      },
+      "reasons": {
+        "verified_against_source": "Mit Quelle abgeglichen",
+        "extraction_error": "Extraktionsfehler",
+        "wrong_party": "Falsche Partei",
+        "not_same_claim": "Nicht dieselbe Forderung",
+        "duplicate": "Duplikat",
+        "not_a_claim": "Keine Forderung",
+        "needs_follow_up": "Nachverfolgung nötig",
+        "other": "Sonstiges"
+      }
+    },
+    "classes": {
+      "invoice": "Rechnung",
+      "payment_reminder": "Zahlungserinnerung",
+      "formal_demand": "Mahnung",
+      "debt_collection_letter": "Inkassoschreiben",
+      "payment_order_or_court_notice": "Mahnbescheid / gerichtliches Schreiben",
+      "enforcement_document": "Vollstreckungsunterlage",
+      "creditor_statement": "Forderungsaufstellung",
+      "loan_agreement": "Kreditvertrag",
+      "payment_receipt": "Zahlungsbeleg",
+      "settlement_agreement": "Vergleich / Ratenvereinbarung",
+      "correspondence": "Korrespondenz",
+      "unrelated_document": "Fremdes Dokument",
+      "unknown": "Unbekannt"
+    },
+    "categories": {
+      "party": "Beteiligte",
+      "amount": "Betrag",
+      "identifier": "Kennung",
+      "date": "Datum",
+      "status": "Statusangabe"
+    },
+    "factTypes": {
+      "creditor": "Gläubiger",
+      "creditor_address": "Gläubigeranschrift",
+      "debtor": "Schuldner",
+      "addressee": "Empfänger",
+      "collection_agency": "Inkassounternehmen",
+      "original_creditor": "Ursprünglicher Gläubiger",
+      "current_claimant": "Aktueller Anspruchsteller",
+      "court_or_authority": "Gericht / Behörde",
+      "guarantor": "Bürge",
+      "representative": "Vertreter",
+      "other_party": "Sonstige Partei",
+      "principal_amount": "Hauptforderung",
+      "interest_amount": "Zinsen",
+      "fee_amount": "Gebühren",
+      "collection_cost_amount": "Inkassokosten",
+      "court_cost_amount": "Gerichtskosten",
+      "payment_made_amount": "Geleistete Zahlung",
+      "stated_remaining_balance": "Angegebener Restbetrag",
+      "stated_total_claim": "Angegebene Gesamtforderung",
+      "unclassified_amount": "Nicht zugeordneter Betrag",
+      "invoice_number": "Rechnungsnummer",
+      "reference_number": "Aktenzeichen / Referenz",
+      "collection_case_number": "Inkasso-Aktenzeichen",
+      "court_case_number": "Gerichtliches Aktenzeichen",
+      "contract_reference": "Vertragsnummer",
+      "payment_reference": "Verwendungszweck",
+      "issue_date": "Ausstellungsdatum",
+      "due_date": "Fälligkeitsdatum",
+      "payment_deadline": "Zahlungsfrist",
+      "interest_calculation_date": "Zinsberechnungsdatum",
+      "other_date": "Sonstiges Datum",
+      "payment_requested": "Zahlungsaufforderung",
+      "payment_reported": "Zahlung gemeldet",
+      "disputed": "Bestritten",
+      "settled": "Beglichen",
+      "payment_arrangement_mentioned": "Ratenzahlung erwähnt",
+      "enforcement_mentioned": "Vollstreckung erwähnt"
+    },
+    "reviewStates": {
+      "unreviewed": "Ungeprüft",
+      "review_required": "Prüfung erforderlich",
+      "confirmed": "Bestätigt",
+      "rejected": "Verworfen",
+      "corrected": "Korrigiert"
+    },
+    "assertions": {
+      "document_stated": "Im Dokument angegeben",
+      "rule_inferred": "Regelbasiert abgeleitet"
+    },
+    "amountRoles": {
+      "payment": "Zahlung",
+      "unclassified": "Nicht zugeordnet",
+      "potentially_current": "Zuletzt angegeben",
+      "component": "Bestandteil",
+      "historical": "Historisch"
+    },
+    "findingKinds": {
+      "fact": "Angabe",
+      "classification": "Klassifikation",
+      "debtor": "Schuldner",
+      "document": "Dokument",
+      "analysis": "Analyse",
+      "claim_group": "Forderungsgruppe"
+    },
+    "findingReasons": {
+      "low_quality_source": "Geringe Quellqualität (OCR)",
+      "review_required": "Prüfung erforderlich",
+      "ambiguous": "Mehrdeutige Klassifikation",
+      "unknown": "Klassifikation unbekannt",
+      "ambiguous_debtor": "Schuldner mehrdeutig",
+      "flagged_by_reviewer": "Von Prüfer markiert",
+      "analysis_failed": "Analyse fehlgeschlagen",
+      "proposed": "Gruppenbildung vorgeschlagen",
+      "needs_review": "Gruppe prüfen",
+      "no_claim_identifier": "Keine Forderungskennung",
+      "membership_rejected": "Zugehörigkeit verworfen",
+      "membership_proposed": "Zugehörigkeit vorgeschlagen",
+      "group_proposed": "Gruppe vorgeschlagen",
+      "group_needs_review": "Gruppe prüfen",
+      "no_stated_amount": "Kein angegebener Betrag",
+      "issue_date_missing": "Ausstellungsdatum fehlt",
+      "conflicting_latest_amounts": "Widersprüchliche letzte Beträge",
+      "currency_missing": "Währung fehlt",
+      "amount_review_required": "Betrag muss geprüft werden",
+      "group_confirmed": "Gruppe bestätigt",
+      "group_dismissed": "Gruppe aufgelöst"
+    },
+    "claimStatus": {
+      "system_linked": "System-verknüpft",
+      "confirmed": "Bestätigt",
+      "dismissed": "Aufgelöst",
+      "proposed": "Vorgeschlagen",
+      "needs_review": "Prüfung erforderlich"
+    },
+    "debtorStatus": {
+      "identified": "Zugeordnet",
+      "ambiguous": "Mehrdeutig",
+      "unmatched": "Nicht zugeordnet",
+      "unknown": "Unbekannt"
+    },
+    "classificationStatus": {
+      "classified": "Eindeutig klassifiziert",
+      "ambiguous": "Mehrdeutig",
+      "unknown": "Nicht klassifizierbar",
+      "not_analyzed": "Nicht analysiert"
+    },
+    "evidenceStrength": {
+      "strong": "stark",
+      "moderate": "mittel",
+      "weak": "schwach"
+    },
+    "extractionMethods": {
+      "native_text": "Textebene (PDF)",
+      "ocr": "OCR (Texterkennung)",
+      "text": "Textdatei"
+    }
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "description": "Betriebskennzahlen, Readiness der Abhängigkeiten und RAG-Evaluierung.",
+    "metrics": {
+      "title": "Betriebskennzahlen",
+      "hint": "Prometheus-Zähler der API-Instanz (prozessweit).",
+      "loading": "Kennzahlen werden geladen …",
+      "chartLabel": "Verlauf seit Öffnen dieser Seite",
+      "up": "verfügbar",
+      "down": "nicht erreichbar",
+      "unknown": "unbekannt",
+      "names": {
+        "ragops_request_count": "Anfragen",
+        "ragops_success_count": "Erfolgreich",
+        "ragops_failure_count": "Fehlgeschlagen",
+        "ragops_avg_latency_ms": "Ø Latenz (ms)",
+        "ragops_avg_retrieval_latency_ms": "Ø Retrieval-Latenz (ms)",
+        "ragops_total_tokens": "Token",
+        "ragops_ingestion_jobs_total": "Angenommene Uploads",
+        "ragops_ingestion_queue_depth": "Warteschlangenlänge",
+        "ragops_ingestion_queue_up": "Warteschlange"
+      }
+    },
+    "readiness": {
+      "title": "Readiness der Abhängigkeiten",
+      "hint": "Kritische Komponenten müssen verfügbar sein, damit die API Anfragen annimmt.",
+      "loading": "Wird geladen …",
+      "overall": "Gesamt",
+      "component": "Komponente",
+      "critical": "Kritisch",
+      "status": "Status",
+      "reason": "Grund",
+      "yes": "ja",
+      "no": "nein"
+    },
+    "evaluation": {
+      "title": "RAG-Evaluierung",
+      "hint": "Letzter Lauf der Gold-Fragen-Evaluierung (synthetisch).",
+      "loading": "Wird geladen …",
+      "notRun": "Es liegt noch kein Evaluierungslauf vor.",
+      "fields": {
+        "retrieval_hit_rate": "Retrieval-Trefferquote",
+        "precision_at_5": "Precision@5",
+        "recall_at_5": "Recall@5",
+        "citation_coverage": "Quellenabdeckung",
+        "abstention_rate": "Enthaltungsquote",
+        "security_test_pass_rate": "Sicherheitstests bestanden",
+        "case_count": "Testfälle",
+        "tenant_leakage_count": "Mandantenlecks"
+      }
+    }
+  },
+  "finops": {
+    "title": "FinOps",
+    "description": "Kostenzähler, Budgets und Simulationen der Budget- und Routing-Richtlinien.",
+    "tenantUsageGapTitle": "Mandantenbezogene Verbrauchsdaten nicht verfügbar",
+    "tenantUsageGapBody": "Die API-Endpunkte für Verbrauch, Prognose und Warnungen pro Mandant liefern derzeit nur statische Platzhalter. Sie werden hier bewusst nicht als Kennzahlen dargestellt.",
+    "counters": {
+      "title": "Prozesszähler",
+      "scope": "Seit dem letzten Start dieser API-Instanz, über alle Mandanten. Keine Abrechnungsgrundlage.",
+      "loading": "Wird geladen …",
+      "requests": "Anfragen",
+      "tokens": "Token",
+      "cost": "Geschätzte Kosten"
+    },
+    "budgets": {
+      "title": "Budgets",
+      "hint": "Budgets Ihres Mandanten.",
+      "loading": "Wird geladen …",
+      "empty": "Keine Budgets angelegt",
+      "id": "ID",
+      "amount": "Betrag",
+      "amountEur": "Betrag (EUR)",
+      "mode": "Durchsetzung",
+      "create": "Budget anlegen",
+      "created": "Budget angelegt",
+      "invalid": "Bitte einen positiven Betrag angeben.",
+      "volatileNotice": "Hinweis: Diese Budgets werden von der API derzeit nur im Arbeitsspeicher gehalten und gehen bei einem Neustart verloren."
+    },
+    "modes": {
+      "monitor": "Beobachten",
+      "optimize": "Optimieren",
+      "hard_limit": "Hartes Limit"
+    },
+    "simulation": {
+      "title": "Budget-Simulation",
+      "hint": "Prüft eine Entscheidung mit der Standard-Hardlimit-Richtlinie. Es werden keine Kosten verursacht.",
+      "estimated": "Geschätzte Kosten (EUR)",
+      "budget": "Budget (EUR)",
+      "run": "Simulieren",
+      "simulationOnly": "Nur Simulation",
+      "decision": "Entscheidung",
+      "state": "Zustand",
+      "projected": "Voraussichtlicher Verbrauch"
+    },
+    "router": {
+      "title": "Routing-Simulation",
+      "hint": "Zeigt, welches Modell der Router wählen würde. Es wird kein Modell aufgerufen.",
+      "intent": "Anfrageart",
+      "intents": {
+        "factual": "Faktenfrage",
+        "compliance": "Compliance",
+        "legal": "Rechtlich",
+        "security": "Sicherheit",
+        "critical_operations": "Kritischer Betrieb"
+      },
+      "chunks": "Gefundene Abschnitte",
+      "highRisk": "Hohes Risiko",
+      "run": "Simulieren",
+      "class": "Routing-Klasse",
+      "model": "Modell",
+      "estimate": "Kostenschätzung",
+      "reasons": "Begründungscodes"
+    }
+  },
+  "governance": {
+    "title": "Governance & Betrieb",
+    "description": "Audit-Protokoll, Modellkatalog, Modellrichtlinien und Systembereitschaft Ihres Mandanten.",
+    "audit": {
+      "title": "Audit-Protokoll",
+      "hint": "Die letzten 100 Ereignisse Ihres Mandanten. Inhalte von Fragen und Antworten werden nicht protokolliert.",
+      "filter": "Nach Ereignistyp filtern",
+      "loading": "Wird geladen …",
+      "empty": "Keine Audit-Ereignisse",
+      "time": "Zeitpunkt",
+      "event": "Ereignis",
+      "outcome": "Ergebnis",
+      "user": "Benutzer",
+      "correlation": "Korrelation",
+      "filterPlaceholder": "z. B. query_"
+    },
+    "models": {
+      "title": "Modellkatalog & Provider",
+      "hint": "Freigegebene Modelle und ihr Routing-Tier.",
+      "loading": "Wird geladen …",
+      "model": "Modell",
+      "tier": "Tier",
+      "enabled": "Aktiv",
+      "highRisk": "Hochrisiko zulässig",
+      "yes": "ja",
+      "no": "nein",
+      "readOnly": "Änderungen am gemeinsamen Katalog sind der Plattformadministration vorbehalten und hier nicht möglich.",
+      "health": {
+        "healthy": "bereit",
+        "unknown": "Status unbekannt"
+      }
+    },
+    "policies": {
+      "title": "Modellrichtlinien",
+      "hint": "Für Ihren Mandanten hinterlegte Richtlinie.",
+      "loading": "Wird geladen …",
+      "empty": "Keine mandantenspezifische Richtlinie",
+      "emptyHint": "Es gilt die Standardrichtlinie der Plattform.",
+      "fields": {
+        "tenant_id": "Mandant",
+        "allowed_providers": "Zulässige Provider",
+        "allowed_models": "Zulässige Modelle",
+        "high_risk_models": "Hochrisiko-Modelle",
+        "default_tier": "Standard-Tier",
+        "max_routing_tier": "Maximales Tier",
+        "cost_ceiling_eur": "Kostenobergrenze (EUR)",
+        "fallback_enabled": "Fallback aktiv"
+      }
+    }
+  }
+}

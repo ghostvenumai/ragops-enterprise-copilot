@@ -33,6 +33,11 @@ from ragops.security.documents import IMAGE_LIMITS
 
 TARGET_LONG_SIDE = 1600
 MAX_UPSCALE = 2.0
+# Median ink-run height (pixels) from which text is large enough for Tesseract as it is.
+# Resampling such text to a fractional size made the LSTM misread glyphs (8 -> 3, lost
+# umlauts) at high confidence, so only smaller text is upscaled.
+MIN_TEXT_LINE_PX = 16
+TEXT_STRIP_PX = 64
 DESKEW_MAX_DEGREES = 5.0
 DESKEW_STEP_DEGREES = 0.25
 NOISE_ISOLATED_RATIO = 0.002
@@ -129,6 +134,23 @@ def _isolated_dark_ratio(image: Image.Image) -> float:
     return float((data & (neighbours == 0)).mean())
 
 
+def text_line_height(image: Image.Image) -> float | None:
+    """Median height of the inked row runs in narrow vertical strips, or None without ink.
+
+    Strips keep lines of slightly skewed pages (up to the deskew limit) from merging.
+    """
+    ink = np.asarray(image.convert("L")) < 128
+    runs: list[int] = []
+    for left in range(0, ink.shape[1], TEXT_STRIP_PX):
+        rows = ink[:, left : left + TEXT_STRIP_PX].any(axis=1)
+        if not rows.any():
+            continue
+        edges = np.diff(np.concatenate(([0], rows.astype(np.int8), [0])))
+        heights = np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)
+        runs.extend(int(value) for value in heights if value >= 3)
+    return float(np.median(runs)) if runs else None
+
+
 def _skew_angle(image: Image.Image) -> float:
     small = image.copy()
     small.thumbnail((1000, 1000))
@@ -167,10 +189,12 @@ def prepare_for_ocr(
     width, height = image.size
     factor = 1.0
     if max(width, height) < TARGET_LONG_SIDE:
-        factor = min(MAX_UPSCALE, TARGET_LONG_SIDE / max(width, height))
-        factor = min(factor, math.sqrt(max_pixels / (width * height)))
-        if factor < 1.25:
-            factor = 1.0
+        line_height = text_line_height(image)
+        if line_height is None or line_height < MIN_TEXT_LINE_PX:
+            factor = min(MAX_UPSCALE, TARGET_LONG_SIDE / max(width, height))
+            factor = min(factor, math.sqrt(max_pixels / (width * height)))
+            if factor < 1.25:
+                factor = 1.0
     elif width * height > max_pixels:
         factor = math.sqrt(max_pixels / (width * height))
     if factor != 1.0:

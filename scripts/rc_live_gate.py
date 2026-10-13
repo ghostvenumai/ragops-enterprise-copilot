@@ -6,10 +6,12 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +36,7 @@ GATES = (
     "reservation_reconciliation",
     "ocr_ingestion",
     "document_intelligence",
+    "web_e2e",
     "security",
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
@@ -54,12 +57,37 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "reservation_reconciliation",
         "ocr_ingestion",
         "document_intelligence",
+        "web_e2e",
         "security",
     }
 )
 # The security gate reads the evidence of the other gates, so it always runs last.
 ORCHESTRATOR_GATES = frozenset({"security"})
 OIDC_BOOTSTRAP = [".venv/bin/python", "scripts/configure_local_oidc_integration.py"]
+# Release evidence counts only for the tested commit and only while fresh (as in security_gate).
+MAX_EVIDENCE_AGE = timedelta(hours=24)
+CLOCK_SKEW = timedelta(minutes=5)
+STATUSES = ("PASS", "FAIL", "BLOCKED")
+COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+# The single documented exception (docs/RELEASE_CANDIDATE.md, paid-provider evidence policy): the
+# paid provider gate is never re-run automatically, so its PASS on an ancestor commit still counts,
+# but only while nothing the gate exercises has changed since that commit.
+HISTORICAL_EVIDENCE_PATHS: dict[str, tuple[str, ...]] = {
+    "external_llm_provider": (
+        "src/ragops/llm",
+        "src/ragops/modeling",
+        "scripts/external_llm_provider_gate.py",
+        "pyproject.toml",
+        "constraints.txt",
+    ),
+}
+HISTORICAL_REQUIRED: dict[str, tuple[tuple[str, object], ...]] = {
+    "external_llm_provider": (
+        ("live_request_status", "EXECUTED"),
+        ("provider_response_valid", True),
+        ("request_count", 1),
+    ),
+}
 
 
 def aggregate_statuses(statuses: dict[str, str]) -> tuple[str, str]:
@@ -78,7 +106,11 @@ def aggregate_statuses(statuses: dict[str, str]) -> tuple[str, str]:
 def merge_gate_statuses(
     previous: dict[str, str], selected: set[str], gate_results: dict[str, dict[str, str]]
 ) -> dict[str, str]:
-    """Update only selected gates while preserving the prior release-gate state."""
+    """Update only selected gates in a status map (gate registry helper).
+
+    The release result never trusts a previous summary: main() derives every status from
+    validate_gate_evidence() instead.
+    """
     statuses = dict(previous)
     for gate in GATES:
         statuses.setdefault(gate, "BLOCKED")
@@ -102,6 +134,171 @@ def merge_detailed_gate_evidence(
     merged.setdefault("tested_commit", commit)
     merged.setdefault("timestamp", timestamp)
     return merged
+
+
+def evidence_path(gate: str, directory: Path | None = None) -> Path:
+    return (directory or OUT) / f"{gate.replace('_', '-')}.json"
+
+
+class _Missing:
+    pass
+
+
+MISSING = _Missing()
+
+
+def read_evidence(path: Path) -> object:
+    """The parsed evidence, MISSING when absent, or None when it cannot be parsed."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return MISSING
+    except OSError:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+@dataclass(frozen=True)
+class EvidenceVerdict:
+    status: str
+    reason: str
+    tested_commit: str | None = None
+    basis: str = "tested_commit"
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "tested_commit": self.tested_commit,
+            "basis": self.basis,
+        }
+
+
+def _git(*arguments: str, root: Path = ROOT) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(  # noqa: S603
+            ["git", *arguments], cwd=root, capture_output=True, text=True, check=False, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def historical_evidence_check(
+    gate: str, tested: str, commit: str, root: Path = ROOT
+) -> tuple[bool, str]:
+    """Whether an older PASS of the excepted gate still describes this commit."""
+    paths = HISTORICAL_EVIDENCE_PATHS.get(gate)
+    if not paths:
+        return False, "no historical exception for this gate"
+    ancestor = _git("merge-base", "--is-ancestor", tested, commit, root=root)
+    if ancestor is None or ancestor.returncode != 0:
+        return False, f"{tested[:7]} is not an ancestor of {commit[:7]}"
+    changed = _git("diff", "--name-only", tested, commit, "--", *paths, root=root)
+    if changed is None or changed.returncode != 0:
+        return False, "the change set since the tested commit could not be determined"
+    if changed.stdout.strip():
+        return False, f"paths the gate exercises changed since {tested[:7]}"
+    dirty = _git("status", "--porcelain", "--", *paths, root=root)
+    if dirty is None or dirty.returncode != 0 or dirty.stdout.strip():
+        return False, "paths the gate exercises have uncommitted changes"
+    return True, f"historical PASS of ancestor {tested[:7]}; exercised paths unchanged"
+
+
+def validate_gate_evidence(
+    gate: str,
+    data: object,
+    *,
+    commit: str,
+    commit_time: datetime | None,
+    now: datetime,
+    exit_status: str | None = None,
+    historical: Callable[[str, str, str], tuple[bool, str]] | None = None,
+) -> EvidenceVerdict:
+    """Fail-closed status of one mandatory gate from its evidence file.
+
+    Missing or stale evidence is BLOCKED (the gate must run on this commit); malformed or
+    contradictory evidence is FAIL. ``exit_status`` is the runner's view of a gate executed
+    in this invocation (exit code 0 = PASS); ``historical`` decides the documented exception.
+    """
+    if data is MISSING:
+        return EvidenceVerdict("BLOCKED", "evidence missing; the gate has not run")
+    if not isinstance(data, dict):
+        return EvidenceVerdict("FAIL", "evidence malformed")
+    status, tested = data.get("status"), data.get("tested_commit")
+    named = data.get("gate")
+    if named is not None and named != gate:
+        return EvidenceVerdict("FAIL", "evidence names another gate")
+    if status not in STATUSES or not isinstance(tested, str) or not COMMIT_RE.fullmatch(tested):
+        return EvidenceVerdict("FAIL", "evidence malformed (status or tested_commit)")
+    try:
+        timestamp = datetime.fromisoformat(str(data.get("timestamp")))
+    except ValueError:
+        timestamp = None
+    if timestamp is None or timestamp.tzinfo is None:
+        return EvidenceVerdict("FAIL", "evidence malformed (timestamp)", tested)
+    if timestamp > now + CLOCK_SKEW:
+        return EvidenceVerdict("FAIL", "evidence timestamp lies in the future", tested)
+    if exit_status is not None and (exit_status == "PASS") != (status == "PASS"):
+        return EvidenceVerdict(
+            "FAIL", f"contradiction: gate exit {exit_status}, evidence {status}", tested
+        )
+    if not commit or tested != commit:
+        if historical is not None and status == "PASS" and gate in HISTORICAL_EVIDENCE_PATHS:
+            missing = [
+                key
+                for key, expected in HISTORICAL_REQUIRED.get(gate, ())
+                if type(data.get(key)) is not type(expected) or data.get(key) != expected
+            ]
+            if missing:
+                return EvidenceVerdict(
+                    "BLOCKED", f"historical evidence incomplete: {', '.join(missing)}", tested
+                )
+            accepted, why = historical(gate, tested, commit)
+            if accepted:
+                return EvidenceVerdict("PASS", why, tested, "historical_exception")
+            return EvidenceVerdict("BLOCKED", f"stale: {why}", tested)
+        return EvidenceVerdict("BLOCKED", "stale: evidence is for another commit", tested)
+    if named is None:
+        return EvidenceVerdict("FAIL", "evidence names no gate", tested)
+    if commit_time is None:
+        return EvidenceVerdict("BLOCKED", "commit time unknown; freshness unverifiable", tested)
+    if timestamp < commit_time - CLOCK_SKEW:
+        return EvidenceVerdict("BLOCKED", "stale: evidence predates the commit", tested)
+    if now - timestamp > MAX_EVIDENCE_AGE:
+        return EvidenceVerdict("BLOCKED", "stale: evidence older than 24 hours", tested)
+    reason = data.get("reason")
+    return EvidenceVerdict(status, str(reason) if reason else f"{gate} {status}", tested)
+
+
+def release_verdicts(
+    commit: str,
+    commit_time: datetime | None,
+    now: datetime,
+    exit_statuses: dict[str, str],
+    root: Path = ROOT,
+    directory: Path | None = None,
+) -> dict[str, EvidenceVerdict]:
+    """Validate the evidence of every mandatory gate; nothing is carried over from summaries."""
+
+    def historical(gate: str, tested: str, head: str) -> tuple[bool, str]:
+        return historical_evidence_check(gate, tested, head, root)
+
+    return {
+        gate: validate_gate_evidence(
+            gate,
+            read_evidence(evidence_path(gate, directory)),
+            commit=commit,
+            commit_time=commit_time,
+            now=now,
+            exit_status=exit_statuses.get(gate),
+            # The exception only covers evidence that was not (re)produced in this run.
+            historical=historical if gate not in exit_statuses else None,
+        )
+        for gate in GATES
+    }
 
 
 def version(command: str) -> str:
@@ -169,6 +366,12 @@ def main() -> int:
         if item.strip()
     }
     gate_results: dict[str, dict[str, str]] = {}
+    # A selected gate first loses its older evidence, so a crash can never leave it in place.
+    for gate in GATES:
+        if gate in selected and gate in DETAILED_EVIDENCE_GATES:
+            evidence_path(gate).write_text(
+                json.dumps(blocked_placeholder(gate, commit), indent=2), encoding="utf-8"
+            )
     if "docker_compose" in selected and shutil.which("docker-compose"):
         status, detail = run_gate(
             [
@@ -215,20 +418,6 @@ def main() -> int:
             "detail": detail or "Concurrency gate completed",
         }
     if "redis_worker" in selected:
-        redis_evidence_path = OUT / "redis-worker.json"
-        redis_evidence_path.write_text(
-            json.dumps(
-                {
-                    "gate": "redis_worker",
-                    "status": "BLOCKED",
-                    "reason": "Redis/worker gate did not produce a result",
-                    "tested_commit": commit,
-                    "timestamp": datetime.now(UTC).isoformat(),
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
         status, detail = run_gate([".venv/bin/python", "scripts/redis_worker_gate.py"])
         gate_results["redis_worker"] = {
             "status": status,
@@ -241,9 +430,7 @@ def main() -> int:
             "detail": detail or "See sanitized qdrant.json evidence",
         }
     if "external_llm_provider" in selected:
-        status, detail = run_gate(
-            [".venv/bin/python", "scripts/external_llm_provider_gate.py"]
-        )
+        status, detail = run_gate([".venv/bin/python", "scripts/external_llm_provider_gate.py"])
         gate_results["external_llm_provider"] = {
             "status": status,
             "detail": detail or "See sanitized external-llm-provider.json evidence",
@@ -318,24 +505,18 @@ def main() -> int:
             "status": status,
             "detail": detail or "See sanitized document-intelligence.json evidence",
         }
+    if "web_e2e" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/web_e2e_gate.py"])
+        gate_results["web_e2e"] = {
+            "status": status,
+            "detail": detail or "See sanitized web-e2e.json evidence",
+        }
     if "browser_e2e" in selected:
         status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])
         gate_results["browser_e2e"] = {
             "status": status,
             "detail": detail or "See sanitized browser-e2e.json evidence",
         }
-    previous: dict[str, object] = {}
-    try:
-        previous = json.loads((OUT / "final-release-gate.json").read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        previous = {}
-    prior_statuses = previous.get("mandatory_gates", {})
-    prior: dict[str, str] = (
-        {str(key): str(value) for key, value in prior_statuses.items()}
-        if isinstance(prior_statuses, dict)
-        else {}
-    )
-    gate_status_results: dict[str, dict[str, str]] = {}
     ordered = [gate for gate in GATES if gate in selected and gate not in ORCHESTRATOR_GATES]
     ordered += [gate for gate in GATES if gate in selected and gate in ORCHESTRATOR_GATES]
     for gate in ordered:
@@ -350,28 +531,37 @@ def main() -> int:
                 "detail": detail or "See sanitized security.json evidence",
             }
         gate_result = gate_results.get(gate, {"status": "BLOCKED", "reason": reason})
-        evidence_path = OUT / f"{gate.replace('_', '-')}.json"
+        path = evidence_path(gate)
         if gate in DETAILED_EVIDENCE_GATES:
-            try:
-                persisted = json.loads(evidence_path.read_text(encoding="utf-8"))
-            except (FileNotFoundError, json.JSONDecodeError):
-                persisted = {}
+            persisted = read_evidence(path)
             if not isinstance(persisted, dict):
                 persisted = {}
             preserved = merge_detailed_gate_evidence(
                 persisted, gate_result, commit, datetime.now(UTC).isoformat(), gate
             )
-            evidence_path.write_text(json.dumps(preserved, indent=2), encoding="utf-8")
-            gate_status_results[gate] = {"status": str(preserved["status"])}
+            path.write_text(json.dumps(preserved, indent=2), encoding="utf-8")
         else:
             gate_result = {
+                "gate": gate,
                 **gate_result,
                 "tested_commit": commit,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
-            evidence_path.write_text(json.dumps(gate_result, indent=2), encoding="utf-8")
-            gate_status_results[gate] = gate_result
-    statuses = merge_gate_statuses(prior, selected, gate_status_results)
+            path.write_text(json.dumps(gate_result, indent=2), encoding="utf-8")
+    commit_time = None
+    shown = _git("show", "-s", "--format=%cI", "HEAD")
+    if shown is not None and shown.returncode == 0:
+        try:
+            commit_time = datetime.fromisoformat(shown.stdout.strip())
+        except ValueError:
+            commit_time = None
+    verdicts = release_verdicts(
+        commit,
+        commit_time,
+        datetime.now(UTC),
+        {gate: result["status"] for gate, result in gate_results.items() if gate in selected},
+    )
+    statuses = {gate: verdict.status for gate, verdict in verdicts.items()}
     (OUT / "compose-validation.txt").write_text(reason + "\n", encoding="utf-8")
     (OUT / "container-health.json").write_text(
         json.dumps({"status": "BLOCKED", "reason": reason}, indent=2), encoding="utf-8"
@@ -394,7 +584,9 @@ def main() -> int:
         "version": "0.2.0.dev0",
         "overall": overall,
         "mandatory_gates": statuses,
+        "evidence_validation": {gate: verdict.as_dict() for gate, verdict in verdicts.items()},
         "reason": current_reason,
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     (OUT / "final-release-gate.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     (OUT / "rc-live-report.md").write_text(

@@ -176,7 +176,18 @@ def run_command(
 
 
 def iter_repo_files() -> list[Path]:
-    excluded = {".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+    # Installed or generated trees, not repository content (like .venv): third-party npm
+    # packages are covered by `npm audit`, and the Next.js build output is regenerated.
+    excluded = {
+        ".git",
+        ".venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "node_modules",
+        ".next",
+    }
     files: list[Path] = []
     for path in REPO_ROOT.rglob("*"):
         if any(part in excluded for part in path.parts):
@@ -191,6 +202,7 @@ def check_no_env_files() -> dict[str, object]:
         str(path.relative_to(REPO_ROOT))
         for path in REPO_ROOT.rglob(".env*")
         if ".git" not in path.parts
+        and "node_modules" not in path.parts
         and not env_template_is_secret_free(str(path.relative_to(REPO_ROOT)))
     ]
     return {

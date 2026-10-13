@@ -365,6 +365,7 @@ als bereits vollständige produktive Persistenzschicht dargestellt.
 ```text
 apps/api/                 FastAPI-Einstiegspunkt
 apps/dashboard/           deutsche Streamlit-Arbeitsoberfläche
+apps/web/                 Next.js-Enterprise-Oberfläche (DE/EN) mit Backend-for-Frontend
 src/ragops/               RAG-, Workflow-, Security- und Governance-Kern
 data/synthetic/           synthetische Dokumente und CRM-Daten
 data/evaluation/          synthetischer Gold-Datensatz
@@ -383,6 +384,7 @@ dist/                     generierte Build- und Video-Artefakte, nicht versionie
 - [Architektur](docs/ARCHITECTURE.md)
 - [Wissensbasis und Erweiterung](docs/KNOWLEDGE_BASE.md)
 - [Dashboard](docs/DASHBOARD.md)
+- [Web-Frontend (ENT-12-UI)](docs/WEB_FRONTEND.md)
 - [API](docs/API.md)
 - [Datenfluss](docs/DATA_FLOW.md)
 - [AI Governance](docs/AI_GOVERNANCE.md)

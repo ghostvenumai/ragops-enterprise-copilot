@@ -642,6 +642,8 @@ def environment(
     observe_qdrant: bool = False,
     idp_down_dashboard: bool = True,
     with_dashboard: bool = True,
+    rate_limit: int = RATE_LIMIT,
+    api_env: dict[str, str] | None = None,
 ) -> Iterator[Environment]:
     """Gate-owned API, worker and dashboards on the local identity provider.
 
@@ -767,7 +769,7 @@ def environment(
             "RAGOPS_RATE_LIMIT_BACKEND": "redis",
             "RAGOPS_RATE_LIMIT_REDIS_URL": redis_direct,
             "RAGOPS_RATE_LIMIT_NAMESPACE": f"{redis_prefix}:rate-limit",
-            "RAGOPS_RATE_LIMIT_REQUESTS": str(RATE_LIMIT),
+            "RAGOPS_RATE_LIMIT_REQUESTS": str(rate_limit),
             "RAGOPS_RATE_LIMIT_WINDOW_SECONDS": "60",
             "RAGOPS_VECTOR_PROVIDER": "qdrant",
             # The browser journeys ask questions of the synthetic demo corpus; uploads still
@@ -781,7 +783,11 @@ def environment(
             "RAGOPS_E2E_PROVIDER_LEDGER": str(ledger),
             "RAGOPS_PLATFORM_ADMIN_TENANT_ID": PLATFORM_TENANT,
         }
-        api_env = {**product, "RAGOPS_E2E_REQUEST_LOG": str(logs / "api-requests.jsonl")}
+        api_env = {
+            **product,
+            **(api_env or {}),
+            "RAGOPS_E2E_REQUEST_LOG": str(logs / "api-requests.jsonl"),
+        }
         if observe_qdrant:
             parts = urllib.parse.urlsplit(qdrant)
             qdrant_proxy = FaultProxy(parts.hostname or "127.0.0.1", parts.port or 6333)

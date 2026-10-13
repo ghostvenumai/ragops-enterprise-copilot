@@ -38,7 +38,7 @@ from ragops.ingestion.pages import (
     PageClass,
     assess_ocr,
 )
-from ragops.ingestion.raster import Affine, prepare_for_ocr
+from ragops.ingestion.raster import MIN_TEXT_LINE_PX, Affine, prepare_for_ocr, text_line_height
 
 pytestmark = pytest.mark.skipif(shutil.which("pdftoppm") is None, reason="poppler missing")
 
@@ -272,3 +272,26 @@ def test_preprocessing_records_transformations_and_keeps_a_valid_mapping() -> No
         assert -0.2 * 1200 <= x <= 1.2 * 1200 and -0.2 * 900 <= y <= 1.2 * 900
     small = prepare_for_ocr(Image.new("L", (300, 200), 255), orientation=None)
     assert any(item.startswith("upscale:") for item in small.transformations)
+
+
+def test_upscaling_depends_on_text_size_not_only_on_image_size() -> None:
+    """Legible text on a small image is not resampled; small text and blank pages still are.
+
+    Regression (ocr_ingestion gate, ENT-12-UI closure): a 1240x1000 page with 34 px text was
+    upscaled by 1.29 and Tesseract then read "202188" as "202183" at high confidence.
+    """
+    lines = ["Kundennummer 202188", "Nachzahlung: 412,75 EUR", "Fällig zum 30.09.2026."]
+    large = scan_image(lines, size=(1240, 1000), text_px=34)
+    small_text = scan_image(lines, size=(1240, 1000), text_px=14)
+    large_height, small_height = text_line_height(large), text_line_height(small_text)
+    assert large_height is not None and large_height >= MIN_TEXT_LINE_PX
+    assert small_height is not None and small_height < MIN_TEXT_LINE_PX
+    assert text_line_height(scan_image(lines, size=(1240, 1000), text_px=34, skew_degrees=3.0)) == (
+        pytest.approx(large_height, abs=3)
+    )
+    assert text_line_height(blank_image((300, 200))) is None
+    kept = prepare_for_ocr(large, orientation=None)
+    assert not any(item.startswith("upscale:") for item in kept.transformations)
+    assert kept.image.size == (1240, 1000) and kept.to_original.apply((620, 500)) == (620, 500)
+    upscaled = prepare_for_ocr(small_text, orientation=None)
+    assert "upscale:1.29" in upscaled.transformations

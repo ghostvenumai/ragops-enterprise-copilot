@@ -17,9 +17,9 @@ def passing() -> gate.DiGateResult:
     return result
 
 
-def test_gate_is_the_twentieth_release_gate_before_security() -> None:
-    assert len(rc_live_gate.GATES) == 20
-    assert rc_live_gate.GATES[-2:] == ("document_intelligence", "security")
+def test_gate_is_the_twentieth_release_gate_before_web_and_security() -> None:
+    assert len(rc_live_gate.GATES) == 21
+    assert rc_live_gate.GATES[-3:] == ("document_intelligence", "web_e2e", "security")
     assert "document_intelligence" in rc_live_gate.DETAILED_EVIDENCE_GATES
 
 

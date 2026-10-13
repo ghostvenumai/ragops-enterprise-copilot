@@ -1,0 +1,889 @@
+{
+  "meta": {
+    "title": "RAGOps Enterprise Copilot",
+    "description": "Secure AI knowledge platform with document intelligence, tenant isolation and FinOps."
+  },
+  "language": {
+    "label": "User interface language",
+    "switchToGerman": "German (Germany)",
+    "switchToEnglish": "English (United States)"
+  },
+  "nav": {
+    "cockpit": "Enterprise Cockpit",
+    "copilot": "AI Copilot",
+    "knowledge": "Knowledge Base",
+    "intelligence": "Document Intelligence",
+    "monitoring": "Monitoring",
+    "finops": "FinOps",
+    "governance": "Governance & Operations"
+  },
+  "shell": {
+    "productLine": "Enterprise Copilot",
+    "mainNavigation": "Main navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "skipToContent": "Skip to content",
+    "signOut": "Sign out",
+    "tenant": "Tenant",
+    "unknownUser": "Signed-in user",
+    "noRole": "No role",
+    "syntheticNotice": "Use synthetic test data only."
+  },
+  "roles": {
+    "admin": "Administration",
+    "compliance": "Compliance",
+    "viewer": "Read access",
+    "support": "Support",
+    "sales": "Sales",
+    "operations": "Operations"
+  },
+  "session": {
+    "expiredTitle": "Session expired",
+    "expiredBody": "Your sign-in is no longer valid. Please sign in again. Unsaved input will be lost.",
+    "signInAgain": "Sign in again",
+    "close": "Close"
+  },
+  "signin": {
+    "title": "Sign in",
+    "subtitle": "Sign in with your company account. Tenant and permissions come exclusively from your identity provider.",
+    "action": "Sign in with company account",
+    "securityNote": "Sign-in uses the authorization code flow with PKCE. Access tokens stay on the server and are never sent to the browser.",
+    "claim": "Use company knowledge securely – with sources, audit trail and cost control.",
+    "claimDetail": "Answers with evidence, document intelligence with human review, strict tenant isolation.",
+    "footer": "RAGOps Enterprise Copilot",
+    "signedOutTitle": "Signed out",
+    "signedOutBody": "You have been signed out successfully.",
+    "errors": {
+      "idp_unavailable": {
+        "title": "Sign-in service unavailable",
+        "body": "The identity provider is not responding. Please try again in a few minutes."
+      },
+      "invalid_state": {
+        "title": "Sign-in interrupted",
+        "body": "The sign-in attempt expired or is invalid. Please start again."
+      },
+      "denied": {
+        "title": "Sign-in denied",
+        "body": "The identity provider did not confirm the sign-in."
+      },
+      "token_rejected": {
+        "title": "Sign-in not possible",
+        "body": "Your account does not grant valid access to this application. Please contact your administrator."
+      },
+      "session_expired": {
+        "title": "Session expired",
+        "body": "Your session has expired. Please sign in again."
+      }
+    }
+  },
+  "errors": {
+    "retryAfter": "You can try again in {seconds} seconds.",
+    "unauthenticated": {
+      "title": "Not signed in",
+      "body": "Please sign in."
+    },
+    "session_expired": {
+      "title": "Session expired",
+      "body": "Please sign in again."
+    },
+    "forbidden": {
+      "title": "Not permitted",
+      "body": "Your role does not allow this action.",
+      "pageBody": "This area is reserved for administrators of your tenant."
+    },
+    "not_found": {
+      "title": "Not found",
+      "body": "The item does not exist or is not visible to your tenant."
+    },
+    "conflict": {
+      "title": "Conflict",
+      "body": "The item was changed in the meantime or the action is not possible in its current state."
+    },
+    "rate_limited": {
+      "title": "Too many requests",
+      "body": "The request limit has been reached."
+    },
+    "unavailable": {
+      "title": "Service temporarily unavailable",
+      "body": "A dependency is not ready. Please try again later."
+    },
+    "api_unreachable": {
+      "title": "API unreachable",
+      "body": "The RAGOps service is not responding."
+    },
+    "network_error": {
+      "title": "Network error",
+      "body": "The request could not be sent. Please check your connection."
+    },
+    "csrf_rejected": {
+      "title": "Security check failed",
+      "body": "Please reload the page and try again."
+    },
+    "too_large": {
+      "title": "File too large",
+      "body": "The request exceeds the permitted size."
+    },
+    "validation_error": {
+      "title": "Invalid input",
+      "body": "Please check your input."
+    },
+    "bad_request": {
+      "title": "Request rejected",
+      "body": "The service rejected the request."
+    },
+    "contract": {
+      "title": "Unexpected response",
+      "body": "The service response does not match the expected format and is not displayed."
+    },
+    "unknown": {
+      "title": "Unexpected error",
+      "body": "Something went wrong. Details are not shown.",
+      "retry": "Try again"
+    }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The requested page does not exist.",
+    "back": "Back to the cockpit"
+  },
+  "states": {
+    "completed": "Completed",
+    "indexed": "Indexed",
+    "ready": "Ready",
+    "accepted": "OK",
+    "active": "Active",
+    "up": "Available",
+    "down": "Down",
+    "confirmed": "Confirmed",
+    "classified": "Classified",
+    "system_linked": "System-linked",
+    "linked": "Linked",
+    "analyzed": "Analyzed",
+    "running": "Running",
+    "processing": "Processing",
+    "queued": "Queued",
+    "retrying": "Retrying",
+    "pending": "Pending",
+    "proposed": "Proposed",
+    "review_required": "Review required",
+    "needs_review": "Review required",
+    "ambiguous": "Ambiguous",
+    "unready": "Not ready",
+    "shutting_down": "Shutting down",
+    "corrected": "Corrected",
+    "unreviewed": "Unreviewed",
+    "not_configured": "Not configured",
+    "not_analyzed": "Not analyzed",
+    "unknown": "Unknown",
+    "cancelled": "Cancelled",
+    "dismissed": "Dismissed",
+    "withdrawn": "Withdrawn",
+    "failed": "Failed",
+    "rejected": "Rejected",
+    "blocked": "Blocked",
+    "success": "Successful",
+    "not_applicable": "Not applicable",
+    "evidenced": "Evidenced"
+  },
+  "cockpit": {
+    "title": "Enterprise Cockpit",
+    "description": "Operational status for tenant {tenant}. All values come live from the RAGOps API.",
+    "loading": "Loading …",
+    "jobsTotal": "Processing jobs",
+    "jobsActive": "Active jobs",
+    "jobsFailed": "Failed jobs",
+    "findings": "Open review items",
+    "systemStatus": "System status",
+    "systemStatusHint": "Liveness and readiness of the API and its dependencies.",
+    "liveness": "Liveness",
+    "readiness": "Readiness",
+    "critical": "critical",
+    "components": {
+      "postgres": "PostgreSQL",
+      "postgresql": "PostgreSQL",
+      "redis": "Redis",
+      "queue": "Queue",
+      "rate_limiter": "Rate limiting",
+      "qdrant": "Qdrant (vector index)",
+      "vector": "Vector index",
+      "identity": "Identity provider",
+      "audit": "Audit log",
+      "llm": "Language model"
+    },
+    "processing": "Document processing",
+    "processingHint": "{count, plural, =0 {No jobs} one {# job} other {# jobs}} (latest 200).",
+    "jobsChartLabel": "Jobs by status",
+    "jobs": "Jobs",
+    "noJobs": "No documents processed yet",
+    "noJobsHint": "Upload a synthetic document in the knowledge base.",
+    "ocrReview": "OCR review needed",
+    "reviewQueue": "Review queue",
+    "reviewQueueHint": "Document intelligence findings that need a human decision.",
+    "openFindings": "open findings",
+    "documentsNeedingReview": "{count, plural, =0 {No documents} one {# document} other {# documents}} needing review",
+    "openReviewQueue": "Open review queue",
+    "usage": "Usage & cost",
+    "usageScope": "Process-wide API counters since the last start – not per tenant.",
+    "adminOnly": "Usage and cost data are visible to administrators only.",
+    "requests": "Requests",
+    "tokens": "Tokens",
+    "estimatedCost": "Estimated cost",
+    "recentActivity": "Recent activity",
+    "recentActivityAudit": "Latest audit events of your tenant.",
+    "recentActivityJobs": "Latest processing jobs of your tenant.",
+    "noActivity": "No activity yet"
+  },
+  "copilot": {
+    "title": "AI Copilot",
+    "description": "Ask questions about your tenant's knowledge base. Answers cite their sources; without sufficient evidence the copilot declines to answer.",
+    "languageNotice": "The language switch only affects the user interface. AI answers and source texts are not translated automatically.",
+    "emptyTitle": "Ask your first question",
+    "emptyBody": "For example: Which deadlines does the reminder letter mention?",
+    "you": "You",
+    "assistant": "Copilot",
+    "thinking": "Preparing answer …",
+    "questionLabel": "Your question",
+    "questionPlaceholder": "Enter a question …",
+    "questionHint": "Enter sends, Shift+Enter adds a line. Up to 4000 characters.",
+    "topK": "Number of sources",
+    "ask": "Ask",
+    "retrySame": "Resend the same request",
+    "validation": {
+      "required": "Please enter a question.",
+      "tooLong": "The question is too long (maximum 4000 characters)."
+    },
+    "abstainedTitle": "No reliable answer",
+    "abstainedBody": "The sources found are not sufficient for a reliable answer. The copilot deliberately did not invent one.",
+    "lowEvidenceTitle": "Weak evidence",
+    "lowEvidenceBody": "The answer relies on weak evidence. Please check the sources.",
+    "injectionTitle": "Suspicious instructions detected",
+    "injectionBody": "Possible injected instructions were detected in the sources and ignored.",
+    "evidence": "Evidence {value}",
+    "replayed": "Replayed answer (idempotent)",
+    "sources": "Sources",
+    "noSources": "No sources.",
+    "page": "Page {page}",
+    "relevance": "Relevance {value}",
+    "metrics": "Query metrics",
+    "tokens": "Tokens",
+    "cost": "Estimated cost",
+    "retrievalLatency": "Retrieval latency",
+    "llmLatency": "Model latency",
+    "correlation": "Correlation ID",
+    "refusals": {
+      "forbidden": "You are not permitted to make this request. No content was disclosed.",
+      "rate_limited": "The request limit has been reached. Please wait briefly and resend the same request.",
+      "budget_exceeded": "Your tenant's budget is exhausted. The request was not executed and not charged.",
+      "key_conflict": "This request key was already used with a different question. Please ask the question again.",
+      "in_progress": "This request is already being processed. Please resend it shortly – it will not be executed twice.",
+      "reconciliation": "An earlier execution of this request must first be reconciled by operations. It will not run again.",
+      "no_model": "No approved model is available for your tenant. Please contact your administrator.",
+      "not_configured": "Cost accounting is not set up for your tenant. Without it, no requests are executed."
+    }
+  },
+  "knowledge": {
+    "title": "Knowledge Base",
+    "description": "Workspaces, collections, uploads, versions and processing jobs of your tenant.",
+    "upload": {
+      "title": "Upload document",
+      "description": "The document is processed asynchronously (text or OCR extraction, indexing, analysis).",
+      "syntheticOnly": "Upload synthetic test documents only. Real personal records are not permitted in this environment.",
+      "workspace": "Workspace",
+      "collection": "Collection",
+      "documentTitle": "Title",
+      "file": "File",
+      "fileHint": "PDF, DOCX, Markdown, text, CSV, JPG or PNG. Scans up to 12 MB, text formats up to 2 MB.",
+      "submit": "Upload",
+      "uploading": "Uploading …",
+      "accepted": "“{title}” was accepted for processing.",
+      "errors": {
+        "workspace": "Please choose a workspace.",
+        "collection": "Please choose an active collection.",
+        "title": "Please enter a title.",
+        "file": "Please choose a file.",
+        "type": "This file type is not supported.",
+        "size": "The file is too large."
+      }
+    },
+    "jobs": {
+      "title": "Processing jobs",
+      "description": "Status refreshes automatically while jobs are running.",
+      "loading": "Loading jobs …",
+      "empty": "No jobs",
+      "emptyHint": "Uploaded documents appear here.",
+      "document": "Document",
+      "status": "Status",
+      "stage": "Stage",
+      "pages": "Pages",
+      "pagesReview": "{count} to review",
+      "actions": "Actions",
+      "details": "Details",
+      "detailsFor": "Details for {title}",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "notices": {
+        "retried": "Job queued again",
+        "cancelled": "Job cancelled",
+        "actionFailed": "Action failed"
+      }
+    },
+    "details": {
+      "document": "Document",
+      "description": "Versions and page report of the text and OCR extraction.",
+      "close": "Close",
+      "loading": "Loading …",
+      "versions": "Versions",
+      "version": "Version",
+      "filename": "File",
+      "size": "Size",
+      "status": "Status",
+      "pages": "Page report",
+      "noPageReport": "No page report is available for this version yet.",
+      "reviewRequiredTitle": "Review required",
+      "reviewRequiredBody": "At least one page was recognized with low quality. Content from it is not considered verified.",
+      "page": "Page",
+      "method": "Method",
+      "confidence": "OCR confidence",
+      "words": "Words",
+      "quality": "Quality"
+    },
+    "structure": {
+      "title": "Workspaces & collections",
+      "loading": "Loading …",
+      "empty": "No workspaces",
+      "inactive": "inactive"
+    }
+  },
+  "intelligence": {
+    "title": "Document Intelligence",
+    "description": "Deterministically extracted classifications, parties, amounts and deadlines – with source evidence and human review.",
+    "sections": "Document intelligence sections",
+    "legalNotice": "Amounts shown are statements taken from documents. They are not a legal assessment and do not confirm that a debt is owed or currently outstanding.",
+    "tabs": {
+      "documents": "Documents",
+      "findings": "Review findings",
+      "claims": "Claims",
+      "creditors": "Creditors",
+      "deadlines": "Deadlines",
+      "persons": "Persons"
+    },
+    "documents": {
+      "loading": "Loading documents …",
+      "caption": "Analyzed documents",
+      "filterClass": "Classification",
+      "filterReview": "Review status",
+      "all": "All",
+      "needsReview": "Review required",
+      "noReview": "No review required",
+      "empty": "No analyzed documents",
+      "emptyHint": "Analysis results appear here after an upload has been processed.",
+      "title": "Title",
+      "classification": "Classification",
+      "debtor": "Debtor attribution",
+      "status": "Status"
+    },
+    "findings": {
+      "loading": "Loading findings …",
+      "caption": "Open review findings",
+      "empty": "No open review findings",
+      "emptyHint": "All results are reviewed or need no decision.",
+      "kind": "Kind",
+      "reason": "Reason",
+      "subject": "Subject",
+      "open": "Open",
+      "openDocument": "Open document",
+      "openClaims": "Open claims"
+    },
+    "creditors": {
+      "loading": "Loading creditors …",
+      "caption": "Creditors",
+      "empty": "No creditors detected",
+      "creditor": "Creditor",
+      "roles": "Roles",
+      "documents": "Documents"
+    },
+    "deadlines": {
+      "loading": "Loading deadlines …",
+      "caption": "Deadlines",
+      "hint": "Dates as stated in the document; they are not legally assessed.",
+      "empty": "No deadlines detected",
+      "date": "Date",
+      "type": "Type",
+      "document": "Document",
+      "page": "Page",
+      "state": "Review status"
+    },
+    "claims": {
+      "loading": "Loading claims …",
+      "summary": "Summary",
+      "summaryHint": "A total is only formed when every claim group is resolved.",
+      "consolidated": "Sum of the latest stated amounts of all resolved claims",
+      "noTotalTitle": "No total",
+      "noTotalBody": "{count, plural, one {# open item prevents} other {# open items prevent}} a reliable total. Please review the entries.",
+      "resolvedSubtotal": "Subtotal of resolved groups",
+      "rule": "Rule: {rule}",
+      "empty": "No claim groups detected",
+      "identifier": "Identifier",
+      "resolved": "resolved",
+      "unresolved": "open",
+      "settledStated": "settled according to document",
+      "reviewGroup": "Review group",
+      "review": "Review",
+      "latestStatedBalance": "Latest balance stated in a document (not confirmed)",
+      "latestPrincipalOnly": "Latest stated principal without a balance (not confirmed)",
+      "statedAsOf": "Stated as of {date}",
+      "noLatest": "No unambiguous latest stated amount can be determined.",
+      "openPoints": "Open items",
+      "history": "Amount history",
+      "document": "Document",
+      "amountType": "Amount type",
+      "statedAmount": "Stated amount",
+      "role": "Role in claim",
+      "membership": "Membership"
+    },
+    "persons": {
+      "title": "Person profiles",
+      "hint": "Alias values are not shown for privacy reasons, only their count.",
+      "loading": "Loading persons …",
+      "empty": "No person profiles",
+      "create": "Create person profile",
+      "createHint": "Profiles link documents to an affected person.",
+      "label": "Label",
+      "labelInvalid": "Please enter 1–120 characters.",
+      "createAction": "Create",
+      "created": "Person profile created",
+      "status": "Status",
+      "aliases": "Aliases",
+      "actions": "Actions",
+      "addAlias": "Add alias",
+      "aliasPrivacy": "Aliases are used for matching only and are not shown again after saving.",
+      "aliasKind": "Kind",
+      "aliasValue": "Value",
+      "aliasInvalid": "Please enter 2–255 characters.",
+      "aliasAdded": "Alias saved",
+      "kinds": {
+        "name": "Name",
+        "identifier": "Identifier"
+      },
+      "cancel": "Cancel",
+      "save": "Save",
+      "close": "Close"
+    },
+    "document": {
+      "loading": "Loading document …",
+      "back": "Back to overview",
+      "description": "Analysis result with source evidence. Corrections are stored next to the original value and logged in a tamper-evident audit trail.",
+      "reviewDocument": "Review document",
+      "reprocess": "Analyze again",
+      "reprocessQueued": "Re-analysis queued",
+      "readOnlyTitle": "Read-only access",
+      "readOnlyBody": "Review decisions are reserved for the administration and compliance roles.",
+      "injectionTitle": "Embedded instructions ignored",
+      "injectionBody": "{count, plural, one {# line} other {# lines}} with instruction-like content were ignored during analysis.",
+      "classification": "Classification",
+      "debtor": "Debtor attribution",
+      "analysis": "Analysis",
+      "reviewNeeded": "Review needed",
+      "classifications": "Classifications",
+      "classificationsHint": "Candidates with evidence strength; exactly one class can be confirmed.",
+      "class": "Class",
+      "strength": "Evidence strength",
+      "state": "Status",
+      "actions": "Actions",
+      "primary": "primary",
+      "review": "Review",
+      "facts": "Extracted statements",
+      "factsHint": "Values from the document or derived by rules. Reviewer corrections are marked.",
+      "noFacts": "No statements extracted",
+      "factType": "Statement",
+      "value": "Value",
+      "page": "Page",
+      "source": "Source",
+      "sourceFor": "Source of {type}",
+      "rejectedValue": "rejected",
+      "correctedByReviewer": "corrected by reviewer",
+      "persons": "Linked persons",
+      "noPersons": "No persons linked",
+      "personRoles": {
+        "debtor": "Debtor",
+        "addressee": "Addressee"
+      },
+      "claimGroups": "Claim groups",
+      "noClaimGroups": "Not assigned to a claim group",
+      "openClaims": "Go to claims overview"
+    },
+    "source": {
+      "title": "Source evidence",
+      "description": "Origin of the statement in the original document.",
+      "close": "Close",
+      "loading": "Loading source …",
+      "document": "Document",
+      "factType": "Statement",
+      "assertion": "Origin",
+      "page": "Page",
+      "line": "Line",
+      "method": "Extraction",
+      "quality": "Quality",
+      "reviewState": "Review status",
+      "statedAmount": "Stated amount",
+      "statedDate": "Stated date",
+      "rawValue": "Original text",
+      "untranslated": "Reproduced unchanged and not translated.",
+      "highlightLimitTitle": "No original view",
+      "highlightLimitBody": "The API does not serve the original file, so a page view with highlighting is not available (stored regions: {regions})."
+    },
+    "review": {
+      "title": "Review decision",
+      "close": "Close",
+      "auditNotice": "Every decision is logged immutably with your identifier, the reason and the version number.",
+      "action": "Decision",
+      "reason": "Reason",
+      "amount": "Corrected amount",
+      "amountHint": "Non-negative, at most two decimal places, e.g. 1234.50.",
+      "currency": "Currency",
+      "date": "Corrected date",
+      "text": "Corrected value",
+      "person": "Person",
+      "role": "Role",
+      "roles": {
+        "debtor": "Debtor",
+        "addressee": "Addressee"
+      },
+      "statusNotCorrectable": "Status statements can only be confirmed or rejected.",
+      "submit": "Save decision",
+      "cancel": "Cancel",
+      "saved": "Decision saved",
+      "conflictTitle": "Changed in the meantime",
+      "conflictBody": "Someone else has already edited this item. The view was reloaded – please check the current state and open the review again.",
+      "invalid": {
+        "amount": "Please enter a non-negative amount with at most two decimal places and a three-letter currency.",
+        "date": "Please enter a valid date.",
+        "text": "Please enter 1–255 characters.",
+        "generic": "Please check your input."
+      },
+      "actions": {
+        "confirm": "Confirm",
+        "reject": "Reject",
+        "correct": "Correct",
+        "dismiss": "Dissolve group",
+        "mark_for_review": "Flag for review",
+        "clear_review_flag": "Clear review flag",
+        "assign_person": "Assign person"
+      },
+      "reasons": {
+        "verified_against_source": "Verified against source",
+        "extraction_error": "Extraction error",
+        "wrong_party": "Wrong party",
+        "not_same_claim": "Not the same claim",
+        "duplicate": "Duplicate",
+        "not_a_claim": "Not a claim",
+        "needs_follow_up": "Needs follow-up",
+        "other": "Other"
+      }
+    },
+    "classes": {
+      "invoice": "Invoice",
+      "payment_reminder": "Payment reminder",
+      "formal_demand": "Formal demand",
+      "debt_collection_letter": "Debt collection letter",
+      "payment_order_or_court_notice": "Payment order / court notice",
+      "enforcement_document": "Enforcement document",
+      "creditor_statement": "Creditor statement",
+      "loan_agreement": "Loan agreement",
+      "payment_receipt": "Payment receipt",
+      "settlement_agreement": "Settlement / payment plan",
+      "correspondence": "Correspondence",
+      "unrelated_document": "Unrelated document",
+      "unknown": "Unknown"
+    },
+    "categories": {
+      "party": "Party",
+      "amount": "Amount",
+      "identifier": "Identifier",
+      "date": "Date",
+      "status": "Status statement"
+    },
+    "factTypes": {
+      "creditor": "Creditor",
+      "creditor_address": "Creditor address",
+      "debtor": "Debtor",
+      "addressee": "Addressee",
+      "collection_agency": "Collection agency",
+      "original_creditor": "Original creditor",
+      "current_claimant": "Current claimant",
+      "court_or_authority": "Court / authority",
+      "guarantor": "Guarantor",
+      "representative": "Representative",
+      "other_party": "Other party",
+      "principal_amount": "Principal",
+      "interest_amount": "Interest",
+      "fee_amount": "Fees",
+      "collection_cost_amount": "Collection costs",
+      "court_cost_amount": "Court costs",
+      "payment_made_amount": "Payment made",
+      "stated_remaining_balance": "Stated remaining balance",
+      "stated_total_claim": "Stated total claim",
+      "unclassified_amount": "Unclassified amount",
+      "invoice_number": "Invoice number",
+      "reference_number": "Reference number",
+      "collection_case_number": "Collection case number",
+      "court_case_number": "Court case number",
+      "contract_reference": "Contract reference",
+      "payment_reference": "Payment reference",
+      "issue_date": "Issue date",
+      "due_date": "Due date",
+      "payment_deadline": "Payment deadline",
+      "interest_calculation_date": "Interest calculation date",
+      "other_date": "Other date",
+      "payment_requested": "Payment requested",
+      "payment_reported": "Payment reported",
+      "disputed": "Disputed",
+      "settled": "Settled",
+      "payment_arrangement_mentioned": "Payment plan mentioned",
+      "enforcement_mentioned": "Enforcement mentioned"
+    },
+    "reviewStates": {
+      "unreviewed": "Unreviewed",
+      "review_required": "Review required",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "corrected": "Corrected"
+    },
+    "assertions": {
+      "document_stated": "Stated in document",
+      "rule_inferred": "Derived by rule"
+    },
+    "amountRoles": {
+      "payment": "Payment",
+      "unclassified": "Unclassified",
+      "potentially_current": "Latest stated",
+      "component": "Component",
+      "historical": "Historical"
+    },
+    "findingKinds": {
+      "fact": "Statement",
+      "classification": "Classification",
+      "debtor": "Debtor",
+      "document": "Document",
+      "analysis": "Analysis",
+      "claim_group": "Claim group"
+    },
+    "findingReasons": {
+      "low_quality_source": "Low source quality (OCR)",
+      "review_required": "Review required",
+      "ambiguous": "Ambiguous classification",
+      "unknown": "Classification unknown",
+      "ambiguous_debtor": "Debtor ambiguous",
+      "flagged_by_reviewer": "Flagged by reviewer",
+      "analysis_failed": "Analysis failed",
+      "proposed": "Grouping proposed",
+      "needs_review": "Review group",
+      "no_claim_identifier": "No claim identifier",
+      "membership_rejected": "Membership rejected",
+      "membership_proposed": "Membership proposed",
+      "group_proposed": "Group proposed",
+      "group_needs_review": "Review group",
+      "no_stated_amount": "No stated amount",
+      "issue_date_missing": "Issue date missing",
+      "conflicting_latest_amounts": "Conflicting latest amounts",
+      "currency_missing": "Currency missing",
+      "amount_review_required": "Amount must be reviewed",
+      "group_confirmed": "Group confirmed",
+      "group_dismissed": "Group dissolved"
+    },
+    "claimStatus": {
+      "system_linked": "System-linked",
+      "confirmed": "Confirmed",
+      "dismissed": "Dissolved",
+      "proposed": "Proposed",
+      "needs_review": "Review required"
+    },
+    "debtorStatus": {
+      "identified": "Attributed",
+      "ambiguous": "Ambiguous",
+      "unmatched": "Not attributed",
+      "unknown": "Unknown"
+    },
+    "classificationStatus": {
+      "classified": "Clearly classified",
+      "ambiguous": "Ambiguous",
+      "unknown": "Not classifiable",
+      "not_analyzed": "Not analyzed"
+    },
+    "evidenceStrength": {
+      "strong": "strong",
+      "moderate": "moderate",
+      "weak": "weak"
+    },
+    "extractionMethods": {
+      "native_text": "Text layer (PDF)",
+      "ocr": "OCR (text recognition)",
+      "text": "Text file"
+    }
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "description": "Operational metrics, dependency readiness and RAG evaluation.",
+    "metrics": {
+      "title": "Operational metrics",
+      "hint": "Prometheus counters of the API instance (process-wide).",
+      "loading": "Loading metrics …",
+      "chartLabel": "History since this page was opened",
+      "up": "available",
+      "down": "unreachable",
+      "unknown": "unknown",
+      "names": {
+        "ragops_request_count": "Requests",
+        "ragops_success_count": "Successful",
+        "ragops_failure_count": "Failed",
+        "ragops_avg_latency_ms": "Avg. latency (ms)",
+        "ragops_avg_retrieval_latency_ms": "Avg. retrieval latency (ms)",
+        "ragops_total_tokens": "Tokens",
+        "ragops_ingestion_jobs_total": "Accepted uploads",
+        "ragops_ingestion_queue_depth": "Queue depth",
+        "ragops_ingestion_queue_up": "Queue"
+      }
+    },
+    "readiness": {
+      "title": "Dependency readiness",
+      "hint": "Critical components must be available for the API to accept requests.",
+      "loading": "Loading …",
+      "overall": "Overall",
+      "component": "Component",
+      "critical": "Critical",
+      "status": "Status",
+      "reason": "Reason",
+      "yes": "yes",
+      "no": "no"
+    },
+    "evaluation": {
+      "title": "RAG evaluation",
+      "hint": "Latest run of the gold-question evaluation (synthetic).",
+      "loading": "Loading …",
+      "notRun": "No evaluation run is available yet.",
+      "fields": {
+        "retrieval_hit_rate": "Retrieval hit rate",
+        "precision_at_5": "Precision@5",
+        "recall_at_5": "Recall@5",
+        "citation_coverage": "Citation coverage",
+        "abstention_rate": "Abstention rate",
+        "security_test_pass_rate": "Security tests passed",
+        "case_count": "Test cases",
+        "tenant_leakage_count": "Tenant leaks"
+      }
+    }
+  },
+  "finops": {
+    "title": "FinOps",
+    "description": "Cost counters, budgets and simulations of the budget and routing policies.",
+    "tenantUsageGapTitle": "Per-tenant usage data not available",
+    "tenantUsageGapBody": "The API endpoints for per-tenant usage, forecast and alerts currently return static placeholders only. They are deliberately not shown here as metrics.",
+    "counters": {
+      "title": "Process counters",
+      "scope": "Since the last start of this API instance, across all tenants. Not a basis for billing.",
+      "loading": "Loading …",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "cost": "Estimated cost"
+    },
+    "budgets": {
+      "title": "Budgets",
+      "hint": "Budgets of your tenant.",
+      "loading": "Loading …",
+      "empty": "No budgets",
+      "id": "ID",
+      "amount": "Amount",
+      "amountEur": "Amount (EUR)",
+      "mode": "Enforcement",
+      "create": "Create budget",
+      "created": "Budget created",
+      "invalid": "Please enter a positive amount.",
+      "volatileNotice": "Note: the API currently keeps these budgets in memory only; they are lost on restart."
+    },
+    "modes": {
+      "monitor": "Monitor",
+      "optimize": "Optimize",
+      "hard_limit": "Hard limit"
+    },
+    "simulation": {
+      "title": "Budget simulation",
+      "hint": "Evaluates a decision with the default hard-limit policy. No cost is incurred.",
+      "estimated": "Estimated cost (EUR)",
+      "budget": "Budget (EUR)",
+      "run": "Simulate",
+      "simulationOnly": "Simulation only",
+      "decision": "Decision",
+      "state": "State",
+      "projected": "Projected spend"
+    },
+    "router": {
+      "title": "Routing simulation",
+      "hint": "Shows which model the router would choose. No model is called.",
+      "intent": "Request type",
+      "intents": {
+        "factual": "Factual question",
+        "compliance": "Compliance",
+        "legal": "Legal",
+        "security": "Security",
+        "critical_operations": "Critical operations"
+      },
+      "chunks": "Retrieved chunks",
+      "highRisk": "High risk",
+      "run": "Simulate",
+      "class": "Routing class",
+      "model": "Model",
+      "estimate": "Cost estimate",
+      "reasons": "Reason codes"
+    }
+  },
+  "governance": {
+    "title": "Governance & Operations",
+    "description": "Audit log, model catalog, model policies and system readiness of your tenant.",
+    "audit": {
+      "title": "Audit log",
+      "hint": "The latest 100 events of your tenant. Question and answer content is not logged.",
+      "filter": "Filter by event type",
+      "loading": "Loading …",
+      "empty": "No audit events",
+      "time": "Time",
+      "event": "Event",
+      "outcome": "Outcome",
+      "user": "User",
+      "correlation": "Correlation",
+      "filterPlaceholder": "e.g. query_"
+    },
+    "models": {
+      "title": "Model catalog & providers",
+      "hint": "Approved models and their routing tier.",
+      "loading": "Loading …",
+      "model": "Model",
+      "tier": "Tier",
+      "enabled": "Enabled",
+      "highRisk": "High risk allowed",
+      "yes": "yes",
+      "no": "no",
+      "readOnly": "Changes to the shared catalog are reserved for platform administration and not possible here.",
+      "health": {
+        "healthy": "ready",
+        "unknown": "status unknown"
+      }
+    },
+    "policies": {
+      "title": "Model policies",
+      "hint": "Policy configured for your tenant.",
+      "loading": "Loading …",
+      "empty": "No tenant-specific policy",
+      "emptyHint": "The platform default policy applies.",
+      "fields": {
+        "tenant_id": "Tenant",
+        "allowed_providers": "Allowed providers",
+        "allowed_models": "Allowed models",
+        "high_risk_models": "High-risk models",
+        "default_tier": "Default tier",
+        "max_routing_tier": "Maximum tier",
+        "cost_ceiling_eur": "Cost ceiling (EUR)",
+        "fallback_enabled": "Fallback enabled"
+      }
+    }
+  }
+}

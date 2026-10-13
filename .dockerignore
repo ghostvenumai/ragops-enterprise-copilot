@@ -11,3 +11,5 @@ evidence/*.xml
 evidence/*.json
 evidence/*.md
 .loop/logs
+# The Next.js frontend is not part of the API image (it has its own build context).
+apps/web
