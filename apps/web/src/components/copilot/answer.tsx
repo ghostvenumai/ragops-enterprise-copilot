@@ -92,9 +92,9 @@ export function AnswerView({ result, replayed }: { result: QueryResponse; replay
   );
 }
 
-export function RefusalView({ code }: { code: "forbidden" | "rate_limited" | "budget_exceeded" | "key_conflict" | "in_progress" | "reconciliation" | "no_model" | "not_configured" }) {
+export function RefusalView({ code }: { code: "forbidden" | "rate_limited" | "budget_exceeded" | "key_conflict" | "in_progress" | "reconciliation" | "no_model" | "egress_denied" | "not_configured" }) {
   const t = useTranslations("copilot.refusals");
-  const Icon = code === "forbidden" ? ShieldAlert : AlertTriangle;
+  const Icon = code === "forbidden" || code === "egress_denied" ? ShieldAlert : AlertTriangle;
   // A refusal is an outcome, not a crash: it is announced politely with its reason.
   return (
     <div className="flex gap-2 text-sm" data-testid={`refusal-${code}`}>

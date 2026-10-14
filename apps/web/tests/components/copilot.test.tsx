@@ -58,6 +58,7 @@ describe("Copilot", () => {
 
   it.each([
     [409, "no eligible model", "refusal-no_model", false],
+    [409, "external processing not authorized", "refusal-egress_denied", false],
     [409, "idempotency key reused with a different request", "refusal-key_conflict", false],
     [409, "idempotent request in progress", "refusal-in_progress", true],
     [429, "budget_limit_exceeded", "refusal-budget_exceeded", false],

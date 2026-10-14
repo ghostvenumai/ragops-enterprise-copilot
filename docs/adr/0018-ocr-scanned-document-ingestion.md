@@ -54,6 +54,25 @@ already legible text by a fractional factor made Tesseract misread glyphs at hig
 no confidence-based quality check can catch; small text and pages without measurable ink are
 still upscaled as before (ENT-12-UI closure finding).
 
+**Render resolution.** PDF pages are rendered at the configured resolution (300 dpi, capped by
+the per-page pixel limit), with one exception (ENT-13.1 closure finding): a page that is
+nothing but one scanned image is rendered at the scan's own resolution when that is lower.
+Rendering a 150 dpi scan at 300 dpi only resampled it 2x, and Tesseract then misread digits
+at high confidence ("875167" as "87516/", "777777" as "77777]"; 4 of 8 fixed reference
+numbers of the gate's letter page). The scan resolution is taken from the image's declared
+pixel size and its placement matrix, and only when it is reliable: exactly one unmasked
+image XObject, placed upright without shear, rotation or mirroring, filling the crop box
+(edges within 0.5 %), horizontal and vertical resolution within 1 % of each other, at least
+100 dpi, and no visible text or vector drawing on the page (an invisible text layer is
+allowed and stays untrusted). Mixed pages, partial or multiple images, inline images and
+every other case keep the configured resolution. If the text on the native render is small
+(median line height below 16 px, measured with the lines horizontal), the page is rendered
+again at the configured resolution, as before, because `prepare_for_ocr` does not enlarge a
+page whose long side already exceeds 1600 px; both renders count towards the document pixel
+budget. The choice is recorded as the transformation `native_dpi:<dpi>`; boxes stay in
+`page-normalized-v1`, so stored coordinates do not depend on it. The resolution is never
+lowered globally and never raised above the configured limits.
+
 **Quality gate.** OCR confidence is Tesseract's per-word score, a tool-derived indicator and not
 a probability of correctness. A page is `ocr_review_required` when no text was recognized on an
 inked page, the mean word confidence is below 65, more than 35 % of words score below 40,

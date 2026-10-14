@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from scripts import external_llm_provider_gate as live_gate
+from tests.security.privacy_helpers import permit_for
 
 from ragops.llm.providers import (
     AzureOpenAIProvider,
@@ -12,6 +13,13 @@ from ragops.llm.providers import (
     ProviderErrorCategory,
 )
 from ragops.storage.models import Citation
+
+
+def send(provider, question, citations, context):
+    """Every external call needs a real permit for exactly this payload."""
+    return provider.generate(
+        question, citations, context, permit=permit_for(provider, question, citations, context)
+    )
 
 
 def response(text: str = "Antwort [DOC-1]") -> SimpleNamespace:
@@ -64,7 +72,7 @@ def test_openai_provider_executes_real_sdk_contract_without_fallback(monkeypatch
         )
     )
     provider = OpenAIProvider(client=client)
-    result = provider.generate("question", [citation()], "evidence")
+    result = send(provider, "question", [citation()], "evidence")
     assert result.text == "Antwort [DOC-1]"
     assert result.usage.total_tokens == 15
     assert result.used_source_ids == ("DOC-1",)
@@ -72,6 +80,8 @@ def test_openai_provider_executes_real_sdk_contract_without_fallback(monkeypatch
     assert calls.calls[0]["max_output_tokens"] == 600
     assert calls.calls[0]["input"][0]["role"] == "system"
     assert "Evidence" in calls.calls[0]["input"][1]["content"]
+    # The response is not kept by the provider for later retrieval (ENT-13.1, P02).
+    assert calls.calls[0]["store"] is False
 
 
 def test_azure_provider_executes_same_contract(monkeypatch) -> None:
@@ -81,7 +91,7 @@ def test_azure_provider_executes_same_contract(monkeypatch) -> None:
     monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2026-01-01")
     client, calls = fake_client(response("Azure response"))
     provider = AzureOpenAIProvider(client=client)
-    assert provider.generate("question", [], "evidence").text == "Azure response"
+    assert send(provider, "question", [], "evidence").text == "Azure response"
     assert calls.calls[0]["model"] == "deployment"
 
 
@@ -95,7 +105,7 @@ def test_openai_responses_output_fallback_and_limit(monkeypatch) -> None:
         model="test-model",
     )
     client, calls = fake_responses_client(result)
-    generated = OpenAIProvider(client=client).generate("question", [], "evidence")
+    generated = send(OpenAIProvider(client=client), "question", [], "evidence")
     assert generated.text == "fallback text"
     assert generated.usage.prompt_tokens == 2
     assert calls.calls[0]["max_output_tokens"] == 16
@@ -116,7 +126,7 @@ def test_external_errors_are_normalized(monkeypatch, exception: BaseException, c
     client, _ = fake_responses_client(exception)
     provider = OpenAIProvider(client=client)
     with pytest.raises(ProviderError) as raised:
-        provider.generate("question", [], "evidence")
+        send(provider, "question", [], "evidence")
     assert raised.value.category == category
 
 
@@ -127,7 +137,7 @@ def test_empty_provider_response_fails_closed(monkeypatch) -> None:
         SimpleNamespace(output_text="", output=[], usage=SimpleNamespace())
     )
     with pytest.raises(ProviderError, match="no text"):
-        OpenAIProvider(client=client).generate("question", [], "evidence")
+        send(OpenAIProvider(client=client), "question", [], "evidence")
 
 
 def test_live_gate_blocks_without_external_provider(monkeypatch, tmp_path) -> None:
@@ -196,7 +206,8 @@ def test_live_gate_success_path_is_single_call_and_sanitized(monkeypatch, tmp_pa
     class FakeProvider:
         model = "gpt-5.6-luna"
 
-        def generate(self, question, citations, context):
+        def generate(self, question, citations, context, *, permit=None):
+            assert permit is not None  # the fixed synthetic probe is the only permitted payload
             assert question.startswith("Return a short confirmation")
             assert citations == []
             assert "Synthetic connectivity probe" in context
@@ -223,7 +234,7 @@ def test_live_gate_provider_failure_is_fail_after_execution(monkeypatch, tmp_pat
     monkeypatch.setenv("RAGOPS_ALLOW_PAID_INTEGRATION_TESTS", "1")
 
     class FailingProvider:
-        def generate(self, question, citations, context):
+        def generate(self, question, citations, context, *, permit=None):
             raise ProviderError(ProviderErrorCategory.AUTHENTICATION)
 
     monkeypatch.setattr(live_gate, "provider_from_env", lambda: FailingProvider())
@@ -233,3 +244,34 @@ def test_live_gate_provider_failure_is_fail_after_execution(monkeypatch, tmp_pat
     assert '"status": "FAIL"' in evidence
     assert '"live_request_status": "EXECUTED"' in evidence
     assert '"request_count": 1' in evidence
+
+
+@pytest.mark.parametrize("kind", ["openai", "azure"])
+def test_external_adapters_send_nothing_without_a_valid_permit(monkeypatch, kind) -> None:
+    """ENT-13.1: no permit, a permit for another payload, or a reused permit: no request."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://azure.example")
+    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "deployment")
+    monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2026-01-01")
+    if kind == "openai":
+        client, calls = fake_responses_client(
+            SimpleNamespace(output_text="ok", usage=SimpleNamespace(), model="test-model")
+        )
+        provider = OpenAIProvider(client=client)
+    else:
+        client, calls = fake_client(response("ok"))
+        provider = AzureOpenAIProvider(client=client)
+    private = "Max Mustermann, IBAN DE89370400440532013000"
+    with pytest.raises(ProviderError) as raised:
+        provider.generate(private, [], "evidence")
+    assert raised.value.category == ProviderErrorCategory.POLICY_DENIED
+    other = permit_for(provider, "another question", [], "evidence")
+    with pytest.raises(ProviderError):
+        provider.generate(private, [], "evidence", permit=other)
+    permit = permit_for(provider, "question", [], "evidence")
+    provider.generate("question", [], "evidence", permit=permit)
+    with pytest.raises(ProviderError):
+        provider.generate("question", [], "evidence", permit=permit)
+    assert len(calls.calls) == 1 and private not in repr(calls.calls)

@@ -23,6 +23,7 @@ from enum import StrEnum
 from pathlib import PurePath
 from typing import Any
 
+import numpy as np
 from PIL import Image
 
 from ragops.ingestion.extract import DocumentExtractionError, extract_segments
@@ -42,7 +43,14 @@ from ragops.ingestion.ocr import (
     OcrWord,
     TesseractEngine,
 )
-from ragops.ingestion.raster import PdfRenderer, ink_ratio, load_image, prepare_for_ocr
+from ragops.ingestion.raster import (
+    MIN_TEXT_LINE_PX,
+    PdfRenderer,
+    ink_ratio,
+    load_image,
+    prepare_for_ocr,
+    text_line_height,
+)
 
 __all__ = [
     "COORDINATE_SPACE",
@@ -68,6 +76,10 @@ BLANK_INK = 0.0002
 MAX_CONTENT_OPERATIONS = 500_000
 MAX_FORM_DEPTH = 3
 NATIVE_PLAUSIBLE_RATIO = 0.5
+# Native-resolution rendering of a single full-page scan (see _native_scan_dpi).
+NATIVE_SCAN_MIN_DPI = 100.0
+NATIVE_SCAN_DPI_AGREEMENT = 0.01  # horizontal and vertical estimates may differ by 1 %
+NATIVE_SCAN_EDGE_TOLERANCE = 0.005  # placement edge vs. crop box, share of the page side
 DUPLICATE_LINE_SHARE = 0.8
 # Quality gate thresholds (Tesseract word confidences are 0-100 tool scores).
 REVIEW_MEAN_CONFIDENCE = 65.0
@@ -282,6 +294,14 @@ def assess_ocr(words: list[OcrWord], size: tuple[int, int], ink: float) -> PageQ
 # --------------------------------------------------------------------------- PDF layout
 
 
+@dataclass(frozen=True)
+class _Placement:
+    """One drawn image: the matrix in effect and its intrinsic size (None if unknown)."""
+
+    ctm: tuple[float, ...]
+    pixels: tuple[int, int] | None
+
+
 @dataclass
 class _Layout:
     width: float
@@ -292,6 +312,8 @@ class _Layout:
     invisible_text_ops: int = 0
     vector_ops: int = 0
     image_boxes: list[Box] = field(default_factory=list)
+    placements: list[_Placement] = field(default_factory=list)
+    crop: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
     operations: int = 0
 
     @property
@@ -360,7 +382,7 @@ class _ContentWalker:
             elif operator in {b"f", b"F", b"f*", b"S", b"s", b"B", b"B*", b"b", b"b*"}:
                 self.layout.vector_ops += 1
             elif operator == b"INLINE IMAGE":
-                self._image(ctm)
+                self._image(ctm, None)
             elif operator == b"Do" and operands:
                 target = xobjects.get(operands[0]) if xobjects else None
                 if target is None:
@@ -368,7 +390,7 @@ class _ContentWalker:
                 target = target.get_object()
                 subtype = target.get("/Subtype")
                 if subtype == "/Image":
-                    self._image(ctm)
+                    self._image(ctm, _intrinsic_pixels(target))
                 elif subtype == "/Form" and depth < MAX_FORM_DEPTH:
                     matrix = _matrix(list(target.get("/Matrix", [1, 0, 0, 1, 0, 0])))
                     self.walk(
@@ -378,7 +400,8 @@ class _ContentWalker:
                         depth + 1,
                     )
 
-    def _image(self, ctm: tuple[float, ...]) -> None:
+    def _image(self, ctm: tuple[float, ...], pixels: tuple[int, int] | None) -> None:
+        self.layout.placements.append(_Placement(ctm, pixels))
         corners = [
             (ctm[0] * x + ctm[2] * y + ctm[4], ctm[1] * x + ctm[3] * y + ctm[5])
             for x, y in ((0, 0), (1, 0), (0, 1), (1, 1))
@@ -390,6 +413,61 @@ class _ContentWalker:
         box = _rotate_box(Box(min(xs), min(ys), max(xs), max(ys)), self.layout.rotation)
         if box.area >= MIN_REGION_AREA:
             self.layout.image_boxes.append(box)
+
+
+def _intrinsic_pixels(image: Any) -> tuple[int, int] | None:
+    """Declared width and height of an image XObject; None when invalid or soft-masked."""
+    if "/SMask" in image or "/Mask" in image:
+        return None  # a mask has its own resolution
+    width, height = image.get("/Width"), image.get("/Height")
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+        return None
+    return int(width), int(height)
+
+
+def _native_scan_dpi(layout: _Layout) -> float | None:
+    """Resolution of the one image that makes up a scanned page, when it is reliable.
+
+    Rendering such a page above the scan's own resolution only resamples it; that made
+    Tesseract misread digits ("7" as "/" or "]") at high confidence (ENT-13.1 closure). Only a
+    page that is exactly one upright, unsheared, unmasked image filling the crop box, with no
+    visible text or vector drawing and agreeing horizontal and vertical resolution, qualifies;
+    everything else keeps the configured render resolution. An invisible text layer does not
+    disqualify a page: it is not rendered.
+    """
+    if layout.visible_text_ops or layout.vector_ops or len(layout.placements) != 1:
+        return None
+    placement = layout.placements[0]
+    if placement.pixels is None:
+        return None
+    a, b, c, d, e, f = placement.ctm
+    if a <= 0 or d <= 0 or abs(b) > 1e-6 * a or abs(c) > 1e-6 * d:
+        return None  # rotated, sheared or mirrored placement
+    left, bottom, right, top = layout.crop
+    page_width, page_height = right - left, top - bottom
+    edges = (
+        (e, left, page_width),
+        (e + a, right, page_width),
+        (f, bottom, page_height),
+        (f + d, top, page_height),
+    )
+    if any(abs(edge - target) > NATIVE_SCAN_EDGE_TOLERANCE * side for edge, target, side in edges):
+        return None  # the image does not fill the page exactly (cropped or partial)
+    dpi_x, dpi_y = placement.pixels[0] * 72 / a, placement.pixels[1] * 72 / d
+    if abs(dpi_x - dpi_y) > NATIVE_SCAN_DPI_AGREEMENT * max(dpi_x, dpi_y):
+        return None
+    native = (dpi_x + dpi_y) / 2
+    return native if math.isfinite(native) and native >= NATIVE_SCAN_MIN_DPI else None
+
+
+def _horizontal_text_line_height(image: Image.Image) -> float | None:
+    """Text line height measured with the lines horizontal (a sideways page is turned first).
+
+    Horizontal lines give the row ink profile a much larger variance than the column profile.
+    """
+    ink = np.asarray(image.convert("L")) < 128
+    upright = ink.sum(axis=1).var() >= ink.sum(axis=0).var()
+    return text_line_height(image if upright else image.transpose(Image.Transpose.ROTATE_90))
 
 
 def _rotate_box(box: Box, rotation: int) -> Box:
@@ -420,7 +498,13 @@ def _analyze(page: Any) -> _Layout:
         raise DocumentExtractionError("page has no area")
     if rotation in {90, 270}:
         width, height = height, width
-    layout = _Layout(width=width, height=height, rotation=rotation, text=page.extract_text() or "")
+    layout = _Layout(
+        width=width,
+        height=height,
+        rotation=rotation,
+        text=page.extract_text() or "",
+        crop=(left, bottom, right, top),
+    )
     _ContentWalker(layout, (left, bottom, right, top)).walk(
         page.get_contents(), page.get("/Resources"), (1, 0, 0, 1, 0, 0), 0
     )
@@ -600,26 +684,43 @@ class DocumentExtractor:
         dpi = self._dpi(layout)
         if dpi < self.limits.min_render_dpi:
             return self._unreadable(number, *dims, (*flags, "page_too_large"))
-        pixels = round(layout.width * dpi / 72) * round(layout.height * dpi / 72)
-        if budget.pixels + pixels > self.limits.max_document_pixels:
-            return self._unreadable(number, *dims, (*flags, "render_work_limit"))
-        if budget.remaining() <= 0:
-            return self._unreadable(number, *dims, (*flags, "ocr_document_timeout"))
-        try:
-            image = render(number, dpi)
-        except OcrTimeout:
-            return self._unreadable(number, *dims, (*flags, "render_timeout"))
-        except OcrEngineUnavailable:
-            raise
-        except OcrError:
-            return self._unreadable(number, *dims, (*flags, "render_failed"))
-        budget.pixels += pixels
+        attempts = [dpi]
+        native_dpi = None if mixed else _native_scan_dpi(layout)
+        if native_dpi is not None:
+            native_render = max(round(native_dpi), self.limits.min_render_dpi)
+            if native_render < dpi:
+                attempts.insert(0, native_render)
+        steps: tuple[str, ...] = ()
+        for attempt in attempts:
+            pixels = round(layout.width * attempt / 72) * round(layout.height * attempt / 72)
+            if budget.pixels + pixels > self.limits.max_document_pixels:
+                return self._unreadable(number, *dims, (*flags, "render_work_limit"))
+            if budget.remaining() <= 0:
+                return self._unreadable(number, *dims, (*flags, "ocr_document_timeout"))
+            try:
+                image = render(number, attempt)
+            except OcrTimeout:
+                return self._unreadable(number, *dims, (*flags, "render_timeout"))
+            except OcrEngineUnavailable:
+                raise
+            except OcrError:
+                return self._unreadable(number, *dims, (*flags, "render_failed"))
+            budget.pixels += pixels
+            if attempt == dpi:
+                break
+            line_height = _horizontal_text_line_height(image)
+            if line_height is None or line_height >= MIN_TEXT_LINE_PX:
+                steps = (f"native_dpi:{attempt}",)
+                break
+            # Small text at the scan's own resolution: render at the configured resolution as
+            # before, so it stays as large as it was (prepare_for_ocr cannot enlarge a page
+            # whose long side already exceeds its target).
         page_ink = ink_ratio(image)
         if not mixed and page_ink < BLANK_INK:
             return self._empty(number, *dims, flags)
         native = layout.text if mixed else ""
         return self._recognize(
-            number, image, regions, budget, flags, dims, native=native, ink=page_ink
+            number, image, regions, budget, flags, dims, native=native, ink=page_ink, steps=steps
         )
 
     # ------------------------------------------------------------------ images

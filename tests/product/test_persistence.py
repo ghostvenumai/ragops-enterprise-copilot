@@ -46,7 +46,13 @@ def test_migration_from_empty_database_matches_models(database: Engine) -> None:
         context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(context, Base.metadata) == []
         assert set(Base.metadata.tables) <= set(inspect(connection).get_table_names())
-        assert len(Base.metadata.tables) == 37
+        assert len(Base.metadata.tables) == 41
+        assert {
+            "privacy_tenant_profiles",
+            "privacy_egress_policies",
+            "privacy_egress_policy_revisions",
+            "privacy_egress_decisions",
+        } <= set(Base.metadata.tables)
 
 
 def test_reopened_database_keeps_tenant_records(database: Engine) -> None:

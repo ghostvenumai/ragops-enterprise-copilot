@@ -34,7 +34,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import InterfaceError, OperationalError, SQLAlchemyError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 
@@ -91,6 +91,7 @@ from ragops.ops.readiness import (
 )
 from ragops.persistence.database import open_engine
 from ragops.persistence.models import TenantBudget
+from ragops.privacy.egress import EgressDenied, PrivacyEgressGuard
 from ragops.retrieval.context import ContextLimits
 from ragops.retrieval.vector_retriever import InvalidTenantScope, RetrievalError, VectorRetriever
 from ragops.storage.json_store import JsonRepository
@@ -419,6 +420,10 @@ def create_app(
             if resources.database_configured()
             else None,
             max_output_tokens=max_output_tokens,
+            # Without a database there is no policy store: every external call is denied.
+            egress=PrivacyEgressGuard(resources.engine)
+            if resources.database_configured()
+            else None,
         )
     else:
         workflow = _workflow(settings, audit_logger, metrics_registry, llm_provider)
@@ -1506,6 +1511,11 @@ def create_app(
             ) from None
         except NoEligibleModel:
             raise HTTPException(status_code=409, detail="no eligible model") from None
+        except EgressDenied:
+            # The reason stays in the audit trail; the client learns nothing about policies.
+            raise HTTPException(
+                status_code=409, detail="external processing not authorized"
+            ) from None
         except BudgetLimitExceeded as exc:
             raise HTTPException(status_code=429, detail=exc.detail) from None
         except AccountingError as exc:
@@ -1615,6 +1625,36 @@ def create_app(
             return {"status": "not_run"}
         report: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
         return {"path": str(path), **report, "status": "available"}
+
+    @app.get("/v1/admin/privacy/egress-policies")
+    def privacy_egress_policies(
+        identity_context: AuthenticatedUserContext = Depends(limited("administration", admin)),  # noqa: B008
+    ) -> dict[str, object]:
+        """Read-only view of the caller's tenant; policies change through the operator CLI."""
+        if not resources.database_configured():
+            raise HTTPException(status_code=503, detail="privacy policy store unavailable")
+        from sqlalchemy import select
+
+        from ragops.persistence.models import PrivacyEgressDecision
+        from ragops.privacy.egress import decision_view
+        from ragops.privacy.policies import list_policies
+
+        tenant = identity_context.tenant_id
+        try:
+            engine = resources.engine()
+            with Session(engine) as session:
+                decisions = session.scalars(
+                    select(PrivacyEgressDecision)
+                    .where(PrivacyEgressDecision.tenant_id == tenant)
+                    .order_by(PrivacyEgressDecision.created_at.desc())
+                    .limit(50)
+                )
+                recent = [decision_view(row) for row in decisions]
+            return {"policies": list_policies(engine, tenant), "recent_decisions": recent}
+        except SQLAlchemyError:
+            raise HTTPException(
+                status_code=503, detail="privacy policy store unavailable"
+            ) from None
 
     @app.get("/v1/audit-events")
     def audit_events(

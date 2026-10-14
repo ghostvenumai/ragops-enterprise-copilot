@@ -278,6 +278,7 @@
       "in_progress": "This request is already being processed. Please resend it shortly – it will not be executed twice.",
       "reconciliation": "An earlier execution of this request must first be reconciled by operations. It will not run again.",
       "no_model": "No approved model is available for your tenant. Please contact your administrator.",
+      "egress_denied": "Processing by an external AI provider is not authorized for your tenant. No content was sent and nothing was charged.",
       "not_configured": "Cost accounting is not set up for your tenant. Without it, no requests are executed."
     }
   },

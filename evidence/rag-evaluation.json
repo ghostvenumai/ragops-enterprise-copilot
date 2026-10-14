@@ -1,6 +1,6 @@
 {
   "abstention_rate": 0.4286,
-  "avg_latency_ms": 10.271,
+  "avg_latency_ms": 10.603,
   "case_count": 28,
   "cases": [
     {
@@ -13,7 +13,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q001",
-      "latency_ms": 62.369,
+      "latency_ms": 57.745,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 266
@@ -28,7 +28,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q002",
-      "latency_ms": 10.857,
+      "latency_ms": 10.638,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 353
@@ -43,7 +43,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q003",
-      "latency_ms": 10.124,
+      "latency_ms": 10.1,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 350
@@ -58,7 +58,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q004",
-      "latency_ms": 9.772,
+      "latency_ms": 9.816,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 265
@@ -73,7 +73,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q005",
-      "latency_ms": 9.336,
+      "latency_ms": 9.62,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 196
@@ -88,7 +88,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q006",
-      "latency_ms": 9.367,
+      "latency_ms": 9.527,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -103,7 +103,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q007",
-      "latency_ms": 3.205,
+      "latency_ms": 3.228,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -118,7 +118,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q008",
-      "latency_ms": 9.295,
+      "latency_ms": 9.322,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -133,7 +133,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q009",
-      "latency_ms": 12.943,
+      "latency_ms": 9.163,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -148,7 +148,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q010",
-      "latency_ms": 10.256,
+      "latency_ms": 9.469,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -163,7 +163,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q011",
-      "latency_ms": 9.164,
+      "latency_ms": 9.163,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -178,7 +178,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q012",
-      "latency_ms": 9.215,
+      "latency_ms": 12.936,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -193,7 +193,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q013",
-      "latency_ms": 5.634,
+      "latency_ms": 10.191,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 176
@@ -208,7 +208,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q014",
-      "latency_ms": 5.965,
+      "latency_ms": 8.715,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 357
@@ -223,7 +223,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q015",
-      "latency_ms": 5.623,
+      "latency_ms": 6.789,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 197
@@ -238,7 +238,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q016",
-      "latency_ms": 5.84,
+      "latency_ms": 6.12,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 228
@@ -253,7 +253,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q017",
-      "latency_ms": 3.916,
+      "latency_ms": 3.886,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 92
@@ -268,7 +268,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q018",
-      "latency_ms": 9.508,
+      "latency_ms": 10.09,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 261
@@ -283,7 +283,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q019",
-      "latency_ms": 9.492,
+      "latency_ms": 15.101,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -298,7 +298,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q020",
-      "latency_ms": 9.041,
+      "latency_ms": 10.954,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -313,7 +313,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q021",
-      "latency_ms": 5.718,
+      "latency_ms": 6.139,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 352
@@ -328,7 +328,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q022",
-      "latency_ms": 5.768,
+      "latency_ms": 5.868,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 222
@@ -343,7 +343,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q023",
-      "latency_ms": 12.733,
+      "latency_ms": 9.355,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 199
@@ -358,7 +358,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q024",
-      "latency_ms": 7.41,
+      "latency_ms": 6.246,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -373,7 +373,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q025",
-      "latency_ms": 5.753,
+      "latency_ms": 6.532,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 0
@@ -388,7 +388,7 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q026",
-      "latency_ms": 9.807,
+      "latency_ms": 10.854,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 92
@@ -403,7 +403,7 @@
       "expected_abstain": true,
       "hit": true,
       "id": "Q027",
-      "latency_ms": 9.229,
+      "latency_ms": 9.645,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 21
@@ -418,14 +418,14 @@
       "expected_abstain": false,
       "hit": true,
       "id": "Q028",
-      "latency_ms": 10.235,
+      "latency_ms": 9.659,
       "security_pass": true,
       "tenant_leakage": false,
       "tokens": 217
     }
   ],
   "citation_coverage": 1.0,
-  "duration_ms": 294.289,
+  "duration_ms": 304.242,
   "precision_at_5": 0.7738,
   "recall_at_5": 1.0,
   "retrieval_hit_rate": 1.0,

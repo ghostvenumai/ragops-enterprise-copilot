@@ -36,6 +36,7 @@ export type RefusalCode =
   | "in_progress"
   | "reconciliation"
   | "no_model"
+  | "egress_denied"
   | "not_configured";
 
 /** Controlled refusals the API states explicitly; anything else is shown as a generic error. */
@@ -49,6 +50,7 @@ export function refusal(error: unknown): RefusalCode | null {
     if (detail.includes("different request")) return "key_conflict";
     if (detail.includes("reconciliation")) return "reconciliation";
     if (detail.includes("no eligible model")) return "no_model";
+    if (detail.includes("external processing not authorized")) return "egress_denied";
   }
   if (error.status === 503 && detail.includes("accounting not configured")) return "not_configured";
   return null;

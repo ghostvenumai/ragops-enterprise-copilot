@@ -278,6 +278,7 @@
       "in_progress": "Diese Anfrage wird bereits bearbeitet. Bitte senden Sie sie in Kürze erneut – sie wird nicht doppelt ausgeführt.",
       "reconciliation": "Eine frühere Ausführung dieser Anfrage muss erst vom Betrieb abgeglichen werden. Sie wird nicht erneut ausgeführt.",
       "no_model": "Für Ihren Mandanten ist kein freigegebenes Modell verfügbar. Bitte wenden Sie sich an Ihre Administration.",
+      "egress_denied": "Für Ihren Mandanten ist die Verarbeitung durch einen externen KI-Anbieter nicht freigegeben. Es wurden keine Inhalte übermittelt und nichts berechnet.",
       "not_configured": "Die Kostenabrechnung ist für Ihren Mandanten nicht eingerichtet. Ohne sie werden keine Anfragen ausgeführt."
     }
   },

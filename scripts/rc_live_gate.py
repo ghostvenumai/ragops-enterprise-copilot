@@ -37,6 +37,7 @@ GATES = (
     "ocr_ingestion",
     "document_intelligence",
     "web_e2e",
+    "privacy_egress",
     "security",
 )
 # Gates that persist their own detailed evidence, which the runner merges instead of replacing.
@@ -58,6 +59,7 @@ DETAILED_EVIDENCE_GATES = frozenset(
         "ocr_ingestion",
         "document_intelligence",
         "web_e2e",
+        "privacy_egress",
         "security",
     }
 )
@@ -76,6 +78,7 @@ HISTORICAL_EVIDENCE_PATHS: dict[str, tuple[str, ...]] = {
     "external_llm_provider": (
         "src/ragops/llm",
         "src/ragops/modeling",
+        "src/ragops/privacy",
         "scripts/external_llm_provider_gate.py",
         "pyproject.toml",
         "constraints.txt",
@@ -510,6 +513,12 @@ def main() -> int:
         gate_results["web_e2e"] = {
             "status": status,
             "detail": detail or "See sanitized web-e2e.json evidence",
+        }
+    if "privacy_egress" in selected:
+        status, detail = run_gate([".venv/bin/python", "scripts/privacy_egress_gate.py"])
+        gate_results["privacy_egress"] = {
+            "status": status,
+            "detail": detail or "See sanitized privacy-egress.json evidence",
         }
     if "browser_e2e" in selected:
         status, detail = run_gate([".venv/bin/python", "scripts/browser_e2e_gate.py"])

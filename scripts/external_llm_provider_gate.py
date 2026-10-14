@@ -15,6 +15,11 @@ from pathlib import Path
 
 from ragops.llm.providers import provider_from_env
 from ragops.modeling.router import ProviderError
+from ragops.privacy.egress import (
+    SYNTHETIC_PROBE_CONTEXT,
+    SYNTHETIC_PROBE_QUESTION,
+    synthetic_probe_permit,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "evidence" / "product-v1" / "rc-live" / "external-llm-provider.json"
@@ -119,10 +124,17 @@ def main() -> int:
         return 1
     started = time.perf_counter()
     try:
-        response = provider.generate(
-            "Return a short confirmation that the live external provider is reachable.",
+        # Only the fixed synthetic probe may be sent (ENT-13.1): the permit is bound to it
+        # and refused for any other content, and never issued in production.
+        permit = synthetic_probe_permit(
+            str(getattr(provider, "provider_id", provider_name)),
+            provider.model,
+            SYNTHETIC_PROBE_QUESTION,
             [],
-            "Synthetic connectivity probe; do not invent business facts.",
+            SYNTHETIC_PROBE_CONTEXT,
+        )
+        response = provider.generate(  # type: ignore[call-arg]
+            SYNTHETIC_PROBE_QUESTION, [], SYNTHETIC_PROBE_CONTEXT, permit=permit
         )
         if not response.text.strip():
             raise RuntimeError("provider returned an empty response")
@@ -169,6 +181,7 @@ def main() -> int:
             "output_tokens": response.usage.completion_tokens,
             "total_tokens": response.usage.total_tokens,
             "provider_response_valid": True,
+            "egress_authorization": "synthetic_probe_permit",
             "integration_test_exit_code": 0,
         }
     )

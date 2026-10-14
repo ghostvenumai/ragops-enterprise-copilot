@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from ragops.modeling.diagnostics import sanitize_provider_diagnostic
 from ragops.modeling.router import ProviderError, ProviderErrorCategory
+from ragops.privacy.egress import EgressDenied, EgressPermit, require_permit
 from ragops.storage.models import Citation
 
 
@@ -45,12 +46,18 @@ class LLMProvider(Protocol):
     model: str
 
     def generate(self, question: str, citations: list[Citation], context: str) -> LLMResponse:
-        """Generate a grounded answer from already selected evidence."""
+        """Generate a grounded answer from already selected evidence.
+
+        External adapters additionally require ``permit`` (``ragops.privacy.egress``) and
+        refuse to build a request without a valid one for exactly this payload.
+        """
 
 
 class DeterministicTestProvider:
     provider_id = "deterministic"
     model = "deterministic-ragops-v1"
+    # Runs in-process; nothing leaves the system (ragops.privacy.egress.is_external).
+    egress_locality = "local"
 
     def health(self) -> str:
         return "healthy"
@@ -299,6 +306,7 @@ class DeterministicTestProvider:
 
 class OpenAIProvider:
     provider_id = "openai"
+    egress_locality = "external"
 
     def __init__(self, client: Any | None = None) -> None:
         api_key = os.getenv("OPENAI_API_KEY")
@@ -327,7 +335,15 @@ class OpenAIProvider:
             )
         self._client = client
 
-    def generate(self, question: str, citations: list[Citation], context: str) -> LLMResponse:
+    def generate(
+        self,
+        question: str,
+        citations: list[Citation],
+        context: str,
+        *,
+        permit: EgressPermit | None = None,
+    ) -> LLMResponse:
+        _authorized(self, permit, question, citations, context)
         return _generate_responses_completion(self, question, citations, context)
 
     def health(self) -> str:
@@ -336,6 +352,7 @@ class OpenAIProvider:
 
 class AzureOpenAIProvider:
     provider_id = "azure_openai"
+    egress_locality = "external"
 
     def __init__(self, client: Any | None = None) -> None:
         required = [
@@ -363,7 +380,15 @@ class AzureOpenAIProvider:
             )
         self._client = client
 
-    def generate(self, question: str, citations: list[Citation], context: str) -> LLMResponse:
+    def generate(
+        self,
+        question: str,
+        citations: list[Citation],
+        context: str,
+        *,
+        permit: EgressPermit | None = None,
+    ) -> LLMResponse:
+        _authorized(self, permit, question, citations, context)
         return _generate_chat_completion(self, question, citations, context)
 
     def health(self) -> str:
@@ -379,6 +404,22 @@ def provider_from_env() -> LLMProvider:
     if provider == "deterministic":
         return DeterministicTestProvider()
     raise RuntimeError("Unsupported RAGOPS_LLM_PROVIDER; refusing provider fallback")
+
+
+def _authorized(
+    provider: OpenAIProvider | AzureOpenAIProvider,
+    permit: EgressPermit | None,
+    question: str,
+    citations: list[Citation],
+    context: str,
+) -> None:
+    """No permit for exactly this provider, model and payload: nothing is sent."""
+    try:
+        require_permit(permit, provider.provider_id, provider.model, question, citations, context)
+    except EgressDenied:
+        raise ProviderError(
+            ProviderErrorCategory.POLICY_DENIED, "external processing not authorized"
+        ) from None
 
 
 def _generate_chat_completion(
@@ -470,6 +511,9 @@ def _generate_responses_completion(
                 {"role": "user", "content": user},
             ],
             max_output_tokens=int(os.getenv("RAGOPS_LLM_MAX_OUTPUT_TOKENS", "600")),
+            # Do not keep the response for later retrieval (default is true). This is not
+            # zero data retention: abuse-monitoring retention is contractual (ADR 0021).
+            store=False,
         )
     except Exception as exc:  # SDK-specific exception classes vary by provider/version.
         raise _provider_error(exc) from None

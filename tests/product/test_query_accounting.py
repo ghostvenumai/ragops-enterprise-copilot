@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import ClassVar
 from uuid import uuid4
 
 import pytest
@@ -54,6 +55,9 @@ PRICED_MODELS = tuple((p, m, i, o) for (p, m), (i, o) in PRICES.items())
 
 @dataclass
 class FakeAdapter:
+    # An in-process stand-in for priced providers; privacy egress is tested separately
+    # with the real external adapter classes (tests/security/test_privacy_egress.py).
+    egress_locality: ClassVar[str] = "local"
     provider_id: str
     model: str
     log: list[str]

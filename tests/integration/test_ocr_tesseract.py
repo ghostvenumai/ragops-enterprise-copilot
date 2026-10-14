@@ -136,6 +136,66 @@ def test_reference_numbers_and_umlauts_survive_small_images_with_legible_text(nu
         assert not any(step.startswith("upscale:") for step in page.transformations), name
 
 
+def _gate_letter(number: str) -> list[str]:
+    """The ocr_ingestion gate's scanned letter (scripts/ocr_ingestion_gate.py: letter)."""
+    return [
+        "Stadtwerke Musterstadt GmbH",
+        "Zahlungserinnerung",
+        f"Vorgangsnummer {number}",
+        "Datum: 03.02.2026",
+        "Offener Betrag: 1.234,56 EUR",
+        "Bitte überweisen Sie bis zum 15.03.2026.",
+        "Mit freundlichen Grüßen aus Köln",
+    ]
+
+
+@pytest.mark.parametrize("number", ["875167", "987657", "231467", "777777"])
+def test_reference_numbers_on_a_150_dpi_scan_are_read_exactly(number) -> None:
+    """Regression (ocr_ingestion gate, ENT-13.1 closure): rendered at a fixed 300 dpi, the
+    gate's 150 dpi scan was only resampled 2x and Tesseract read these numbers as "87516/",
+    "98/7657", "23146/" and "77777]" at high confidence. Fixed numbers, never random ones.
+    """
+    cover = ["Anschreiben zur Akte", "Allgemeine Hinweise zur Ablage", "Seite eins der Sendung"]
+    result = DocumentExtractor(engine=engine()).extract(
+        "scan.pdf", scanned_pdf([cover, _gate_letter(number)])
+    )
+    page = result.pages[1]
+    assert page.page_number == 2 and page.classification is PageClass.SCANNED_IMAGE
+    assert "native_dpi:150" in page.transformations
+    text = " ".join(page.text.split())
+    exact = (number, "Zahlungserinnerung", "03.02.2026", "1.234,56", "15.03.2026", "überweisen")
+    missing = [token for token in (*exact, "Grüßen", "Köln") if token not in text]
+    assert not missing, (number, missing)
+    # Provenance: the number's line box is where the scan drew it (x=110, y=270 of 1240x1754).
+    word = next(word for word in page.words if word.text == number)
+    assert word.line is not None
+    box = page.lines[word.line].box
+    assert box.valid() and 0.07 <= box.x0 <= 0.11 and 0.13 <= box.y0 <= 0.18
+
+
+def test_small_text_on_a_150_dpi_scan_is_still_read_at_the_configured_resolution() -> None:
+    page = (
+        DocumentExtractor(engine=engine())
+        .extract("klein.pdf", scanned_pdf([LETTER], text_px=18))
+        .pages[0]
+    )
+    assert not any(step.startswith("native_dpi:") for step in page.transformations)
+    assert page.classification is PageClass.SCANNED_IMAGE, page.quality.flags
+    _assert_exact(page.text)
+
+
+def test_a_300_dpi_scan_is_read_exactly_at_the_configured_resolution() -> None:
+    image = scan_image(LETTER, size=(2480, 3508), text_px=68, origin=(220, 280))
+    page = (
+        DocumentExtractor(engine=engine())
+        .extract("fein.pdf", pdf([PdfPage(images=[full_page(image)])]))
+        .pages[0]
+    )
+    assert not any(step.startswith("native_dpi:") for step in page.transformations)
+    assert page.classification is PageClass.SCANNED_IMAGE, page.quality.flags
+    _assert_exact(page.text)
+
+
 def test_boxes_point_at_the_text_on_the_original_page() -> None:
     image = scan_image(["Kennung ZX-4711"], size=(1240, 900), text_px=40, origin=(600, 700))
     page = DocumentExtractor(engine=engine()).extract("box.png", image_bytes(image, "PNG")).pages[0]

@@ -197,13 +197,14 @@ def test_evidence_with_a_secret_key_or_text_is_replaced_by_a_failure(
 
 
 def test_rc_runner_runs_query_idempotency_before_reconciliation_and_security() -> None:
-    assert len(rc_live_gate.GATES) == 21
-    assert rc_live_gate.GATES[-6:] == (
+    assert len(rc_live_gate.GATES) == 22
+    assert rc_live_gate.GATES[-7:] == (
         "query_idempotency",
         "reservation_reconciliation",
         "ocr_ingestion",
         "document_intelligence",
         "web_e2e",
+        "privacy_egress",
         "security",
     )
     assert "query_idempotency" in rc_live_gate.DETAILED_EVIDENCE_GATES
@@ -211,14 +212,14 @@ def test_rc_runner_runs_query_idempotency_before_reconciliation_and_security() -
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"query_idempotency"}, {"query_idempotency": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 21
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 22
     assert rc_live_gate.merge_gate_statuses(prior, set(), {})["query_idempotency"] == "BLOCKED"
 
 
 def test_security_validates_idempotency_evidence() -> None:
-    assert len(security_gate.CONTROLS) == 32
+    assert len(security_gate.CONTROLS) == 33
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 15
+    assert len(live) == 16
     (control,) = [c for c in security_gate.CONTROLS if c.evidence_file == "query-idempotency.json"]
     assert control.id == "LIVE-11"
     required = dict(control.required)
@@ -292,3 +293,11 @@ def test_keyed_digest_is_a_required_invariant() -> None:
         "query_idempotency invariant failed: keyed_digest_used",
     )
     assert gate.build_evidence(result)["keyed_digest_used"] is False
+
+
+def test_the_gate_provider_is_a_local_adapter() -> None:
+    """It wraps the deterministic provider; without the declaration the privacy egress guard
+    would (correctly) treat it as external and deny every gate query (ENT-13.1)."""
+    from ragops.privacy.egress import is_external
+
+    assert not is_external(gate.GateProvider())

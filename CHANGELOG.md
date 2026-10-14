@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0.dev0 — ENT-13.1 privacy egress gate
+
+- External model providers receive data only under a durable, tenant-specific grant for the
+  exact purpose, provider, model and data classes (default deny; ADR 0021). Policies,
+  revisions and decisions live in PostgreSQL (migration 0011, append-only evidence); the
+  operator CLI `scripts/privacy_egress_admin.py` is the only write path, tenant admins get a
+  read-only view.
+- A precheck before the budget reservation and an authoritative check on the exact payload
+  at the provider boundary; external adapters require a payload-bound, single-use permit.
+  Denials are never rerouted or billed. The demo workflow is local-only.
+- Permits are confirmed again against the policy store at dispatch (linearization point):
+  a committed revocation, suspension, version change or expiry stops any new request.
+- OpenAI Responses requests set `store=False`. Not zero data retention.
+- New mandatory release gate `privacy_egress` (22 gates) and security control LIVE-16
+  (33 controls). The historical paid-provider evidence (d9690cb) is no longer eligible; a
+  separately authorized synthetic run is required before release.
+- Copilot (DE/EN) explains the refusal "external processing not authorized".
+- OCR: a PDF page that is a single scanned image is rendered at the scan's own resolution
+  instead of being resampled to 300 dpi, which made Tesseract misread digits ("7" as "/" or
+  "]"); strict eligibility, small text and every uncertain page keep the configured
+  resolution, limits unchanged (ADR 0018, found in the ENT-13.1 operator closure).
+
 ## 0.2.0.dev0 — ENT-12-UI enterprise web frontend
 
 - Added `apps/web`: Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS,

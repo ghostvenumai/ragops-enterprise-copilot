@@ -95,6 +95,7 @@ def test_concurrency_database_requires_isolated_postgres_name() -> None:
 
 
 def test_migration_revision_requires_expected_head() -> None:
-    assert migration_revision("0010_document_intelligence (head)") == "0010_document_intelligence"
+    assert migration_revision("0011_privacy_egress (head)") == "0011_privacy_egress"
+    assert migration_revision("0010_document_intelligence") is None
     assert migration_revision("0007_query_idempotency") is None
     assert migration_revision("0005_ai_finops") is None

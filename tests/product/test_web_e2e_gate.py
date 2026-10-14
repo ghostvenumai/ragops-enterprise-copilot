@@ -26,7 +26,7 @@ def passing() -> e2e.GateResult:
 
 
 def test_gate_is_registered_before_security() -> None:
-    assert rc_live_gate.GATES[-2:] == ("web_e2e", "security")
+    assert rc_live_gate.GATES[-3:] == ("web_e2e", "privacy_egress", "security")
     assert "web_e2e" in rc_live_gate.DETAILED_EVIDENCE_GATES
 
 

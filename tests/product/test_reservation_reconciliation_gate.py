@@ -98,12 +98,13 @@ def test_secret_leaks_turn_the_evidence_into_a_failure(tmp_path, monkeypatch) ->
 
 
 def test_rc_runner_has_reconciliation_before_ocr_and_security() -> None:
-    assert len(rc_live_gate.GATES) == 21
-    assert rc_live_gate.GATES[-5:] == (
+    assert len(rc_live_gate.GATES) == 22
+    assert rc_live_gate.GATES[-6:] == (
         "reservation_reconciliation",
         "ocr_ingestion",
         "document_intelligence",
         "web_e2e",
+        "privacy_egress",
         "security",
     )
     assert "reservation_reconciliation" in rc_live_gate.DETAILED_EVIDENCE_GATES
@@ -111,15 +112,15 @@ def test_rc_runner_has_reconciliation_before_ocr_and_security() -> None:
     merged = rc_live_gate.merge_gate_statuses(
         prior, {"reservation_reconciliation"}, {"reservation_reconciliation": {"status": "PASS"}}
     )
-    assert all(value == "PASS" for value in merged.values()) and len(merged) == 21
+    assert all(value == "PASS" for value in merged.values()) and len(merged) == 22
     blocked = rc_live_gate.merge_gate_statuses(prior, set(), {})
     assert blocked["reservation_reconciliation"] == "BLOCKED"
 
 
 def test_security_has_thirty_two_controls_with_live_fifteen() -> None:
-    assert len(security_gate.CONTROLS) == 32
+    assert len(security_gate.CONTROLS) == 33
     live = [control for control in security_gate.CONTROLS if control.kind == "live"]
-    assert len(live) == 15
+    assert len(live) == 16
     (control,) = [c for c in live if c.evidence_file == "reservation-reconciliation.json"]
     assert control.id == "LIVE-12"
     required = dict(control.required)
@@ -139,3 +140,9 @@ def test_the_gate_uses_only_the_local_provider_and_a_gate_owned_database() -> No
     assert "ragops_test_recon_" in source and "DROP DATABASE IF EXISTS" in source
     for paid in ("OpenAIProvider", "AzureOpenAI", "RAGOPS_ALLOW_PAID_INTEGRATION_TESTS"):
         assert paid not in source
+
+
+def test_the_gate_provider_is_a_local_adapter() -> None:
+    from ragops.privacy.egress import is_external
+
+    assert not is_external(gate.GateProvider())

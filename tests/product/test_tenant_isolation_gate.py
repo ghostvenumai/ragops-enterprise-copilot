@@ -220,3 +220,15 @@ def test_disposable_qdrant_removes_its_project_network(monkeypatch, down_exit, e
     assert all(command[command.index("-p") + 1] == project for command in commands)
     assert not any("-v" in command or "--volumes" in command for command in commands)
     assert evidence["qdrant_service_cleanup_status"] == expected
+
+
+def test_the_gate_api_stays_local_under_the_integration_provider_setting(
+    database, tmp_path, monkeypatch
+) -> None:
+    """The closure sources RAGOPS_LLM_PROVIDER=openai; the demo-mode gate API must still start
+    with the local provider (the demo workflow refuses external providers, ENT-13.1)."""
+    monkeypatch.setenv("RAGOPS_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "fake-not-a-key")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-synthetic")
+    probe = run(database, tmp_path)
+    assert all(probe.checks.values()), probe.checks

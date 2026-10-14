@@ -244,6 +244,9 @@ def build_evidence(result: IdempotencyResult) -> dict[str, Any]:
 class GateProvider:
     """The deterministic provider, counted per tenant; one tenant may be made to time out."""
 
+    # It wraps the in-process deterministic provider: nothing leaves the host (ENT-13.1).
+    egress_locality = "local"
+
     def __init__(self) -> None:
         from ragops.llm.providers import DeterministicTestProvider
 

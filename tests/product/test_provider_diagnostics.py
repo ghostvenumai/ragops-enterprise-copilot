@@ -9,6 +9,7 @@ import httpx
 import pytest
 from openai import OpenAI
 from scripts import external_llm_provider_gate as gate
+from tests.security.privacy_helpers import permit_for
 
 from ragops.llm.providers import OpenAIProvider
 from ragops.modeling.router import ProviderError, ProviderErrorCategory
@@ -157,7 +158,8 @@ def test_exact_smoke_request_shape_and_real_sdk_output_accessor(monkeypatch):
     with client:
         assert gate.main() == 0
     assert len(calls) == 1
-    assert set(calls[0]) == {"model", "input", "max_output_tokens"}
+    assert set(calls[0]) == {"model", "input", "max_output_tokens", "store"}
+    assert calls[0]["store"] is False  # ENT-13.1: the response is not kept for retrieval
     assert calls[0]["model"] == "synthetic-model"
     assert calls[0]["max_output_tokens"] == 16
     assert [item["role"] for item in calls[0]["input"]] == ["system", "user"]
@@ -244,7 +246,9 @@ def test_missing_usage_metadata_is_handled_defensively():
     provider = OpenAIProvider(
         client=SimpleNamespace(responses=SimpleNamespace(create=lambda **kw: result))
     )
-    response = provider.generate("question", [], "context")
+    response = provider.generate(
+        "question", [], "context", permit=permit_for(provider, "question", [], "context")
+    )
     assert response.text == "OK"
     assert (
         response.usage.prompt_tokens,
@@ -263,7 +267,9 @@ def test_output_fallback_preserves_usage_and_model():
     provider = OpenAIProvider(
         client=SimpleNamespace(responses=SimpleNamespace(create=lambda **kw: result))
     )
-    response = provider.generate("question", [], "context")
+    response = provider.generate(
+        "question", [], "context", permit=permit_for(provider, "question", [], "context")
+    )
     assert response.text == "OK"
     assert (response.usage.prompt_tokens, response.usage.completion_tokens) == (7, 2)
     assert response.usage.model == "synthetic-model"

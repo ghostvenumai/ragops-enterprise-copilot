@@ -13,6 +13,12 @@ never called. An answer is returned only after its accounting committed. Fallbac
 limited to failures the provider certainly did not bill (rate limit, model unavailable), so
 a logical query is billed exactly once.
 
+External processing passes the privacy egress gate twice (ENT-13.1): a precheck right
+after routing denies an unauthorized primary model before anything is reserved and drops
+unauthorized external fallback candidates; the authoritative check runs per attempt at the
+provider boundary on the exact payload and yields the permit the adapter requires. A denial
+never switches to another candidate and is never billed.
+
 A caller may pass the logical ``correlation_id`` (an idempotent retry keeps its identity) and
 a ``QueryProgress``: its ``before_billing`` hook runs right before the budget reservation, the
 first step that may lead to a billed provider call, and ``stage`` tells the caller how far a
@@ -23,7 +29,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from uuid import UUID, uuid4
 
@@ -48,6 +54,16 @@ from ragops.modeling.router import (
     RoutingDecision,
 )
 from ragops.monitoring.metrics import MetricsRegistry
+from ragops.privacy.egress import (
+    DataClass,
+    EgressDenied,
+    EgressPermit,
+    EgressRequest,
+    PrivacyEgressGuard,
+    Purpose,
+    Reason,
+    is_external,
+)
 from ragops.retrieval.context import ContextChunk, ContextLimits, build_context, estimate_tokens
 from ragops.retrieval.vector_retriever import (
     EmbeddingContractError,
@@ -155,12 +171,15 @@ class VectorQueryService:
         *,
         accounting: QueryAccounting | None,
         max_output_tokens: int,
+        egress: PrivacyEgressGuard | None = None,
     ) -> None:
         if max_output_tokens < 1:
             raise ValueError("max_output_tokens must be positive")
         self.retriever, self.router_factory, self.limits = retriever, router_factory, limits
         self.audit, self.metrics = audit, metrics
         self.accounting, self.max_output_tokens = accounting, max_output_tokens
+        # Without a guard every external provider is denied.
+        self.egress = egress
 
     def run(
         self,
@@ -234,6 +253,29 @@ class VectorQueryService:
                 "fallback_candidates": len(decision.fallback_chain),
             },
         )
+        data_classes = frozenset(
+            {DataClass.USER_QUESTION}
+            | {
+                DataClass.DOCUMENT_TEXT
+                if chunk.tenant_id == context.tenant_id
+                and chunk.document_id
+                and chunk.document_version_id
+                else DataClass.UNCLASSIFIED
+                for chunk in built.chunks
+            }
+        )
+
+        def egress_request(provider_id: str, model_id: str) -> EgressRequest:
+            return EgressRequest(
+                tenant_id=context.tenant_id,
+                correlation_id=correlation_id,
+                purpose=Purpose.RAG_ANSWER,
+                provider_id=provider_id,
+                model_id=model_id,
+                data_classes=data_classes,
+            )
+
+        decision = self._precheck_egress(user, correlation_id, decision, router, egress_request)
         if progress.before_billing is not None:
             progress.before_billing()
         progress.stage = ExecutionStage.RESERVE
@@ -245,8 +287,27 @@ class VectorQueryService:
             adapter = router.providers.get(provider_id)
             if getattr(adapter, "model", None) != model_id:
                 raise ProviderError(ProviderErrorCategory.MODEL_UNAVAILABLE)
+            permit: dict[str, EgressPermit] = {}
+            if is_external(adapter):
+                # Authoritative check on the exact payload, as late as possible.
+                try:
+                    if self.egress is None:
+                        raise EgressDenied(Reason.NO_GUARD)
+                    permit["permit"] = self.egress.permit(
+                        egress_request(provider_id, model_id), question, citations, built.text
+                    )
+                except EgressDenied as exc:
+                    self._egress_event(user, correlation_id, provider_id, model_id, exc.reason)
+                    raise ProviderError(ProviderErrorCategory.POLICY_DENIED) from None
+                self._event(
+                    user,
+                    correlation_id,
+                    "privacy_egress_authorized",
+                    "success",
+                    {"provider_id": provider_id, "model_id": model_id, "purpose": "rag_answer"},
+                )
             generated: LLMResponse = adapter.generate(  # type: ignore[attr-defined]
-                question, citations, built.text
+                question, citations, built.text, **permit
             )
             return provider_id, model_id, generated
 
@@ -257,6 +318,8 @@ class VectorQueryService:
         except ProviderError as exc:
             progress.provider_category = exc.category
             self._provider_failed(user, correlation_id, ticket, exc.category)
+            if exc.category is ProviderErrorCategory.POLICY_DENIED:
+                raise EgressDenied(Reason.NO_POLICY) from None
             raise GenerationUnavailable("generation unavailable") from exc
         progress.stage = ExecutionStage.ACCOUNTING
         if fallback_count:
@@ -301,6 +364,63 @@ class VectorQueryService:
     ) -> RoutingDecision:
         """Routing policy is looked up for the verified tenant only."""
         return (router or self.router_factory()).route(tenant_id, signals)
+
+    def _precheck_egress(
+        self,
+        user: QueryUser,
+        correlation_id: str,
+        decision: RoutingDecision,
+        router: LLMModelRouter,
+        egress_request: Callable[[str, str], EgressRequest],
+    ) -> RoutingDecision:
+        """Deny an unauthorized external primary before any reservation; drop unauthorized
+        external fallbacks so that a denial can never be routed around."""
+
+        def allowed(provider_id: str, model_id: str) -> bool:
+            try:
+                adapter = router.providers.get(provider_id)
+            except ProviderError:
+                return True  # not registered: it can only fail as unavailable, never send
+            if not is_external(adapter):
+                return True
+            if self.egress is None:
+                reason = Reason.NO_GUARD
+            else:
+                verdict = self.egress.decide(
+                    egress_request(provider_id, model_id), stage="precheck"
+                )
+                if verdict.allowed:
+                    return True
+                reason = verdict.reason
+            self._egress_event(user, correlation_id, provider_id, model_id, reason)
+            return False
+
+        if not allowed(decision.provider_id, decision.model_id):
+            self._audit(user, correlation_id, "blocked", "egress_not_authorized", 0)
+            raise EgressDenied(Reason.NO_POLICY)
+        chain = tuple(item for item in decision.fallback_chain if allowed(*item))
+        return replace(decision, fallback_chain=chain)
+
+    def _egress_event(
+        self,
+        user: QueryUser,
+        correlation_id: str,
+        provider_id: str,
+        model_id: str,
+        reason: Reason,
+    ) -> None:
+        self._event(
+            user,
+            correlation_id,
+            "privacy_egress_denied",
+            "blocked",
+            {
+                "provider_id": provider_id,
+                "model_id": model_id,
+                "purpose": "rag_answer",
+                "reason": reason.value,
+            },
+        )
 
     def _reserve(
         self,

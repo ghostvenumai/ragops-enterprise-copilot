@@ -12,6 +12,7 @@ from ragops.auth.rbac import AuthorizationError, require_tenant
 from ragops.governance.audit import AuditLogger
 from ragops.llm.providers import LLMProvider, provider_from_env
 from ragops.monitoring.metrics import MetricsRegistry
+from ragops.privacy.egress import is_external
 from ragops.retrieval.hybrid import HybridRetriever
 from ragops.security.pii import mask_pii
 from ragops.security.prompt_injection import detect_prompt_injection
@@ -66,6 +67,13 @@ class RAGWorkflow:
     ) -> None:
         self.repository = repository
         self.provider = provider or provider_from_env()
+        # The demo workflow has no router, accounting or privacy egress gate: it may only
+        # answer with an in-process provider (ENT-13.1). External ones are refused.
+        if is_external(self.provider):
+            raise RuntimeError(
+                "The demo workflow is local-only; external LLM providers require the vector "
+                "query path with privacy egress authorization"
+            )
         self.audit_logger = audit_logger or AuditLogger(Path("evidence/audit-events.jsonl"))
         self.metrics = metrics or MetricsRegistry()
         self.reference_date = reference_date

@@ -838,3 +838,105 @@ class IntelligenceReviewEvent(TenantOwned, Base):
     previous_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     new_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     actor_subject: Mapped[str] = mapped_column(String(255))
+
+
+# ----------------------------------------------------------------- privacy egress (ENT-13.1)
+
+PRIVACY_STATES = "state IN ('active','suspended','revoked')"
+PRIVACY_SCOPES = "data_scope IN ('synthetic_test_data','personal_data')"
+
+
+class PrivacyTenantProfile(Base):
+    """Operator statement that a tenant holds synthetic test data only (absent = personal data)."""
+
+    __tablename__ = "privacy_tenant_profiles"
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tenants.id", ondelete="RESTRICT"), primary_key=True
+    )
+    synthetic_data_only: Mapped[bool] = mapped_column(default=False)
+    recorded_by: Mapped[str] = mapped_column(String(255))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PrivacyEgressPolicy(TenantOwned, Base):
+    """One exact external-processing authorization; absent, inactive or expired means deny."""
+
+    __tablename__ = "privacy_egress_policies"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "purpose",
+            "provider_id",
+            "model_id",
+            name="uq_privacy_egress_policies_scope",
+        ),
+        CheckConstraint(PRIVACY_STATES, name="state"),
+        CheckConstraint(PRIVACY_SCOPES, name="data_scope"),
+        CheckConstraint("version >= 1", name="version"),
+        CheckConstraint("valid_until > valid_from", name="validity"),
+        CheckConstraint(
+            "data_scope <> 'personal_data' OR (legal_basis_ref IS NOT NULL AND "
+            "processor_agreement_ref IS NOT NULL AND transfer_mechanism_ref IS NOT NULL AND "
+            "retention_control IS NOT NULL)",
+            name="personal_data_prerequisites",
+        ),
+        CheckConstraint(
+            "retention_control IS NULL OR retention_control IN ('store_false','zero_data_retention')",
+            name="retention_control",
+        ),
+    )
+    purpose: Mapped[str] = mapped_column(String(32))
+    provider_id: Mapped[str] = mapped_column(String(100))
+    model_id: Mapped[str] = mapped_column(String(200))
+    data_classes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    data_scope: Mapped[str] = mapped_column(String(24))
+    state: Mapped[str] = mapped_column(String(16))
+    version: Mapped[int] = mapped_column(default=1)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    legal_basis_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    processor_agreement_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    transfer_mechanism_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    retention_control: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(255))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PrivacyEgressPolicyRevision(TenantOwned, Base):
+    """Append-only history: every state of a policy with the operator who caused it."""
+
+    __tablename__ = "privacy_egress_policy_revisions"
+    __table_args__ = (
+        tenant_fk("policy_id", "privacy_egress_policies"),
+        UniqueConstraint(
+            "tenant_id", "policy_id", "version", name="uq_privacy_egress_policy_revisions_version"
+        ),
+        CheckConstraint(PRIVACY_STATES, name="state"),
+    )
+    policy_id: Mapped[UUID]
+    version: Mapped[int]
+    state: Mapped[str] = mapped_column(String(16))
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    actor: Mapped[str] = mapped_column(String(255))
+    reason: Mapped[str] = mapped_column(String(200))
+
+
+class PrivacyEgressDecision(TenantOwned, Base):
+    """Append-only authorization decision; metadata only, never payload content."""
+
+    __tablename__ = "privacy_egress_decisions"
+    __table_args__ = (
+        Index("ix_privacy_egress_decisions_tenant_correlation", "tenant_id", "correlation_id"),
+        CheckConstraint("decision IN ('allow','deny')", name="decision"),
+        CheckConstraint("stage IN ('precheck','boundary','dispatch','probe')", name="stage"),
+    )
+    correlation_id: Mapped[str] = mapped_column(String(64))
+    stage: Mapped[str] = mapped_column(String(16))
+    purpose: Mapped[str] = mapped_column(String(32))
+    provider_id: Mapped[str] = mapped_column(String(100))
+    model_id: Mapped[str] = mapped_column(String(200))
+    data_classes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    policy_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    policy_version: Mapped[int | None] = mapped_column(nullable=True)
+    decision: Mapped[str] = mapped_column(String(8))
+    reason_code: Mapped[str] = mapped_column(String(48))

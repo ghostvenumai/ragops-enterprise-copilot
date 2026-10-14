@@ -43,6 +43,7 @@ from ragops.knowledge.service import (  # noqa: E402
     KnowledgeManagementService,
     LocalDocumentBlobStore,
 )
+from ragops.llm.providers import DeterministicTestProvider  # noqa: E402
 from ragops.persistence.database import transaction  # noqa: E402
 from ragops.persistence.models import (  # noqa: E402
     Base,
@@ -643,7 +644,9 @@ def check_api(database_url: str, world: World, workdir: Path, probe: Probe) -> N
     document_a, job_a = world.document_a, world.job_a
 
     with api_database_environment(database_url):
-        client = TestClient(create_app(settings))
+        # The local provider explicitly: the sourced integration settings may name an external
+        # one, which the demo workflow refuses (ENT-13.1).
+        client = TestClient(create_app(settings, llm_provider=DeterministicTestProvider()))
         # Positive controls: the same routes work for the owning tenant.
         created_budget = client.post(
             "/v1/admin/budgets", json={"budget_amount": 50}, headers=a_admin

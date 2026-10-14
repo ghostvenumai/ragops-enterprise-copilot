@@ -243,7 +243,7 @@ def test_incremental_runs_on_the_same_commit_still_aggregate_to_pass(tmp_path, r
     _write_all(tmp_path, _head(), datetime.now(UTC))
     result = runner("no_gate_selected")
     assert result["overall"] == "PASS", result["evidence_validation"]
-    assert len(result["mandatory_gates"]) == len(rc.GATES) == 21
+    assert len(result["mandatory_gates"]) == len(rc.GATES) == 22
 
 
 def test_a_selected_gate_never_keeps_its_older_pass(tmp_path, runner, monkeypatch) -> None:

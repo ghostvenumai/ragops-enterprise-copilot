@@ -673,6 +673,44 @@ CONTROLS: tuple[Control, ...] = (
         ),
         minimums=(("locales_verified", 2),),
     ),
+    Control(
+        "LIVE-16",
+        "Information disclosure",
+        "No confidential document text, user question or extracted fact reaches an external "
+        "model provider without a durable, tenant-specific grant for exactly that purpose, "
+        "provider, model and data classes; missing, expired, revoked, malformed or unreadable "
+        "policies deny, a denial is never routed to another provider or billed, the adapters "
+        "refuse payloads they were not authorized for, a permit is confirmed again at "
+        "dispatch so a committed revocation stops any new request, and OpenAI responses are "
+        "not stored",
+        "live",
+        evidence_file="privacy-egress.json",
+        required=(
+            ("status", "PASS"),
+            ("default_deny_enforced", True),
+            ("durable_policy_verified", True),
+            ("tenant_isolation_verified", True),
+            ("exact_scope_enforced", True),
+            ("unknown_classification_denied", True),
+            ("revocation_effective", True),
+            ("revocation_race_safe", True),
+            ("fallback_bypass_prevented", True),
+            ("payload_binding_enforced", True),
+            ("permit_revalidated_at_dispatch", True),
+            ("idempotency_safe", True),
+            ("finops_consistent", True),
+            ("audit_metadata_safe", True),
+            ("store_false_enforced", True),
+            ("demo_workflow_local_only", True),
+            ("append_only_enforced", True),
+            ("denied_external_calls", 0),
+            ("cross_tenant_leakage", 0),
+            ("paid_provider_calls", 0),
+            ("secret_scan_passed", True),
+            ("cleanup_status", "PASS"),
+        ),
+        minimums=(("denied_cases", 10), ("allowed_external_calls", 1)),
+    ),
 )
 
 
